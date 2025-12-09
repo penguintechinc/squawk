@@ -47,10 +47,10 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-    """Home page"""
+    """Home page - redirect to dashboard or login"""
     if current_user.is_authenticated:
         return redirect(url_for('dashboard.index'))
-    return render_template('index.html')
+    return redirect(url_for('auth.login'))
 
 @app.route('/health')
 def health():

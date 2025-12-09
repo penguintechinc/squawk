@@ -1,17 +1,18 @@
 """
 Minimal test configuration for working features only
 """
+
 import pytest
 import asyncio
-import tempfile
 import os
 import sys
 from unittest.mock import Mock, patch
 
 # Add bins directory to Python path
-bins_path = os.path.join(os.path.dirname(__file__), '..', 'bins')
+bins_path = os.path.join(os.path.dirname(__file__), "..", "bins")
 if bins_path not in sys.path:
     sys.path.insert(0, bins_path)
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -20,18 +21,20 @@ def event_loop():
     yield loop
     loop.close()
 
+
 @pytest.fixture
 def mock_dns_resolver():
     """Mock DNS resolver for testing"""
-    with patch('dns.resolver.Resolver') as mock_resolver:
+    with patch("dns.resolver.Resolver") as mock_resolver:
         mock_answer = Mock()
-        mock_answer.to_text.return_value = '93.184.216.34'
-        
+        mock_answer.to_text.return_value = "93.184.216.34"
+
         mock_resolver_instance = Mock()
         mock_resolver_instance.resolve.return_value = [mock_answer]
         mock_resolver.return_value = mock_resolver_instance
-        
+
         yield mock_resolver_instance
+
 
 @pytest.fixture
 def invalid_domains():
@@ -48,12 +51,13 @@ def invalid_domains():
         "javascript:alert(1)",  # XSS attempt
     ]
 
+
 @pytest.fixture
 def valid_domains():
     """List of valid domain names for testing"""
     return [
         "example.com",
-        "subdomain.example.com", 
+        "subdomain.example.com",
         "test-domain.co.uk",
         "a.b.c.example.org",
         "123.example.com",

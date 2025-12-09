@@ -1,0 +1,12 @@
+Collecting responses
+  Downloading responses-0.25.8-py3-none-any.whl.metadata (47 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.2/47.2 kB 3.6 MB/s eta 0:00:00
+Requirement already satisfied: requests<3.0,>=2.30.0 in ./venv/lib/python3.12/site-packages (from responses) (2.32.5)
+Requirement already satisfied: urllib3<3.0,>=1.25.10 in ./venv/lib/python3.12/site-packages (from responses) (2.6.1)
+Requirement already satisfied: pyyaml in ./venv/lib/python3.12/site-packages (from responses) (6.0.3)
+Requirement already satisfied: charset_normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests<3.0,>=2.30.0->responses) (3.4.4)
+Requirement already satisfied: idna<4,>=2.5 in ./venv/lib/python3.12/site-packages (from requests<3.0,>=2.30.0->responses) (3.11)
+Requirement already satisfied: certifi>=2017.4.17 in ./venv/lib/python3.12/site-packages (from requests<3.0,>=2.30.0->responses) (2025.11.12)
+Downloading responses-0.25.8-py3-none-any.whl (34 kB)
+Installing collected packages: responses
+Successfully installed responses-0.25.8

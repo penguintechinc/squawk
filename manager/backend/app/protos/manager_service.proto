@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package squawkdns.manager;
+
+service ManagerService {
+  // Registration & Auth
+  rpc RegisterServer(RegisterRequest) returns (RegisterResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+
+  // Configuration
+  rpc GetConfig(ConfigRequest) returns (ConfigResponse);
+  rpc StreamConfigUpdates(ConfigStreamRequest) returns (stream ConfigUpdate);
+
+  // Metrics & Health
+  rpc SendHeartbeat(stream HeartbeatRequest) returns (stream HeartbeatResponse);
+
+  // Token validation (high-frequency)
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+
+  // IOC checking (high-frequency)
+  rpc CheckIOC(IOCCheckRequest) returns (IOCCheckResponse);
+}
+
+message RegisterRequest {
+  string join_key = 1;
+  string hostname = 2;
+  string version = 3;
+}
+
+message RegisterResponse {
+  string jwt = 1;
+  string server_id = 2;
+  ServerConfig config = 3;
+}
+
+message RefreshTokenRequest {
+  string jwt = 1;
+  string server_id = 2;
+}
+
+message RefreshTokenResponse {
+  string jwt = 1;
+}
+
+message ServerConfig {
+  repeated DNSZone zones = 1;
+  repeated IOCFeed ioc_feeds = 2;
+  CacheSettings cache_settings = 3;
+  map<string, string> settings = 4;
+}
+
+message DNSZone {
+  string id = 1;
+  string name = 2;
+  string visibility = 3;
+  repeated DNSRecord records = 4;
+  repeated string allowed_teams = 5;
+}
+
+message DNSRecord {
+  string name = 1;
+  string type = 2;
+  string value = 3;
+  int32 ttl = 4;
+}
+
+message IOCFeed {
+  string id = 1;
+  string name = 2;
+  string feed_type = 3;
+  repeated string entries = 4;
+}
+
+message CacheSettings {
+  int32 ttl = 1;
+  bool enabled = 2;
+}
+
+message ConfigRequest {
+  string server_id = 1;
+}
+
+message ConfigResponse {
+  ServerConfig config = 1;
+  int32 version = 2;
+}
+
+message ConfigStreamRequest {
+  string server_id = 1;
+}
+
+message ConfigUpdate {
+  ServerConfig config = 1;
+  int32 version = 2;
+  string update_type = 3;
+}
+
+message HeartbeatRequest {
+  string server_id = 1;
+  int64 timestamp = 2;
+  ServerMetrics metrics = 3;
+}
+
+message ServerMetrics {
+  int64 queries_total = 1;
+  int64 cache_hits = 2;
+  int64 errors = 3;
+  double avg_response_ms = 4;
+  map<string, int64> queries_by_type = 5;
+}
+
+message HeartbeatResponse {
+  int32 config_version = 1;
+  bool should_sync = 2;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+  string domain = 2;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  repeated string teams = 3;
+  repeated string allowed_zones = 4;
+}
+
+message IOCCheckRequest {
+  string domain = 1;
+  string ip = 2;
+}
+
+message IOCCheckResponse {
+  bool blocked = 1;
+  string reason = 2;
+  string feed_source = 3;
+}

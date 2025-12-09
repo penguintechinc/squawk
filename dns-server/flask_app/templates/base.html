@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Squawk DNS Admin{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1e3a8a;
+            --primary-dark: #1e40af;
+            --primary-light: #3b82f6;
+            --accent-gold: #fbbf24;
+            --accent-gold-dark: #f59e0b;
+            --secondary: #475569;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-dark: #1f2937;
+            --bg-card: #374151;
+            --bg-hover: #4b5563;
+            --text-primary: #fbbf24;
+            --text-secondary: #d1d5db;
+            --text-muted: #9ca3af;
+            --border: #4b5563;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 260px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent-gold);
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .nav-section {
+            margin-bottom: 8px;
+        }
+
+        .nav-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 8px 20px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .nav-section-title:hover {
+            color: var(--accent-gold);
+        }
+
+        .nav-section-title .arrow {
+            transition: transform 0.2s;
+        }
+
+        .nav-section.collapsed .arrow {
+            transform: rotate(-90deg);
+        }
+
+        .nav-section.collapsed .nav-section-links {
+            display: none;
+        }
+
+        .nav-section-links {
+            display: block;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--bg-hover);
+            border-left: 3px solid var(--accent-gold);
+            color: var(--accent-gold);
+        }
+
+        .nav-icon {
+            margin-right: 12px;
+            font-size: 18px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            padding: 24px;
+        }
+
+        .topbar {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--accent-gold);
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        /* Tables */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid var(--border);
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table tr:hover {
+            background: var(--bg-hover);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--accent-gold);
+            border-bottom-color: var(--accent-gold);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+    </style>
+</head>
+
+<body>
+    {% if current_user.is_authenticated %}
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>Squawk DNS</h1>
+            <p>Admin Console</p>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title" onclick="toggleSection(this)">
+                    <span>📊 OVERVIEW</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="nav-section-links">
+                    <a href="{{ url_for('dashboard.index') }}" class="nav-link">
+                        <span class="nav-icon">📈</span> Dashboard
+                    </a>
+                    <a href="{{ url_for('dashboard.queries') }}" class="nav-link">
+                        <span class="nav-icon">🔍</span> Query Logs
+                    </a>
+                    <a href="{{ url_for('dashboard.analytics') }}" class="nav-link">
+                        <span class="nav-icon">📊</span> Analytics
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title" onclick="toggleSection(this)">
+                    <span>🌐 DNS MANAGEMENT</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="nav-section-links">
+                    <a href="{{ url_for('dashboard.domains') }}" class="nav-link">
+                        <span class="nav-icon">🏠</span> Internal Domains
+                    </a>
+                    <a href="{{ url_for('dashboard.zones') }}" class="nav-link">
+                        <span class="nav-icon">🗺️</span> DNS Zones
+                    </a>
+                    <a href="{{ url_for('dashboard.records') }}" class="nav-link">
+                        <span class="nav-icon">📝</span> DNS Records
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title" onclick="toggleSection(this)">
+                    <span>👥 ACCESS CONTROL</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="nav-section-links">
+                    <a href="{{ url_for('dashboard.users') }}" class="nav-link">
+                        <span class="nav-icon">👤</span> Users
+                    </a>
+                    <a href="{{ url_for('dashboard.groups') }}" class="nav-link">
+                        <span class="nav-icon">👥</span> Groups
+                    </a>
+                    <a href="{{ url_for('dashboard.permissions') }}" class="nav-link">
+                        <span class="nav-icon">🔐</span> Permissions
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title" onclick="toggleSection(this)">
+                    <span>🛡️ SECURITY</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="nav-section-links">
+                    <a href="{{ url_for('dashboard.ioc') }}" class="nav-link">
+                        <span class="nav-icon">🚨</span> IOC Feeds
+                    </a>
+                    <a href="{{ url_for('dashboard.blocked') }}" class="nav-link">
+                        <span class="nav-icon">🚫</span> Blocked Queries
+                    </a>
+                    <a href="{{ url_for('dashboard.threats') }}" class="nav-link">
+                        <span class="nav-icon">⚠️</span> Threat Intel
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title" onclick="toggleSection(this)">
+                    <span>⚙️ SYSTEM</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="nav-section-links">
+                    <a href="{{ url_for('dashboard.config') }}" class="nav-link">
+                        <span class="nav-icon">🔧</span> Configuration
+                    </a>
+                    <a href="{{ url_for('dashboard.cache') }}" class="nav-link">
+                        <span class="nav-icon">💾</span> Cache Settings
+                    </a>
+                    <a href="{{ url_for('dashboard.logs') }}" class="nav-link">
+                        <span class="nav-icon">📋</span> System Logs
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <script>
+            function toggleSection(element) {
+                const section = element.parentElement;
+                section.classList.toggle('collapsed');
+            }
+
+            // Set active link based on current URL
+            document.addEventListener('DOMContentLoaded', function () {
+                const currentPath = window.location.pathname;
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    if (link.getAttribute('href') === currentPath) {
+                        link.classList.add('active');
+                    }
+                });
+            });
+        </script>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div>
+                <h2 style="font-size: 24px; font-weight: 600;">{% block page_title %}Dashboard{% endblock %}</h2>
+            </div>
+            <div class="user-menu">
+                <span style="color: var(--text-secondary); font-size: 14px;">{{ current_user.email }}</span>
+                <div class="user-avatar">{{ current_user.first_name[0] if current_user.first_name else 'U' }}</div>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary" style="padding: 8px 16px;">Logout</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block tabs %}{% endblock %}
+
+        {% block content %}{% endblock %}
+    </div>
+    {% else %}
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+    {% endif %}
+</body>
+
+</html>

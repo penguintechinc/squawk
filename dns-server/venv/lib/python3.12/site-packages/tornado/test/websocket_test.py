@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import datetime
 import functools
 import socket
 import traceback
@@ -14,6 +15,7 @@ from tornado.log import gen_log, app_log
 from tornado.netutil import Resolver
 from tornado.simple_httpclient import SimpleAsyncHTTPClient
 from tornado.template import DictLoader
+from tornado.test.util import abstract_base_test, ignore_deprecation
 from tornado.testing import AsyncHTTPTestCase, gen_test, bind_unused_port, ExpectLog
 from tornado.web import Application, RequestHandler
 
@@ -332,9 +334,10 @@ class WebSocketTest(WebSocketBaseTestCase):
         self.assertEqual(response, "hello")
 
     def test_websocket_callbacks(self):
-        websocket_connect(
-            "ws://127.0.0.1:%d/echo" % self.get_http_port(), callback=self.stop
-        )
+        with ignore_deprecation():
+            websocket_connect(
+                "ws://127.0.0.1:%d/echo" % self.get_http_port(), callback=self.stop
+            )
         ws = self.wait().result()
         ws.write_message("hello")
         ws.read_message(self.stop)
@@ -378,7 +381,7 @@ class WebSocketTest(WebSocketBaseTestCase):
         ws.write_message("hello")
         with ExpectLog(app_log, "Uncaught exception"):
             response = yield ws.read_message()
-        self.assertIs(response, None)
+        self.assertIsNone(response)
 
     @gen_test
     def test_websocket_http_fail(self):
@@ -570,7 +573,7 @@ class WebSocketTest(WebSocketBaseTestCase):
         # server is only running on ipv4. Test for this edge case and skip
         # the test if it happens.
         addrinfo = yield Resolver().resolve("localhost", port)
-        families = set(addr[0] for addr in addrinfo)
+        families = {addr[0] for addr in addrinfo}
         if socket.AF_INET not in families:
             self.skipTest("localhost does not resolve to ipv4")
             return
@@ -661,7 +664,8 @@ class WebSocketNativeCoroutineTest(WebSocketBaseTestCase):
         self.assertEqual(res, "hello2")
 
 
-class CompressionTestMixin(object):
+@abstract_base_test
+class CompressionTestMixin(WebSocketBaseTestCase):
     MESSAGE = "Hello world. Testing 123 123"
 
     def get_app(self):
@@ -698,7 +702,7 @@ class CompressionTestMixin(object):
         raise NotImplementedError()
 
     @gen_test
-    def test_message_sizes(self: typing.Any):
+    def test_message_sizes(self):
         ws = yield self.ws_connect(
             "/echo", compression_options=self.get_client_compression_options()
         )
@@ -713,7 +717,7 @@ class CompressionTestMixin(object):
         self.verify_wire_bytes(ws.protocol._wire_bytes_in, ws.protocol._wire_bytes_out)
 
     @gen_test
-    def test_size_limit(self: typing.Any):
+    def test_size_limit(self):
         ws = yield self.ws_connect(
             "/limited", compression_options=self.get_client_compression_options()
         )
@@ -728,31 +732,32 @@ class CompressionTestMixin(object):
         self.assertIsNone(response)
 
 
+@abstract_base_test
 class UncompressedTestMixin(CompressionTestMixin):
     """Specialization of CompressionTestMixin when we expect no compression."""
 
-    def verify_wire_bytes(self: typing.Any, bytes_in, bytes_out):
+    def verify_wire_bytes(self, bytes_in, bytes_out):
         # Bytes out includes the 4-byte mask key per message.
         self.assertEqual(bytes_out, 3 * (len(self.MESSAGE) + 6))
         self.assertEqual(bytes_in, 3 * (len(self.MESSAGE) + 2))
 
 
-class NoCompressionTest(UncompressedTestMixin, WebSocketBaseTestCase):
+class NoCompressionTest(UncompressedTestMixin):
     pass
 
 
 # If only one side tries to compress, the extension is not negotiated.
-class ServerOnlyCompressionTest(UncompressedTestMixin, WebSocketBaseTestCase):
+class ServerOnlyCompressionTest(UncompressedTestMixin):
     def get_server_compression_options(self):
         return {}
 
 
-class ClientOnlyCompressionTest(UncompressedTestMixin, WebSocketBaseTestCase):
+class ClientOnlyCompressionTest(UncompressedTestMixin):
     def get_client_compression_options(self):
         return {}
 
 
-class DefaultCompressionTest(CompressionTestMixin, WebSocketBaseTestCase):
+class DefaultCompressionTest(CompressionTestMixin):
     def get_server_compression_options(self):
         return {}
 
@@ -766,7 +771,8 @@ class DefaultCompressionTest(CompressionTestMixin, WebSocketBaseTestCase):
         self.assertEqual(bytes_out, bytes_in + 12)
 
 
-class MaskFunctionMixin(object):
+@abstract_base_test
+class MaskFunctionMixin(unittest.TestCase):
     # Subclasses should define self.mask(mask, data)
     def mask(self, mask: bytes, data: bytes) -> bytes:
         raise NotImplementedError()
@@ -789,13 +795,13 @@ class MaskFunctionMixin(object):
         )
 
 
-class PythonMaskFunctionTest(MaskFunctionMixin, unittest.TestCase):
+class PythonMaskFunctionTest(MaskFunctionMixin):
     def mask(self, mask, data):
         return _websocket_mask_python(mask, data)
 
 
 @unittest.skipIf(speedups is None, "tornado.speedups module not present")
-class CythonMaskFunctionTest(MaskFunctionMixin, unittest.TestCase):
+class CythonMaskFunctionTest(MaskFunctionMixin):
     def mask(self, mask, data):
         return speedups.websocket_mask(mask, data)
 
@@ -806,7 +812,11 @@ class ServerPeriodicPingTest(WebSocketBaseTestCase):
             def on_pong(self, data):
                 self.write_message("got pong")
 
-        return Application([("/", PingHandler)], websocket_ping_interval=0.01)
+        return Application(
+            [("/", PingHandler)],
+            websocket_ping_interval=0.01,
+            websocket_ping_timeout=0,
+        )
 
     @gen_test
     def test_server_ping(self):
@@ -827,12 +837,107 @@ class ClientPeriodicPingTest(WebSocketBaseTestCase):
 
     @gen_test
     def test_client_ping(self):
-        ws = yield self.ws_connect("/", ping_interval=0.01)
+        ws = yield self.ws_connect("/", ping_interval=0.01, ping_timeout=0)
         for i in range(3):
             response = yield ws.read_message()
             self.assertEqual(response, "got ping")
-        # TODO: test that the connection gets closed if ping responses stop.
         ws.close()
+
+
+class ServerPingTimeoutTest(WebSocketBaseTestCase):
+    def get_app(self):
+        self.handlers: list[WebSocketHandler] = []
+        test = self
+
+        class PingHandler(TestWebSocketHandler):
+            def initialize(self, close_future=None, compression_options=None):
+                self.handlers = test.handlers
+                # capture the handler instance so we can interrogate it later
+                self.handlers.append(self)
+                return super().initialize(
+                    close_future=close_future, compression_options=compression_options
+                )
+
+        app = Application([("/", PingHandler)])
+        return app
+
+    @staticmethod
+    def install_hook(ws):
+        """Optionally suppress the client's "pong" response."""
+
+        ws.drop_pongs = False
+        ws.pongs_received = 0
+
+        def wrapper(fcn):
+            def _inner(opcode: int, data: bytes):
+                if opcode == 0xA:  # NOTE: 0x9=ping, 0xA=pong
+                    ws.pongs_received += 1
+                    if ws.drop_pongs:
+                        # prevent pong responses
+                        return
+                # leave all other responses unchanged
+                return fcn(opcode, data)
+
+            return _inner
+
+        ws.protocol._handle_message = wrapper(ws.protocol._handle_message)
+
+    @gen_test
+    def test_client_ping_timeout(self):
+        # websocket client
+        interval = 0.2
+        ws = yield self.ws_connect(
+            "/", ping_interval=interval, ping_timeout=interval / 4
+        )
+        self.install_hook(ws)
+
+        # websocket handler (server side)
+        handler = self.handlers[0]
+
+        for _ in range(5):
+            # wait for the ping period
+            yield gen.sleep(interval)
+
+            # connection should still be open from the server end
+            self.assertIsNone(handler.close_code)
+            self.assertIsNone(handler.close_reason)
+
+            # connection should still be open from the client end
+            assert ws.protocol.close_code is None
+
+        # Check that our hook is intercepting messages; allow for
+        # some variance in timing (due to e.g. cpu load)
+        self.assertGreaterEqual(ws.pongs_received, 4)
+
+        # suppress the pong response message
+        ws.drop_pongs = True
+
+        # give the server time to register this
+        yield gen.sleep(interval * 1.5)
+
+        # connection should be closed from the server side
+        self.assertEqual(handler.close_code, 1000)
+        self.assertEqual(handler.close_reason, "ping timed out")
+
+        # client should have received a close operation
+        self.assertEqual(ws.protocol.close_code, 1000)
+
+
+class PingCalculationTest(unittest.TestCase):
+    def test_ping_sleep_time(self):
+        from tornado.websocket import WebSocketProtocol13
+
+        now = datetime.datetime(2025, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+        interval = 10  # seconds
+        last_ping_time = datetime.datetime(
+            2025, 1, 1, 11, 59, 54, tzinfo=datetime.timezone.utc
+        )
+        sleep_time = WebSocketProtocol13.ping_sleep_time(
+            last_ping_time=last_ping_time.timestamp(),
+            interval=interval,
+            now=now.timestamp(),
+        )
+        self.assertEqual(sleep_time, 4)
 
 
 class ManualPingTest(WebSocketBaseTestCase):

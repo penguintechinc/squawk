@@ -11,370 +11,397 @@ from typing import Dict, List, Optional
 from collections import defaultdict, deque
 import threading
 from pydal import DAL, Field
-from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import (
+    Counter,
+    Histogram,
+    Gauge,
+    Info,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class PrometheusMetrics:
     """
     Prometheus metrics collector for Squawk DNS.
     Provides comprehensive DNS statistics for monitoring and alerting.
     """
-    
+
     def __init__(self, db_url: str = None):
         self.db_url = db_url
         self.lock = threading.Lock()
-        
+
         # Initialize Prometheus metrics
         self._init_metrics()
-        
+
         # In-memory stats for performance
         self.query_stats = defaultdict(int)
         self.response_times = deque(maxlen=1000)  # Last 1000 queries
         self.top_domains = defaultdict(int)
         self.error_counts = defaultdict(int)
-        
+
         # Cache for database queries
         self.cache_hit_rate = 0.0
         self.last_stats_update = 0
-        
+
     def _init_metrics(self):
         """Initialize Prometheus metric objects"""
-        
+
         # DNS Query Counters
         self.dns_queries_total = Counter(
-            'squawk_dns_queries_total',
-            'Total number of DNS queries processed',
-            ['record_type', 'status', 'source']
+            "squawk_dns_queries_total",
+            "Total number of DNS queries processed",
+            ["record_type", "status", "source"],
         )
-        
+
         self.dns_cache_hits_total = Counter(
-            'squawk_dns_cache_hits_total', 
-            'Total number of cache hits',
-            ['record_type']
+            "squawk_dns_cache_hits_total", "Total number of cache hits", ["record_type"]
         )
-        
+
         self.dns_cache_misses_total = Counter(
-            'squawk_dns_cache_misses_total',
-            'Total number of cache misses', 
-            ['record_type']
+            "squawk_dns_cache_misses_total",
+            "Total number of cache misses",
+            ["record_type"],
         )
-        
+
         self.dns_blocked_queries_total = Counter(
-            'squawk_dns_blocked_queries_total',
-            'Total number of blocked queries',
-            ['reason']
+            "squawk_dns_blocked_queries_total",
+            "Total number of blocked queries",
+            ["reason"],
         )
-        
+
         # Response Time Histograms
         self.dns_query_duration_seconds = Histogram(
-            'squawk_dns_query_duration_seconds',
-            'DNS query processing time in seconds',
-            ['record_type', 'cache_status'],
-            buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]
+            "squawk_dns_query_duration_seconds",
+            "DNS query processing time in seconds",
+            ["record_type", "cache_status"],
+            buckets=[
+                0.001,
+                0.005,
+                0.01,
+                0.025,
+                0.05,
+                0.1,
+                0.25,
+                0.5,
+                1.0,
+                2.5,
+                5.0,
+                10.0,
+            ],
         )
-        
+
         self.dns_upstream_duration_seconds = Histogram(
-            'squawk_dns_upstream_duration_seconds', 
-            'Upstream DNS resolution time in seconds',
-            ['upstream_server'],
-            buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+            "squawk_dns_upstream_duration_seconds",
+            "Upstream DNS resolution time in seconds",
+            ["upstream_server"],
+            buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
         )
-        
+
         # Current State Gauges
         self.dns_active_connections = Gauge(
-            'squawk_dns_active_connections',
-            'Number of active client connections'
+            "squawk_dns_active_connections", "Number of active client connections"
         )
-        
+
         self.dns_cache_entries = Gauge(
-            'squawk_dns_cache_entries',
-            'Number of entries in DNS cache'
+            "squawk_dns_cache_entries", "Number of entries in DNS cache"
         )
-        
+
         self.dns_cache_hit_rate = Gauge(
-            'squawk_dns_cache_hit_rate',
-            'DNS cache hit rate (0-1)'
+            "squawk_dns_cache_hit_rate", "DNS cache hit rate (0-1)"
         )
-        
+
         self.dns_ioc_entries = Gauge(
-            'squawk_dns_ioc_entries',
-            'Number of IOC/threat intelligence entries',
-            ['feed_name']
+            "squawk_dns_ioc_entries",
+            "Number of IOC/threat intelligence entries",
+            ["feed_name"],
         )
-        
+
         self.dns_server_health = Gauge(
-            'squawk_dns_server_health',
-            'DNS server health status (1=healthy, 0=unhealthy)'
+            "squawk_dns_server_health",
+            "DNS server health status (1=healthy, 0=unhealthy)",
         )
-        
+
         # Top Queried Domains
         self.dns_top_domains = Gauge(
-            'squawk_dns_top_domains_queries',
-            'Query count for top domains',
-            ['domain', 'rank']
+            "squawk_dns_top_domains_queries",
+            "Query count for top domains",
+            ["domain", "rank"],
         )
-        
-        # User/Token Metrics  
+
+        # User/Token Metrics
         self.dns_user_queries_total = Counter(
-            'squawk_dns_user_queries_total',
-            'Total queries per user token',
-            ['token_hash', 'user_type']
+            "squawk_dns_user_queries_total",
+            "Total queries per user token",
+            ["token_hash", "user_type"],
         )
-        
+
         self.dns_authentication_failures = Counter(
-            'squawk_dns_authentication_failures_total',
-            'Total authentication failures',
-            ['failure_type']
+            "squawk_dns_authentication_failures_total",
+            "Total authentication failures",
+            ["failure_type"],
         )
-        
+
         # System Resource Metrics
         self.dns_memory_usage_bytes = Gauge(
-            'squawk_dns_memory_usage_bytes',
-            'Memory usage in bytes'
+            "squawk_dns_memory_usage_bytes", "Memory usage in bytes"
         )
-        
+
         self.dns_open_files = Gauge(
-            'squawk_dns_open_files',
-            'Number of open file descriptors'
+            "squawk_dns_open_files", "Number of open file descriptors"
         )
-        
+
         # Server Info
         self.dns_server_info = Info(
-            'squawk_dns_server_info',
-            'Static server information'
+            "squawk_dns_server_info", "Static server information"
         )
-        
+
         # Set initial server info
-        self.dns_server_info.info({
-            'version': '2.0',
-            'product': 'squawk_dns',
-            'vendor': 'penguin_technologies'
-        })
-        
-    def record_query(self, domain: str, record_type: str, status: str, 
-                    response_time: float, cache_hit: bool, token_hash: str = None,
-                    source: str = 'client', blocked: bool = False, block_reason: str = None):
+        self.dns_server_info.info(
+            {
+                "version": "2.0",
+                "product": "squawk_dns",
+                "vendor": "penguin_technologies",
+            }
+        )
+
+    def record_query(
+        self,
+        domain: str,
+        record_type: str,
+        status: str,
+        response_time: float,
+        cache_hit: bool,
+        token_hash: str = None,
+        source: str = "client",
+        blocked: bool = False,
+        block_reason: str = None,
+    ):
         """Record a DNS query with all relevant metrics"""
-        
+
         with self.lock:
             try:
                 # Basic query counter
                 self.dns_queries_total.labels(
-                    record_type=record_type,
-                    status=status,
-                    source=source
+                    record_type=record_type, status=status, source=source
                 ).inc()
-                
+
                 # Cache metrics
                 if cache_hit:
                     self.dns_cache_hits_total.labels(record_type=record_type).inc()
-                    cache_status = 'hit'
+                    cache_status = "hit"
                 else:
                     self.dns_cache_misses_total.labels(record_type=record_type).inc()
-                    cache_status = 'miss'
-                    
+                    cache_status = "miss"
+
                 # Response time
                 self.dns_query_duration_seconds.labels(
-                    record_type=record_type,
-                    cache_status=cache_status
+                    record_type=record_type, cache_status=cache_status
                 ).observe(response_time)
-                
+
                 # Blocked queries
                 if blocked:
                     self.dns_blocked_queries_total.labels(
-                        reason=block_reason or 'unknown'
+                        reason=block_reason or "unknown"
                     ).inc()
-                    
+
                 # User metrics (hash the token for privacy)
                 if token_hash:
                     user_type = self._get_user_type_from_token(token_hash)
                     self.dns_user_queries_total.labels(
                         token_hash=token_hash[:8],  # Only first 8 chars for privacy
-                        user_type=user_type
+                        user_type=user_type,
                     ).inc()
-                    
+
                 # Update in-memory stats
                 self.query_stats[f"{record_type}_{status}"] += 1
                 self.response_times.append(response_time)
                 self.top_domains[domain] += 1
-                
-                if status != 'success':
+
+                if status != "success":
                     self.error_counts[status] += 1
-                    
+
             except Exception as e:
                 logger.error(f"Failed to record metrics: {e}")
-                
+
     def record_authentication_failure(self, failure_type: str):
         """Record authentication failure"""
         self.dns_authentication_failures.labels(failure_type=failure_type).inc()
-        
+
     def record_upstream_query(self, upstream_server: str, response_time: float):
         """Record upstream DNS query timing"""
-        self.dns_upstream_duration_seconds.labels(upstream_server=upstream_server).observe(response_time)
-        
+        self.dns_upstream_duration_seconds.labels(
+            upstream_server=upstream_server
+        ).observe(response_time)
+
     def update_cache_stats(self, total_entries: int, hit_rate: float):
         """Update cache-related metrics"""
         self.dns_cache_entries.set(total_entries)
         self.dns_cache_hit_rate.set(hit_rate)
         self.cache_hit_rate = hit_rate
-        
+
     def update_ioc_stats(self, ioc_stats: Dict):
         """Update IOC/threat intelligence metrics"""
         try:
-            if 'feeds' in ioc_stats and 'feed_details' in ioc_stats['feeds']:
-                for feed in ioc_stats['feeds']['feed_details']:
-                    self.dns_ioc_entries.labels(feed_name=feed['name']).set(feed['indicators'])
+            if "feeds" in ioc_stats and "feed_details" in ioc_stats["feeds"]:
+                for feed in ioc_stats["feeds"]["feed_details"]:
+                    self.dns_ioc_entries.labels(feed_name=feed["name"]).set(
+                        feed["indicators"]
+                    )
         except Exception as e:
             logger.error(f"Failed to update IOC metrics: {e}")
-            
+
     def update_server_health(self, is_healthy: bool):
         """Update server health status"""
         self.dns_server_health.set(1.0 if is_healthy else 0.0)
-        
+
     def update_system_metrics(self):
         """Update system resource metrics"""
         try:
             import psutil
             import os
-            
+
             # Memory usage
             process = psutil.Process(os.getpid())
             memory_info = process.memory_info()
             self.dns_memory_usage_bytes.set(memory_info.rss)
-            
+
             # Open files
             try:
                 open_files = len(process.open_files())
                 self.dns_open_files.set(open_files)
             except (psutil.AccessDenied, psutil.NoSuchProcess):
                 pass
-                
+
         except ImportError:
             # psutil not available
             pass
         except Exception as e:
             logger.error(f"Failed to update system metrics: {e}")
-            
+
     def update_top_domains(self, limit: int = 10):
         """Update top domains metrics"""
         try:
             with self.lock:
                 # Get top domains
                 sorted_domains = sorted(
-                    self.top_domains.items(), 
-                    key=lambda x: x[1], 
-                    reverse=True
+                    self.top_domains.items(), key=lambda x: x[1], reverse=True
                 )[:limit]
-                
+
                 # Clear existing metrics
                 self.dns_top_domains.clear()
-                
+
                 # Set new values
                 for rank, (domain, count) in enumerate(sorted_domains, 1):
                     # Sanitize domain name for metric label
-                    safe_domain = domain.replace('.', '_').replace('-', '_')[:50]
-                    self.dns_top_domains.labels(
-                        domain=safe_domain,
-                        rank=str(rank)
-                    ).set(count)
-                    
+                    safe_domain = domain.replace(".", "_").replace("-", "_")[:50]
+                    self.dns_top_domains.labels(domain=safe_domain, rank=str(rank)).set(
+                        count
+                    )
+
         except Exception as e:
             logger.error(f"Failed to update top domains: {e}")
-            
+
     def get_current_stats(self) -> Dict:
         """Get current statistics summary"""
         with self.lock:
             total_queries = sum(self.query_stats.values())
-            avg_response_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
-            
+            avg_response_time = (
+                sum(self.response_times) / len(self.response_times)
+                if self.response_times
+                else 0
+            )
+
             return {
-                'total_queries': total_queries,
-                'average_response_time_ms': avg_response_time * 1000,
-                'cache_hit_rate': self.cache_hit_rate,
-                'error_rate': sum(self.error_counts.values()) / max(total_queries, 1),
-                'top_domains': dict(sorted(
-                    self.top_domains.items(), 
-                    key=lambda x: x[1], 
-                    reverse=True
-                )[:10])
+                "total_queries": total_queries,
+                "average_response_time_ms": avg_response_time * 1000,
+                "cache_hit_rate": self.cache_hit_rate,
+                "error_rate": sum(self.error_counts.values()) / max(total_queries, 1),
+                "top_domains": dict(
+                    sorted(self.top_domains.items(), key=lambda x: x[1], reverse=True)[
+                        :10
+                    ]
+                ),
             }
-            
+
     def reset_periodic_stats(self):
         """Reset statistics that should be calculated periodically"""
         with self.lock:
             # Keep running totals but reset rate calculations
             self.response_times.clear()
-            
+
     def _get_user_type_from_token(self, token_hash: str) -> str:
         """Determine user type from token (simplified)"""
         # This would typically look up in database
         # For now, use simple heuristics
-        if 'enterprise' in token_hash.lower():
-            return 'enterprise'
-        elif 'premium' in token_hash.lower():
-            return 'premium'
+        if "enterprise" in token_hash.lower():
+            return "enterprise"
+        elif "premium" in token_hash.lower():
+            return "premium"
         else:
-            return 'community'
-            
+            return "community"
+
     def get_metrics_endpoint(self) -> tuple:
         """Get metrics in Prometheus format for HTTP endpoint"""
         try:
             # Update dynamic metrics
             self.update_top_domains()
             self.update_system_metrics()
-            
+
             # Generate Prometheus format
             metrics_output = generate_latest()
             return metrics_output, CONTENT_TYPE_LATEST
-            
+
         except Exception as e:
             logger.error(f"Failed to generate metrics: {e}")
             return "# Error generating metrics\n", "text/plain"
-            
+
     async def collect_database_stats(self):
         """Collect statistics from database periodically"""
         if not self.db_url:
             return
-            
+
         try:
             # Only update every 60 seconds to avoid database load
             if time.time() - self.last_stats_update < 60:
                 return
-                
+
             db = DAL(self.db_url)
-            
+
             # Query log statistics
             yesterday = datetime.now() - timedelta(days=1)
-            
-            if 'query_logs' in db.tables:
+
+            if "query_logs" in db.tables:
                 recent_queries = db(db.query_logs.timestamp >= yesterday).count()
                 cache_hits = db(
-                    (db.query_logs.timestamp >= yesterday) &
-                    (db.query_logs.cache_hit == True)
+                    (db.query_logs.timestamp >= yesterday)
+                    & (db.query_logs.cache_hit == True)
                 ).count()
-                
+
                 hit_rate = cache_hits / max(recent_queries, 1)
                 self.update_cache_stats(0, hit_rate)  # Entry count updated elsewhere
-                
+
             self.last_stats_update = time.time()
             db.close()
-            
+
         except Exception as e:
             logger.error(f"Failed to collect database stats: {e}")
+
 
 class MetricsCollector:
     """
     Background collector that runs metrics collection periodically.
     Integrates with existing Squawk DNS components.
     """
-    
+
     def __init__(self, metrics: PrometheusMetrics, collection_interval: int = 30):
         self.metrics = metrics
         self.collection_interval = collection_interval
         self.running = False
         self.thread = None
-        
+
     def start(self):
         """Start metrics collection in background thread"""
         if not self.running:
@@ -382,49 +409,55 @@ class MetricsCollector:
             self.thread = threading.Thread(target=self._collect_loop, daemon=True)
             self.thread.start()
             logger.info("Metrics collection started")
-            
+
     def stop(self):
         """Stop metrics collection"""
         self.running = False
         if self.thread:
             self.thread.join()
         logger.info("Metrics collection stopped")
-        
+
     def _collect_loop(self):
         """Main collection loop"""
         while self.running:
             try:
                 # Collect database statistics
                 import asyncio
+
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(self.metrics.collect_database_stats())
                 loop.close()
-                
+
                 # Update server health (simplified check)
                 self.metrics.update_server_health(True)
-                
+
                 time.sleep(self.collection_interval)
-                
+
             except Exception as e:
                 logger.error(f"Metrics collection error: {e}")
                 time.sleep(self.collection_interval)
 
+
 # Global metrics instance
 prometheus_metrics = None
 
-def init_prometheus_metrics(db_url: str = None, enable_collection: bool = True) -> PrometheusMetrics:
+
+def init_prometheus_metrics(
+    db_url: str = None, enable_collection: bool = True
+) -> PrometheusMetrics:
     """Initialize Prometheus metrics collection"""
     global prometheus_metrics
-    
+
     prometheus_metrics = PrometheusMetrics(db_url)
-    
+
     if enable_collection:
         collector = MetricsCollector(prometheus_metrics)
         collector.start()
-        
+
     logger.info("Prometheus metrics initialized")
     return prometheus_metrics
+
 
 def get_metrics_instance() -> Optional[PrometheusMetrics]:
     """Get the global metrics instance"""

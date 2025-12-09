@@ -88,4 +88,4 @@ ENV SQUAWK_SERVER_URL=https://dns.google/resolve \
     LOG_LEVEL=INFO
 
 # Default command - DNS forwarder mode
-CMD ["python3", "/app/dns-client/bins/client.py", "-s", "${SQUAWK_SERVER_URL}", "-a", "${SQUAWK_AUTH_TOKEN}", "-u", "-T", "-v"]
+CMD ["sh", "-c", "python3 /app/dns-client/bins/client.py -s ${SQUAWK_SERVER_URL} -a ${SQUAWK_AUTH_TOKEN} -u -T -v"]

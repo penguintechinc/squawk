@@ -28,7 +28,6 @@ from tornado.testing import (
 from tornado.test.util import (
     ignore_deprecation,
     skipIfNonUnix,
-    skipOnTravis,
 )
 from tornado.concurrent import Future
 
@@ -58,7 +57,6 @@ class TestIOLoop(AsyncTestCase):
         loop.start()
         self.assertLess(self.calls, 10)
 
-    @skipOnTravis
     def test_add_callback_wakeup(self):
         # Make sure that add_callback from inside a running IOLoop
         # wakes up the IOLoop immediately instead of waiting for a timeout.
@@ -77,7 +75,6 @@ class TestIOLoop(AsyncTestCase):
         self.assertAlmostEqual(time.time(), self.start_time, places=2)
         self.assertTrue(self.called)
 
-    @skipOnTravis
     def test_add_callback_wakeup_other_thread(self):
         def target():
             # sleep a bit to let the ioloop go into its poll loop
@@ -135,7 +132,7 @@ class TestIOLoop(AsyncTestCase):
         # Very crude test, just to make sure that we cover this case.
         # This also happens to be the first test where we run an IOLoop in
         # a non-main thread.
-        other_ioloop = IOLoop()
+        other_ioloop = IOLoop(make_current=False)
         thread = threading.Thread(target=other_ioloop.start)
         thread.start()
         with ignore_deprecation():
@@ -155,7 +152,7 @@ class TestIOLoop(AsyncTestCase):
             closing.set()
             other_ioloop.close(all_fds=True)
 
-        other_ioloop = IOLoop()
+        other_ioloop = IOLoop(make_current=False)
         thread = threading.Thread(target=target)
         thread.start()
         closing.wait()
@@ -243,17 +240,17 @@ class TestIOLoop(AsyncTestCase):
         # All the timeout methods return non-None handles that can be
         # passed to remove_timeout.
         handle = self.io_loop.add_timeout(self.io_loop.time(), lambda: None)
-        self.assertFalse(handle is None)
+        self.assertIsNotNone(handle)
         self.io_loop.remove_timeout(handle)
 
     def test_call_at_return(self):
         handle = self.io_loop.call_at(self.io_loop.time(), lambda: None)
-        self.assertFalse(handle is None)
+        self.assertIsNotNone(handle)
         self.io_loop.remove_timeout(handle)
 
     def test_call_later_return(self):
         handle = self.io_loop.call_later(0, lambda: None)
-        self.assertFalse(handle is None)
+        self.assertIsNotNone(handle)
         self.io_loop.remove_timeout(handle)
 
     def test_close_file_object(self):
@@ -265,7 +262,7 @@ class TestIOLoop(AsyncTestCase):
         # Use a socket since they are supported by IOLoop on all platforms.
         # Unfortunately, sockets don't support the .closed attribute for
         # inspecting their close status, so we must use a wrapper.
-        class SocketWrapper(object):
+        class SocketWrapper:
             def __init__(self, sockobj):
                 self.sockobj = sockobj
                 self.closed = False
@@ -279,8 +276,12 @@ class TestIOLoop(AsyncTestCase):
 
         sockobj, port = bind_unused_port()
         socket_wrapper = SocketWrapper(sockobj)
-        io_loop = IOLoop()
-        io_loop.add_handler(socket_wrapper, lambda fd, events: None, IOLoop.READ)
+        io_loop = IOLoop(make_current=False)
+        io_loop.run_sync(
+            lambda: io_loop.add_handler(
+                socket_wrapper, lambda fd, events: None, IOLoop.READ
+            )
+        )
         io_loop.close(all_fds=True)
         self.assertTrue(socket_wrapper.closed)
 
@@ -503,7 +504,7 @@ class TestIOLoopFutures(AsyncTestCase):
             )
             future = self.wait()
             self.assertTrue(future.done())
-            self.assertTrue(future.result() is None)
+            self.assertIsNone(future.result())
 
     @gen_test
     def test_run_in_executor_gen(self):
@@ -625,6 +626,16 @@ class TestIOLoopRunSync(unittest.TestCase):
             await f1()
 
         self.io_loop.run_sync(f2)
+
+    def test_stop_no_timeout(self):
+        async def f():
+            await asyncio.sleep(0.1)
+            IOLoop.current().stop()
+            await asyncio.sleep(10)
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.io_loop.run_sync(f)
+        assert "Event loop stopped" in str(cm.exception)
 
 
 class TestPeriodicCallbackMath(unittest.TestCase):
@@ -785,6 +796,9 @@ class TestIOLoopConfiguration(unittest.TestCase):
         )
         self.assertEqual(cls, "AsyncIOMainLoop")
 
+    @unittest.skipIf(
+        sys.version_info >= (3, 14), "implicit event loop creation not available"
+    )
     def test_asyncio_main(self):
         cls = self.run_python(
             "from tornado.platform.asyncio import AsyncIOMainLoop",

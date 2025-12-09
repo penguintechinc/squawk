@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: squawk_manager
+      POSTGRES_USER: squawk
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squawk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - squawk-network
+
+  valkey:
+    image: valkey/valkey:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - squawk-network
+
+  manager-backend:
+    build:
+      context: ./manager/backend
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: postgresql://squawk:${DB_PASSWORD:-changeme}@postgres:5432/squawk_manager
+      REDIS_URL: redis://valkey:6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+    ports:
+      - "5000:5000"
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - squawk-network
+
+  manager-frontend:
+    build:
+      context: ./manager/frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - manager-backend
+    networks:
+      - squawk-network
+
+  dns-server-1:
+    build:
+      context: ./dns-server
+      dockerfile: Dockerfile.dns-server
+    environment:
+      MANAGER_URL: http://manager-backend:5000
+      JOIN_KEY: ${DNS_SERVER_1_JOIN_KEY}
+      CACHE_URL: redis://valkey:6379
+      DNS_PORT: 8080
+      GRPC_PORT: 50052
+      SYNC_INTERVAL: 300
+      HEARTBEAT_INTERVAL: 30
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+      - "50052:50052"
+      - "5353:53/udp"
+      - "5353:53/tcp"
+    depends_on:
+      - manager-backend
+      - valkey
+    volumes:
+      - dns_server_1_cache:/app/cache
+    networks:
+      - squawk-network
+
+  dns-server-2:
+    build:
+      context: ./dns-server
+      dockerfile: Dockerfile.dns-server
+    environment:
+      MANAGER_URL: http://manager-backend:5000
+      JOIN_KEY: ${DNS_SERVER_2_JOIN_KEY}
+      CACHE_URL: redis://valkey:6379
+      DNS_PORT: 8080
+      GRPC_PORT: 50052
+      SYNC_INTERVAL: 300
+      HEARTBEAT_INTERVAL: 30
+      LOG_LEVEL: INFO
+    ports:
+      - "8082:8080"
+      - "50053:50052"
+      - "5354:53/udp"
+      - "5354:53/tcp"
+    depends_on:
+      - manager-backend
+      - valkey
+    volumes:
+      - dns_server_2_cache:/app/cache
+    networks:
+      - squawk-network
+
+volumes:
+  postgres_data:
+  valkey_data:
+  dns_server_1_cache:
+  dns_server_2_cache:
+
+networks:
+  squawk-network:
+    driver: bridge

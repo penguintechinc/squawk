@@ -55,8 +55,8 @@ class TestDNSServer:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        assert "mode" in data
-        assert "registered" in data
+        assert "features" in data
+        assert isinstance(data["features"], dict)
 
     def test_dns_query_public(self):
         """Test public DNS query (google.com)."""

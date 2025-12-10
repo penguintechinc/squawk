@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block page_title %}DNS Zones{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">DNS Zones</h3>
+        <button class="btn btn-primary" onclick="showAddZoneModal()">+ Add Zone</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Zone Name</th>
+                <th>Visibility</th>
+                <th>Records</th>
+                <th>SOA</th>
+                <th>Groups</th>
+                <th>Last Modified</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">example.com</td>
+                <td><span class="badge badge-success">PUBLIC</span></td>
+                <td style="color: var(--text-muted);">42 records</td>
+                <td style="color: var(--text-muted); font-size: 13px;">ns1.example.com</td>
+                <td><span class="badge" style="background: var(--bg-hover); color: var(--text-secondary);">All Groups</span></td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-12-01</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">internal.company.com</td>
+                <td><span class="badge badge-warning">INTERNAL</span></td>
+                <td style="color: var(--text-muted);">28 records</td>
+                <td style="color: var(--text-muted); font-size: 13px;">ns1.company.com</td>
+                <td><span class="badge badge-warning">INTERNAL</span></td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-12-05</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">secure.company.com</td>
+                <td><span class="badge badge-danger">RESTRICTED</span></td>
+                <td style="color: var(--text-muted);">15 records</td>
+                <td style="color: var(--text-muted); font-size: 13px;">ns1.company.com</td>
+                <td>
+                    <span class="badge badge-warning">ADMIN</span>
+                    <span class="badge" style="background: var(--bg-hover); color: var(--text-secondary);">+2</span>
+                </td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-12-08</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Zone Visibility Levels</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--success);">
+                <div style="font-weight: 600; color: var(--success); margin-bottom: 8px;">PUBLIC</div>
+                <div style="font-size: 13px; color: var(--text-muted);">Visible to all users (example.com, google.com)</div>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--warning);">
+                <div style="font-weight: 600; color: var(--warning); margin-bottom: 8px;">INTERNAL</div>
+                <div style="font-size: 13px; color: var(--text-muted);">Visible to internal groups only (intranet.company.com)</div>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--danger);">
+                <div style="font-weight: 600; color: var(--danger); margin-bottom: 8px;">RESTRICTED</div>
+                <div style="font-size: 13px; color: var(--text-muted);">Visible to specific groups only (secure.company.com)</div>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--accent-gold);">
+                <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">PRIVATE</div>
+                <div style="font-size: 13px; color: var(--text-muted);">Visible to admins only (admin.company.com)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Zone Statistics</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Zones</div>
+                <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);">3</div>
+            </div>
+
+            <div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Records</div>
+                <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);">85</div>
+            </div>
+
+            <div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Public Zones</div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--success);">1</div>
+            </div>
+
+            <div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Restricted Zones</div>
+                <div style="font-size: 28px; font-weight: 700; color: var(--danger);">2</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showAddZoneModal() {
+        alert('Add Zone functionality - To be implemented with a modal form');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block page_title %}Group Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Groups</h3>
+        <button class="btn btn-primary" onclick="showAddGroupModal()">+ Add Group</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Group Name</th>
+                <th>Description</th>
+                <th>Members</th>
+                <th>Permissions</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if groups %}
+            {% for group in groups %}
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">{{ group.name }}</td>
+                <td style="color: var(--text-muted);">{{ group.description or 'No description' }}</td>
+                <td><span class="badge badge-success">{{ group.member_count or 0 }}</span></td>
+                <td style="color: var(--text-muted); font-size: 13px;">{{ group.permissions or 'Default' }}</td>
+                <td style="color: var(--text-muted); font-size: 13px;">
+                    {{ group.created_on.strftime('%Y-%m-%d') if group.created_on else 'N/A' }}
+                </td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                    No groups configured. Groups allow you to manage permissions for multiple users at once.
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Default Groups</h3>
+    </div>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+        Squawk DNS supports the following group types for selective DNS routing:
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">INTERNAL</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Full access to private + public DNS</div>
+        </div>
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">EXTERNAL</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Public DNS only</div>
+        </div>
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">PARTNER</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Limited private zones + public DNS</div>
+        </div>
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">ADMIN</div>
+            <div style="font-size: 13px; color: var(--text-muted);">Full access + management capabilities</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showAddGroupModal() {
+        alert('Add Group functionality - To be implemented with a modal form');
+    }
+</script>
+{% endblock %}

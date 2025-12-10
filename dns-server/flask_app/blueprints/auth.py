@@ -8,16 +8,14 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import sys
+
+# Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from models import define_tables
-from pydal import DAL
+
+# Import shared database instance
+from database import db
 
 auth_bp = Blueprint('auth', __name__)
-
-# Get database instance
-db = DAL(os.environ.get('DATABASE_URI', 'sqlite://storage.db'), 
-         folder=os.path.join(os.path.dirname(__file__), '..', 'databases'))
-define_tables(db)
 
 class User:
     """User class for Flask-Login"""

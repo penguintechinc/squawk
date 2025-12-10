@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block page_title %}IOC Feeds{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Threat Intelligence Feeds</h3>
+        <button class="btn btn-primary">+ Add Feed</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Feed Name</th>
+                <th>URL</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if feeds %}
+            {% for feed in feeds %}
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">{{ feed.name }}</td>
+                <td style="color: var(--text-muted); font-size: 13px;">{{ feed.url }}</td>
+                <td><span class="badge badge-success">{{ feed.feed_type }}</span></td>
+                <td>
+                    {% if feed.is_active %}
+                    <span class="badge badge-success">Active</span>
+                    {% else %}
+                    <span class="badge badge-danger">Inactive</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 13px;">
+                    {{ feed.last_updated.strftime('%Y-%m-%d %H:%M') if feed.last_updated else 'Never' }}
+                </td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                    No IOC feeds configured. Click "Add Feed" to get started.
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">IOC Statistics</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Active Feeds</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--accent-gold);">
+                {{ feeds|selectattr('is_active')|list|length if feeds else 0 }}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Indicators</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--accent-gold);">0</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Blocked Today</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--danger);">0</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -7,17 +7,15 @@ from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from models import define_tables
-from pydal import DAL
 from datetime import datetime, timedelta
 
-dashboard_bp = Blueprint('dashboard', __name__)
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-# Get database instance
-db = DAL(os.environ.get('DATABASE_URI', 'sqlite://storage.db'), 
-         folder=os.path.join(os.path.dirname(__file__), '..', 'databases'))
-define_tables(db)
+# Import shared database instance
+from database import db
+
+dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/')
 @login_required
@@ -39,7 +37,7 @@ def index():
         'total_queries_24h': recent_queries,
         'cache_hit_rate': (cache_hits / recent_queries * 100) if recent_queries > 0 else 0,
         'active_ioc_feeds': db(db.ioc_feed.is_active == True).count(),
-        'total_ioc_entries': db.ioc_entry.count(),
+        'total_ioc_entries': db(db.ioc_entry).count(),
         'internal_domains': 0,  # TODO: Add internal_domain table
         'ioc_blocks_24h': 0  # TODO: Add blocked query tracking
     }

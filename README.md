@@ -372,6 +372,15 @@ Access the console at: `http://localhost:8080/dns_console`
 - **Certificate Management**: Generate and manage TLS certificates for mTLS
 - **Real-time Updates**: Changes take effect immediately without restart
 
+### Default Credentials
+
+The admin console comes with a default administrator account:
+
+- **Email**: `admin@localhost`
+- **Password**: `admin123`
+
+**IMPORTANT**: Please change these credentials immediately after your first login using the "Profile" or "Users" section.
+
 ## Logging and Monitoring
 
 Squawk provides comprehensive logging with real client IP detection and syslog support:

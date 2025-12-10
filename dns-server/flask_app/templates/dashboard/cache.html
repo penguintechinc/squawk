@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block page_title %}Cache Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Cache Statistics</h3>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn btn-secondary">Refresh Stats</button>
+            <button class="btn btn-danger">Flush Cache</button>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Cache Status</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--success);">
+                <span class="badge badge-success">Connected</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Cached Entries</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--accent-gold);">1,247</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Hit Rate (24h)</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--success);">87.3%</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Memory Usage</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--warning);">24.5 MB</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Cache Configuration</h3>
+        <button class="btn btn-primary">Save Changes</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" checked>
+                    Enable Caching
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Default TTL (seconds)</label>
+                <input type="number" class="form-input" value="300" placeholder="300">
+                <small style="color: var(--text-muted); display: block; margin-top: 8px;">
+                    Time to live for cached DNS responses
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Max Cache Size (entries)</label>
+                <input type="number" class="form-input" value="10000" placeholder="10000">
+            </div>
+        </div>
+
+        <div>
+            <div class="form-group">
+                <label class="form-label">Valkey/Redis URL</label>
+                <input type="text" class="form-input" value="redis://valkey:6379" placeholder="redis://localhost:6379">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Cache Key Prefix</label>
+                <input type="text" class="form-input" value="squawk:dns:" placeholder="squawk:dns:">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Connection Pool Size</label>
+                <input type="number" class="form-input" value="10" placeholder="10">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Top Cached Domains</h3>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Record Type</th>
+                <th>Hits</th>
+                <th>Last Access</th>
+                <th>TTL Remaining</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">google.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted);">1,247</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">4m 23s</td>
+                <td><button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Evict</button></td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">cloudflare.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted);">892</td>
+                <td style="color: var(--text-muted); font-size: 13px;">5 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">1m 14s</td>
+                <td><button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Evict</button></td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">github.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted);">634</td>
+                <td style="color: var(--text-muted); font-size: 13px;">1 minute ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">3m 45s</td>
+                <td><button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Evict</button></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Cache Performance</h3>
+    </div>
+
+    <div style="height: 200px; background: var(--bg-dark); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+        <div style="text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 8px;">📊</div>
+            <div>Cache Hit Rate Chart</div>
+            <small>(Chart visualization to be implemented)</small>
+        </div>
+    </div>
+</div>
+{% endblock %}

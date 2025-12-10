@@ -820,9 +820,10 @@ def main(argv):
             sys.exit(1)
     else:
         # Single domain query
-        result = client.query(domain, record_type)
-        logging.debug(json.dumps(result, indent=4))
-        print(json.dumps(result, indent=2))
+        if domain:
+            result = client.query(domain, record_type)
+            logging.debug(json.dumps(result, indent=4))
+            print(json.dumps(result, indent=2))
 
     # Only start forwarder if forwarding is enabled
     if listen_udp or listen_tcp:

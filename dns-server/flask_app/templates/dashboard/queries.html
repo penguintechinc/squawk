@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block page_title %}Query Logs{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">DNS Query Logs</h3>
+        <div style="display: flex; gap: 12px;">
+            <input type="text" class="form-input" placeholder="Search domain..." style="width: 300px;" id="searchInput">
+            <select class="form-input" style="width: 150px;" id="typeFilter">
+                <option value="">All Types</option>
+                <option value="A">A Records</option>
+                <option value="AAAA">AAAA Records</option>
+                <option value="CNAME">CNAME Records</option>
+                <option value="MX">MX Records</option>
+                <option value="TXT">TXT Records</option>
+            </select>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Domain</th>
+                <th>Client IP</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Cache</th>
+                <th>Response Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if queries %}
+            {% for query in queries %}
+            <tr>
+                <td style="color: var(--text-muted); font-size: 13px;">
+                    {{ query.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                </td>
+                <td style="color: var(--text-secondary); font-weight: 500;">{{ query.domain }}</td>
+                <td style="color: var(--text-muted); font-size: 13px;">{{ query.client_ip or 'N/A' }}</td>
+                <td><span class="badge badge-success">{{ query.record_type }}</span></td>
+                <td>
+                    {% if query.response_status == 200 or query.response_status == 0 %}
+                    <span class="badge badge-success">Success</span>
+                    {% else %}
+                    <span class="badge badge-danger">Error {{ query.response_status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if query.cache_hit %}
+                    <span class="badge badge-success">Hit</span>
+                    {% else %}
+                    <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">Miss</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 13px;">
+                    {{ "%.1f"|format(query.processing_time_ms) if query.processing_time_ms else '0.0' }}ms
+                </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                    No queries logged yet.
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if total > per_page %}
+    <div style="display: flex; justify-content: center; align-items: center; gap: 12px; padding: 20px;">
+        {% if page > 1 %}
+        <a href="{{ url_for('dashboard.queries', page=page-1) }}" class="btn btn-secondary">← Previous</a>
+        {% endif %}
+        <span style="color: var(--text-secondary);">Page {{ page }} of {{ (total / per_page)|round(0, 'ceil')|int }}</span>
+        {% if page * per_page < total %}
+        <a href="{{ url_for('dashboard.queries', page=page+1) }}" class="btn btn-secondary">Next →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Simple client-side filtering
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const domain = row.cells[1]?.textContent.toLowerCase() || '';
+            row.style.display = domain.includes(searchTerm) ? '' : 'none';
+        });
+    });
+
+    document.getElementById('typeFilter').addEventListener('change', function(e) {
+        const filterType = e.target.value;
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const type = row.cells[3]?.textContent.trim() || '';
+            row.style.display = !filterType || type === filterType ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}

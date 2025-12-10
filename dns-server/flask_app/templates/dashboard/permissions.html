@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block page_title %}Permissions{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Group-Zone Permissions</h3>
+        <button class="btn btn-primary" onclick="showAddPermissionModal()">+ Add Permission</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Group</th>
+                <th>Zone</th>
+                <th>Access Level</th>
+                <th>Can Query</th>
+                <th>Can Modify</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-warning">INTERNAL</span></td>
+                <td style="color: var(--text-secondary);">internal.company.com</td>
+                <td><span class="badge badge-success">FULL</span></td>
+                <td style="text-align: center;">✅</td>
+                <td style="text-align: center;">✅</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-12-01</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Revoke</button>
+                </td>
+            </tr>
+            <tr>
+                <td><span class="badge" style="background: var(--bg-hover); color: var(--text-secondary);">EXTERNAL</span></td>
+                <td style="color: var(--text-secondary);">*.public.com</td>
+                <td><span class="badge badge-success">READ</span></td>
+                <td style="text-align: center;">✅</td>
+                <td style="text-align: center;">❌</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-11-15</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Revoke</button>
+                </td>
+            </tr>
+            <tr>
+                <td><span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">PARTNER</span></td>
+                <td style="color: var(--text-secondary);">api.partner.company.com</td>
+                <td><span class="badge badge-success">READ</span></td>
+                <td style="text-align: center;">✅</td>
+                <td style="text-align: center;">❌</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-12-03</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Revoke</button>
+                </td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-warning">ADMIN</span></td>
+                <td style="color: var(--text-secondary);">*</td>
+                <td><span class="badge badge-success">FULL</span></td>
+                <td style="text-align: center;">✅</td>
+                <td style="text-align: center;">✅</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2025-11-01</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <span class="badge" style="background: var(--bg-hover); color: var(--text-muted);">Built-in</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Access Levels</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--success);">
+                <div style="font-weight: 600; color: var(--success); margin-bottom: 8px;">FULL Access</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Complete read and write permissions</div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    • Query DNS records<br>
+                    • Add/modify/delete records<br>
+                    • Manage zone settings<br>
+                    • View audit logs
+                </div>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--warning);">
+                <div style="font-weight: 600; color: var(--warning); margin-bottom: 8px;">READ Access</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Query-only permissions</div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    • Query DNS records<br>
+                    • View zone information<br>
+                    ❌ Cannot modify records<br>
+                    ❌ Cannot manage zones
+                </div>
+            </div>
+
+            <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid var(--danger);">
+                <div style="font-weight: 600; color: var(--danger); margin-bottom: 8px;">DENY Access</div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">No access permissions</div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    ❌ Cannot query records<br>
+                    ❌ Cannot view zone info<br>
+                    • Returns NXDOMAIN (domain not found)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Selective DNS Routing</h3>
+        </div>
+
+        <div style="padding: 20px; background: rgba(251, 191, 36, 0.1); border-radius: 8px; border: 1px solid var(--accent-gold); margin-bottom: 20px;">
+            <div style="font-weight: 600; color: var(--accent-gold); margin-bottom: 12px;">💡 How It Works</div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                Selective DNS routing allows you to serve different DNS responses based on user identity and group membership.
+                This enables a single DNS endpoint to provide:
+            </div>
+            <ul style="font-size: 13px; color: var(--text-secondary); margin-top: 12px; line-height: 1.8; list-style-position: inside;">
+                <li>Private corporate DNS to internal employees</li>
+                <li>Public DNS only to external users</li>
+                <li>Limited private DNS to partners/contractors</li>
+                <li>Different access levels based on group membership</li>
+            </ul>
+        </div>
+
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px; margin-bottom: 16px;">
+            <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">Example Scenario</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+                <strong style="color: var(--accent-gold);">Query:</strong> intranet.company.com<br>
+                <strong style="color: var(--success);">INTERNAL group:</strong> Returns 10.0.1.50<br>
+                <strong style="color: var(--danger);">EXTERNAL group:</strong> Returns NXDOMAIN
+            </div>
+        </div>
+
+        <div style="padding: 16px; background: var(--bg-dark); border-radius: 8px;">
+            <div style="font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">Permission Statistics</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Total Rules</div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--accent-gold);">4</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Active Groups</div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--accent-gold);">4</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showAddPermissionModal() {
+        alert('Add Permission functionality - To be implemented with a modal form');
+    }
+</script>
+{% endblock %}

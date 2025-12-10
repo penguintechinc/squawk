@@ -123,9 +123,56 @@
     </div>
 </div>
 
+<!-- Add Zone Modal -->
+<div id="addZoneModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 500px; width: 100%; margin: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--accent-gold); margin: 0;">Add DNS Zone</h3>
+            <button onclick="closeAddZoneModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.add_zone') }}">
+            <div class="form-group">
+                <label class="form-label">Zone Name</label>
+                <input type="text" name="zone_name" class="form-input" required placeholder="e.g., example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Visibility Level</label>
+                <select name="visibility" class="form-input" required>
+                    <option value="PUBLIC">PUBLIC - Visible to all users</option>
+                    <option value="INTERNAL">INTERNAL - Visible to internal groups only</option>
+                    <option value="RESTRICTED">RESTRICTED - Visible to specific groups only</option>
+                    <option value="PRIVATE">PRIVATE - Visible to admins only</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Primary Nameserver (SOA)</label>
+                <input type="text" name="primary_ns" class="form-input" required placeholder="e.g., ns1.example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Admin Email</label>
+                <input type="email" name="admin_email" class="form-input" required placeholder="admin@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">TTL (seconds)</label>
+                <input type="number" name="ttl" class="form-input" value="3600" placeholder="3600">
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeAddZoneModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Zone</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function showAddZoneModal() {
-        alert('Add Zone functionality - To be implemented with a modal form');
+        document.getElementById('addZoneModal').style.display = 'flex';
     }
+    function closeAddZoneModal() {
+        document.getElementById('addZoneModal').style.display = 'none';
+    }
+    document.getElementById('addZoneModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddZoneModal();
+    });
 </script>
 {% endblock %}

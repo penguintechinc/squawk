@@ -86,9 +86,53 @@
     </div>
 </div>
 
+<!-- Add User Modal -->
+<div id="addUserModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 500px; width: 100%; margin: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--accent-gold); margin: 0;">Add New User</h3>
+            <button onclick="closeAddUserModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.add_user') }}">
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="email" class="form-input" required placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">First Name</label>
+                <input type="text" name="first_name" class="form-input" required placeholder="John">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Last Name</label>
+                <input type="text" name="last_name" class="form-input" required placeholder="Doe">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-input" required placeholder="Enter password">
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_admin">
+                    Grant Administrator privileges
+                </label>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeAddUserModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function showAddUserModal() {
-        alert('Add User functionality - To be implemented with a modal form');
+        document.getElementById('addUserModal').style.display = 'flex';
     }
+    function closeAddUserModal() {
+        document.getElementById('addUserModal').style.display = 'none';
+    }
+    document.getElementById('addUserModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddUserModal();
+    });
 </script>
 {% endblock %}

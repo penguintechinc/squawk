@@ -187,8 +187,27 @@
 
     function clearBlockedHistory() {
         if (confirm('Are you sure you want to clear the blocked query history? This cannot be undone.')) {
-            alert('Clear history functionality - To be implemented');
+            fetch('{{ url_for("dashboard.clear_blocked") }}', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        showNotification('Failed to clear history: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => showNotification('Failed to clear history', 'error'));
         }
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; z-index: 9999; font-weight: 500;';
+        notification.style.background = type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)';
+        notification.style.color = 'white';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
     }
 </script>
 {% endblock %}

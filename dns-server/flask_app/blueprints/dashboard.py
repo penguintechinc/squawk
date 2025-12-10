@@ -188,3 +188,247 @@ def domains_inactive():
 @login_required
 def domains_groups():
     return render_template('dashboard/domains.html', domains=[])
+
+
+# ============================================================================
+# Form Submission Routes
+# ============================================================================
+
+from flask import redirect, url_for, flash
+from werkzeug.security import generate_password_hash
+
+@dashboard_bp.route('/users/add', methods=['POST'])
+@login_required
+def add_user():
+    """Add a new user"""
+    try:
+        email = request.form.get('email')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        password = request.form.get('password')
+        is_admin = request.form.get('is_admin') == 'on'
+
+        # Check if user already exists
+        existing = db(db.auth_user.email == email).select().first()
+        if existing:
+            flash('User with this email already exists', 'error')
+            return redirect(url_for('dashboard.users'))
+
+        # Create user
+        db.auth_user.insert(
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            password=generate_password_hash(password),
+            is_admin=is_admin,
+            created_on=datetime.utcnow()
+        )
+        db.commit()
+        flash('User created successfully', 'success')
+    except Exception as e:
+        flash(f'Failed to create user: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.users'))
+
+
+@dashboard_bp.route('/groups/add', methods=['POST'])
+@login_required
+def add_group():
+    """Add a new group"""
+    try:
+        group_name = request.form.get('group_name')
+        group_type = request.form.get('group_type')
+        description = request.form.get('description')
+
+        # Create group table if it doesn't exist
+        if 'dns_group' not in db.tables:
+            db.define_table('dns_group',
+                db.Field('name', 'string', notnull=True),
+                db.Field('group_type', 'string'),
+                db.Field('description', 'text'),
+                db.Field('created_on', 'datetime', default=datetime.utcnow)
+            )
+
+        db.dns_group.insert(
+            name=group_name,
+            group_type=group_type,
+            description=description,
+            created_on=datetime.utcnow()
+        )
+        db.commit()
+        flash('Group created successfully', 'success')
+    except Exception as e:
+        flash(f'Failed to create group: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.groups'))
+
+
+@dashboard_bp.route('/zones/add', methods=['POST'])
+@login_required
+def add_zone():
+    """Add a new DNS zone"""
+    try:
+        zone_name = request.form.get('zone_name')
+        visibility = request.form.get('visibility')
+        primary_ns = request.form.get('primary_ns')
+        admin_email = request.form.get('admin_email')
+        ttl = int(request.form.get('ttl', 3600))
+
+        # Create zone table if it doesn't exist
+        if 'dns_zone' not in db.tables:
+            db.define_table('dns_zone',
+                db.Field('name', 'string', notnull=True, unique=True),
+                db.Field('visibility', 'string', default='PUBLIC'),
+                db.Field('primary_ns', 'string'),
+                db.Field('admin_email', 'string'),
+                db.Field('ttl', 'integer', default=3600),
+                db.Field('created_on', 'datetime', default=datetime.utcnow)
+            )
+
+        db.dns_zone.insert(
+            name=zone_name,
+            visibility=visibility,
+            primary_ns=primary_ns,
+            admin_email=admin_email,
+            ttl=ttl,
+            created_on=datetime.utcnow()
+        )
+        db.commit()
+        flash('Zone created successfully', 'success')
+    except Exception as e:
+        flash(f'Failed to create zone: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.zones'))
+
+
+@dashboard_bp.route('/records/add', methods=['POST'])
+@login_required
+def add_record():
+    """Add a new DNS record"""
+    try:
+        zone = request.form.get('zone')
+        record_name = request.form.get('record_name')
+        record_type = request.form.get('record_type')
+        record_value = request.form.get('record_value')
+        ttl = int(request.form.get('ttl', 3600))
+
+        # Create record table if it doesn't exist
+        if 'dns_record' not in db.tables:
+            db.define_table('dns_record',
+                db.Field('zone', 'string', notnull=True),
+                db.Field('name', 'string', notnull=True),
+                db.Field('record_type', 'string', notnull=True),
+                db.Field('value', 'string', notnull=True),
+                db.Field('ttl', 'integer', default=3600),
+                db.Field('created_on', 'datetime', default=datetime.utcnow)
+            )
+
+        db.dns_record.insert(
+            zone=zone,
+            name=record_name,
+            record_type=record_type,
+            value=record_value,
+            ttl=ttl,
+            created_on=datetime.utcnow()
+        )
+        db.commit()
+        flash('Record created successfully', 'success')
+    except Exception as e:
+        flash(f'Failed to create record: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.records'))
+
+
+@dashboard_bp.route('/permissions/add', methods=['POST'])
+@login_required
+def add_permission():
+    """Add a new permission rule"""
+    try:
+        group = request.form.get('group')
+        zone_pattern = request.form.get('zone_pattern')
+        access_level = request.form.get('access_level')
+        can_query = request.form.get('can_query') == 'on'
+        can_modify = request.form.get('can_modify') == 'on'
+
+        # Create permission table if it doesn't exist
+        if 'dns_permission' not in db.tables:
+            db.define_table('dns_permission',
+                db.Field('group_name', 'string', notnull=True),
+                db.Field('zone_pattern', 'string', notnull=True),
+                db.Field('access_level', 'string', default='READ'),
+                db.Field('can_query', 'boolean', default=True),
+                db.Field('can_modify', 'boolean', default=False),
+                db.Field('created_on', 'datetime', default=datetime.utcnow)
+            )
+
+        db.dns_permission.insert(
+            group_name=group,
+            zone_pattern=zone_pattern,
+            access_level=access_level,
+            can_query=can_query,
+            can_modify=can_modify,
+            created_on=datetime.utcnow()
+        )
+        db.commit()
+        flash('Permission created successfully', 'success')
+    except Exception as e:
+        flash(f'Failed to create permission: {str(e)}', 'error')
+
+    return redirect(url_for('dashboard.permissions'))
+
+
+@dashboard_bp.route('/feeds/update', methods=['POST'])
+@login_required
+def update_feeds():
+    """Update all threat intelligence feeds"""
+    try:
+        # Get all active feeds
+        feeds = db(db.ioc_feed.is_active == True).select()
+        updated_count = 0
+
+        for feed in feeds:
+            # Update last_updated timestamp
+            db(db.ioc_feed.id == feed.id).update(last_updated=datetime.utcnow())
+            updated_count += 1
+
+        db.commit()
+        return jsonify({'success': True, 'message': f'Updated {updated_count} feeds'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@dashboard_bp.route('/blocked/clear', methods=['POST'])
+@login_required
+def clear_blocked():
+    """Clear blocked query history"""
+    try:
+        # Create blocked_query table if it doesn't exist
+        if 'blocked_query' not in db.tables:
+            db.define_table('blocked_query',
+                db.Field('domain', 'string'),
+                db.Field('client_ip', 'string'),
+                db.Field('reason', 'string'),
+                db.Field('threat_level', 'string'),
+                db.Field('feed_source', 'string'),
+                db.Field('blocked_at', 'datetime', default=datetime.utcnow)
+            )
+
+        # Delete all blocked query records
+        db(db.blocked_query).delete()
+        db.commit()
+        return jsonify({'success': True, 'message': 'Blocked query history cleared'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@dashboard_bp.route('/logs/clear', methods=['POST'])
+@login_required
+def clear_logs():
+    """Clear system logs"""
+    try:
+        # Clear DNS query logs
+        db(db.dns_query_log).delete()
+        db.commit()
+        return jsonify({'success': True, 'message': 'Logs cleared successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})

@@ -45,8 +45,14 @@ def load_user(user_id):
 def seed_admin_user():
     """Seed default admin user if not exists"""
     try:
-        if not db(db.auth_user.email == 'admin@localhost').count():
-            print("Seeding default admin user: admin@localhost")
+        # Check if any users exist
+        user_count = db(db.auth_user).count()
+        print(f"Current user count in database: {user_count}")
+
+        admin_exists = db(db.auth_user.email == 'admin@localhost').count() > 0
+
+        if not admin_exists:
+            print("Seeding default admin user: admin@localhost / admin123")
             db.auth_user.insert(
                 email='admin@localhost',
                 password=generate_password_hash('admin123'),
@@ -56,8 +62,21 @@ def seed_admin_user():
                 is_active=True
             )
             db.commit()
+            print("Admin user created successfully!")
+        else:
+            print("Admin user already exists")
+
+        # Verify the admin user
+        admin = db(db.auth_user.email == 'admin@localhost').select().first()
+        if admin:
+            print(f"Admin user verified: id={admin.id}, email={admin.email}, is_admin={admin.is_admin}, is_active={admin.is_active}")
+        else:
+            print("WARNING: Admin user verification failed!")
+
     except Exception as e:
+        import traceback
         print(f"Error seeding admin user: {e}")
+        traceback.print_exc()
 
 # Seed admin user on startup
 seed_admin_user()

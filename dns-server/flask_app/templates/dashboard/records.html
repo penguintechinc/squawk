@@ -217,9 +217,89 @@
     </div>
 </div>
 
+<!-- Add Record Modal -->
+<div id="addRecordModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 550px; width: 100%; margin: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--accent-gold); margin: 0;">Add DNS Record</h3>
+            <button onclick="closeAddRecordModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.add_record') }}">
+            <div class="form-group">
+                <label class="form-label">Record Name</label>
+                <input type="text" name="name" class="form-input" required placeholder="e.g., www, mail, @">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Record Type</label>
+                <select name="record_type" class="form-input" required onchange="updateValuePlaceholder(this.value)">
+                    <option value="A">A - IPv4 Address</option>
+                    <option value="AAAA">AAAA - IPv6 Address</option>
+                    <option value="CNAME">CNAME - Canonical Name</option>
+                    <option value="MX">MX - Mail Exchange</option>
+                    <option value="TXT">TXT - Text Record</option>
+                    <option value="NS">NS - Name Server</option>
+                    <option value="SRV">SRV - Service Record</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Value</label>
+                <input type="text" name="value" id="recordValue" class="form-input" required placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Zone</label>
+                <select name="zone" class="form-input" required>
+                    <option value="example.com">example.com</option>
+                    <option value="internal.company.com">internal.company.com</option>
+                    <option value="secure.company.com">secure.company.com</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">TTL (seconds)</label>
+                    <input type="number" name="ttl" class="form-input" value="300" placeholder="300">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority (MX/SRV)</label>
+                    <input type="number" name="priority" class="form-input" value="10" placeholder="10">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Visibility</label>
+                <select name="visibility" class="form-input">
+                    <option value="PUBLIC">PUBLIC - Visible to all users</option>
+                    <option value="INTERNAL">INTERNAL - Visible to internal groups</option>
+                    <option value="RESTRICTED">RESTRICTED - Visible to specific groups</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeAddRecordModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function showAddRecordModal() {
-        alert('Add Record functionality - To be implemented with a modal form');
+        document.getElementById('addRecordModal').style.display = 'flex';
+    }
+    function closeAddRecordModal() {
+        document.getElementById('addRecordModal').style.display = 'none';
+    }
+    document.getElementById('addRecordModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddRecordModal();
+    });
+    function updateValuePlaceholder(type) {
+        const placeholders = {
+            'A': '192.168.1.100',
+            'AAAA': '2001:db8::1',
+            'CNAME': 'target.example.com',
+            'MX': 'mail.example.com',
+            'TXT': 'v=spf1 include:_spf.google.com ~all',
+            'NS': 'ns1.example.com',
+            'SRV': '0 5 5060 sipserver.example.com'
+        };
+        document.getElementById('recordValue').placeholder = placeholders[type] || '';
     }
 
     document.getElementById('zoneFilter').addEventListener('change', function(e) {

@@ -22,7 +22,7 @@
                 <option value="ioc">IOC Manager</option>
                 <option value="web-console">Web Console</option>
             </select>
-            <button class="btn btn-secondary">🔄 Refresh</button>
+            <button class="btn btn-secondary" onclick="refreshLogs()">🔄 Refresh</button>
             <button class="btn btn-danger" onclick="clearLogs()">Clear Logs</button>
         </div>
     </div>
@@ -258,18 +258,63 @@
 </div>
 
 <script>
+    const logContainer = document.querySelector('div[style*="background: #000"]');
+    const logEntries = logContainer.querySelectorAll('div[style*="margin-bottom"]');
+
     document.getElementById('logLevelFilter').addEventListener('change', function(e) {
-        alert('Log level filtering - To be implemented with real-time log streaming');
+        const filterLevel = e.target.value.toUpperCase();
+        logEntries.forEach(entry => {
+            const levelSpan = entry.querySelector('span:nth-child(2)');
+            const level = levelSpan ? levelSpan.textContent.replace(/[\[\]]/g, '').trim() : '';
+            if (!filterLevel || level === filterLevel) {
+                entry.style.display = '';
+            } else {
+                entry.style.display = 'none';
+            }
+        });
     });
 
     document.getElementById('logComponentFilter').addEventListener('change', function(e) {
-        alert('Component filtering - To be implemented with real-time log streaming');
+        const filterComponent = e.target.value.toLowerCase();
+        logEntries.forEach(entry => {
+            const componentSpan = entry.querySelector('span:nth-child(3)');
+            const component = componentSpan ? componentSpan.textContent.replace(/[\[\]]/g, '').trim().toLowerCase() : '';
+            if (!filterComponent || component === filterComponent) {
+                entry.style.display = '';
+            } else {
+                entry.style.display = 'none';
+            }
+        });
     });
 
     function clearLogs() {
         if (confirm('Are you sure you want to clear all system logs? This cannot be undone.')) {
-            alert('Clear logs functionality - To be implemented');
+            fetch('{{ url_for("dashboard.clear_logs") }}', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Logs cleared successfully', 'success');
+                        location.reload();
+                    } else {
+                        showNotification('Failed to clear logs: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => showNotification('Failed to clear logs', 'error'));
         }
+    }
+
+    function refreshLogs() {
+        location.reload();
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; z-index: 9999; font-weight: 500;';
+        notification.style.background = type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)';
+        notification.style.color = 'white';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
     }
 </script>
 {% endblock %}

@@ -230,8 +230,37 @@
 <script>
     function updateFeeds() {
         if (confirm('Update all threat intelligence feeds? This may take a few minutes.')) {
-            alert('Feed update functionality - To be implemented');
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '🔄 Updating...';
+
+            fetch('{{ url_for("dashboard.update_feeds") }}', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '🔄 Update All Feeds';
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        showNotification('Failed to update feeds: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = '🔄 Update All Feeds';
+                    showNotification('Failed to update feeds', 'error');
+                });
         }
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; z-index: 9999; font-weight: 500;';
+        notification.style.background = type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)';
+        notification.style.color = 'white';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
     }
 </script>
 {% endblock %}

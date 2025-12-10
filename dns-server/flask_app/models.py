@@ -70,5 +70,31 @@ def define_tables(db):
         Field('updated_at', 'datetime', update=datetime.utcnow),
         Field('user_id', 'reference auth_user'),
     )
-    
+
+    # Internal domains for selective DNS routing
+    db.define_table('internal_domain',
+        Field('name', 'string', unique=True, notnull=True),
+        Field('ip_address', 'string', notnull=True),
+        Field('description', 'text'),
+        Field('access_type', 'string', default='all'),  # all, groups, users
+        Field('is_active', 'boolean', default=True),
+        Field('created_on', 'datetime', default=datetime.utcnow),
+        Field('modified_on', 'datetime', update=datetime.utcnow),
+        Field('created_by', 'reference auth_user'),
+    )
+
+    # Internal domain access groups
+    db.define_table('internal_domain_group',
+        Field('domain_id', 'reference internal_domain', notnull=True),
+        Field('group_name', 'string', notnull=True),
+        Field('created_on', 'datetime', default=datetime.utcnow),
+    )
+
+    # Internal domain access users
+    db.define_table('internal_domain_user',
+        Field('domain_id', 'reference internal_domain', notnull=True),
+        Field('user_id', 'reference auth_user', notnull=True),
+        Field('created_on', 'datetime', default=datetime.utcnow),
+    )
+
     return db

@@ -47,15 +47,10 @@ func NewDNSClientWithTimeout(serverAddr string, token string, timeout time.Durat
 		return nil, err
 	}
 
-	// Create gRPC channel with insecure connection
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	conn, err := grpc.DialContext(
-		ctx,
+	// Create gRPC channel with insecure connection using NewClient
+	conn, err := grpc.NewClient(
 		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to DNS server at %s: %w", addr, err)

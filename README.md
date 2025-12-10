@@ -352,7 +352,7 @@ Response format:
 
 ## Web Console
 
-The py4web-based console provides:
+The Flask-based console provides:
 
 - **Token Management**: Create, update, delete authentication tokens
 - **Domain Permissions**: Assign domains to tokens with granular control
@@ -361,8 +361,57 @@ The py4web-based console provides:
 - **System Configuration**: Manage server settings and parameters
 - **Cache Statistics**: Monitor cache performance and hit rates
 - **Health Monitoring**: Real-time system health and performance metrics
+- **Threat Intelligence**: Monitor IOC feeds and threat blocking
+- **Selective DNS Routing**: Per-user/group DNS access control
 
-Access the console at: `http://localhost:8080/dns_console`
+Access the console at: `http://localhost:8005`
+
+### Screenshots
+
+#### Login Page
+![Login](docs/screenshots/login.png)
+
+#### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+#### DNS Query Logs
+![Queries](docs/screenshots/queries.png)
+
+#### User Management
+![Users](docs/screenshots/users.png)
+
+#### Group Management
+![Groups](docs/screenshots/groups.png)
+
+#### DNS Zones
+![Zones](docs/screenshots/zones.png)
+
+#### DNS Records
+![Records](docs/screenshots/records.png)
+
+#### Permissions
+![Permissions](docs/screenshots/permissions.png)
+
+#### IOC Management
+![IOC](docs/screenshots/ioc.png)
+
+#### Threat Intelligence
+![Threats](docs/screenshots/threats.png)
+
+#### Blocked Queries
+![Blocked](docs/screenshots/blocked.png)
+
+#### System Logs
+![Logs](docs/screenshots/logs.png)
+
+#### Cache Management
+![Cache](docs/screenshots/cache.png)
+
+#### System Configuration
+![Config](docs/screenshots/config.png)
+
+#### Analytics
+![Analytics](docs/screenshots/analytics.png)
 
 ### Admin Features
 

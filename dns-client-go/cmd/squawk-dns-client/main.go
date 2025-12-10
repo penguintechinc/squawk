@@ -161,7 +161,6 @@ func runClient(cmd *cobra.Command, args []string) {
 	// Try to use gRPC if enabled and URL supports it
 	var grpcClient *grpcclient.DNSClient
 	var dohClient *client.DoHClient
-	var err error
 
 	if useGrpc && (strings.HasPrefix(cfg.Client.ServerURL, "grpc://") || strings.HasPrefix(cfg.Client.ServerURL, "grpc:")) {
 		if verbose {
@@ -293,7 +292,7 @@ func runClient(cmd *cobra.Command, args []string) {
 			if len(response.Answers) > 0 {
 				fmt.Println("Answers:")
 				for _, answer := range response.Answers {
-					fmt.Printf("  %s -> %s (TTL: %d)\n", answer.Name, answer.Data, answer.TTL)
+					fmt.Printf("  %s -> %s (TTL: %d)\n", answer.Name, answer.Data, answer.Ttl)
 				}
 			}
 		}

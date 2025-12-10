@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc/dns_query_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -16,7 +15,7 @@ import (
 // DNSClient represents a gRPC DNS Query client
 type DNSClient struct {
 	conn       *grpc.ClientConn
-	client     pb.DNSQueryServiceClient
+	client     DNSQueryServiceClient
 	token      string
 	serverAddr string
 	timeout    time.Duration
@@ -25,27 +24,10 @@ type DNSClient struct {
 // QueryResult represents the result of a DNS query
 type QueryResult struct {
 	Status    int32
-	Answers   []Answer
-	Authority []Answer
-	Additional []Answer
+	Answers   []*Answer
+	Authority []*Answer
+	Additional []*Answer
 	Metadata  *QueryMetadata
-}
-
-// Answer represents a DNS answer
-type Answer struct {
-	Name string
-	Type string
-	TTL  int32
-	Data string
-}
-
-// QueryMetadata represents metadata about a query
-type QueryMetadata struct {
-	Timestamp      int64
-	ResponseTimeMs float64
-	FromCache      bool
-	IOCBlocked     bool
-	ServerID       string
 }
 
 // NewDNSClient creates a new gRPC DNS client
@@ -81,7 +63,7 @@ func NewDNSClientWithTimeout(serverAddr string, token string, timeout time.Durat
 
 	client := &DNSClient{
 		conn:       conn,
-		client:     pb.NewDNSQueryServiceClient(conn),
+		client:     NewDNSQueryServiceClient(conn),
 		token:      token,
 		serverAddr: addr,
 		timeout:    timeout,
@@ -107,7 +89,7 @@ func (c *DNSClient) Query(ctx context.Context, domain string, recordType string)
 		defer cancel()
 	}
 
-	req := &pb.QueryRequest{
+	req := &QueryRequest{
 		Name:  domain,
 		Type:  recordType,
 		Token: c.token,
@@ -143,16 +125,16 @@ func (c *DNSClient) BatchQuery(ctx context.Context, domains []string, recordType
 	}
 
 	// Build query requests
-	queries := make([]*pb.QueryRequest, len(domains))
+	queries := make([]*QueryRequest, len(domains))
 	for i, domain := range domains {
-		queries[i] = &pb.QueryRequest{
+		queries[i] = &QueryRequest{
 			Name:  domain,
 			Type:  recordType,
 			Token: c.token,
 		}
 	}
 
-	req := &pb.BatchQueryRequest{
+	req := &BatchQueryRequest{
 		Queries:       queries,
 		MaxConcurrent: 10,
 	}
@@ -179,7 +161,7 @@ func (c *DNSClient) HealthCheck(ctx context.Context) (bool, error) {
 		defer cancel()
 	}
 
-	req := &pb.HealthCheckRequest{
+	req := &HealthCheckRequest{
 		Service: "dns",
 	}
 
@@ -245,50 +227,13 @@ func parseServerAddress(serverAddr string) (string, error) {
 }
 
 // convertGrpcResponse converts a gRPC response to a QueryResult
-func convertGrpcResponse(grpcResp *pb.QueryResponse) *QueryResult {
+func convertGrpcResponse(grpcResp *QueryResponse) *QueryResult {
 	result := &QueryResult{
-		Status: grpcResp.Status,
-	}
-
-	// Convert answers
-	for _, answer := range grpcResp.Answers {
-		result.Answers = append(result.Answers, Answer{
-			Name: answer.Name,
-			Type: answer.Type,
-			TTL:  answer.Ttl,
-			Data: answer.Data,
-		})
-	}
-
-	// Convert authority records
-	for _, auth := range grpcResp.Authority {
-		result.Authority = append(result.Authority, Answer{
-			Name: auth.Name,
-			Type: auth.Type,
-			TTL:  auth.Ttl,
-			Data: auth.Data,
-		})
-	}
-
-	// Convert additional records
-	for _, add := range grpcResp.Additional {
-		result.Additional = append(result.Additional, Answer{
-			Name: add.Name,
-			Type: add.Type,
-			TTL:  add.Ttl,
-			Data: add.Data,
-		})
-	}
-
-	// Convert metadata
-	if grpcResp.Metadata != nil {
-		result.Metadata = &QueryMetadata{
-			Timestamp:      grpcResp.Metadata.Timestamp,
-			ResponseTimeMs: grpcResp.Metadata.ResponseTimeMs,
-			FromCache:      grpcResp.Metadata.FromCache,
-			IOCBlocked:     grpcResp.Metadata.IocBlocked,
-			ServerID:       grpcResp.Metadata.ServerId,
-		}
+		Status:     grpcResp.Status,
+		Answers:    grpcResp.Answers,
+		Authority:  grpcResp.Authority,
+		Additional: grpcResp.Additional,
+		Metadata:   grpcResp.Metadata,
 	}
 
 	return result

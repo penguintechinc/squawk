@@ -79,7 +79,7 @@ func exampleSingleQuery() {
 	if len(result.Answers) > 0 {
 		fmt.Println("Answers:")
 		for _, answer := range result.Answers {
-			fmt.Printf("  %s -> %s (TTL: %d)\n", answer.Name, answer.Data, answer.TTL)
+			fmt.Printf("  %s -> %s (TTL: %d)\n", answer.Name, answer.Data, answer.Ttl)
 		}
 	} else {
 		fmt.Println("No answers found")

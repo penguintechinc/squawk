@@ -212,6 +212,7 @@ func runClient(cmd *cobra.Command, args []string) {
 
 	// Handle batch queries
 	if batchFile != "" {
+		// #nosec G304 -- batchFile is from user-provided command-line flag, not arbitrary input
 		data, err := os.ReadFile(batchFile)
 		if err != nil {
 			log.Fatalf("Failed to read batch file: %v", err)

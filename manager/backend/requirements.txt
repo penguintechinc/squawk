@@ -8,7 +8,7 @@ gunicorn==22.0.0
 pydal==20251207.1
 redis==5.0.0
 cryptography==41.0.7
-requests==2.31.0
+requests==2.32.4
 prometheus-client==0.18.0
 grpcio>=1.68.0
 grpcio-tools>=1.68.0

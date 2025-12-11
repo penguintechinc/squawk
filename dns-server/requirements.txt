@@ -35,7 +35,7 @@ protobuf>=5.29.0
 # Note: These require system packages to be installed:
 # apt-get install libxml2-dev libxslt1-dev libldap-dev libsasl2-dev
 # If these fail to install, the server will run without SSO features
-# lxml>=4.9.0
-# xmlsec>=1.3.13
-# python-ldap>=3.4.3
-# python3-saml>=1.16.0
+lxml>=4.9.0
+# xmlsec>=1.3.13  # Disabled - complex build dependencies
+python-ldap>=3.4.3
+# python3-saml>=1.16.0  # Disabled - requires xmlsec

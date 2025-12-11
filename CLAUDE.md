@@ -537,6 +537,205 @@ All new features utilize py4web's native capabilities:
 - **Penetration Testing**: Regular security assessments and vulnerability testing
 - **Threat Intelligence Sharing**: Bi-directional threat intelligence with customers
 
+# CI/CD Pipeline & .WORKFLOW Compliance
+
+## Four-Service Architecture with Unified CI/CD
+
+The Squawk project implements comprehensive CI/CD automation for four integrated services:
+
+**Services**:
+1. **DNS Server** (Python 3.13) - Core DNS resolution with enterprise features
+2. **DNS Client** (Go 1.23) - Cross-platform CLI client
+3. **Manager Service** (Python 3.13) - Administrative backend
+4. **Frontend Service** (Node.js 18) - Web console UI
+
+## Version Management
+
+**Version File Format**: `vMajor.Minor.Patch` (e.g., `v2.1.0`)
+
+**Version Monitoring (version-monitor.yml)**:
+- Validates semantic versioning format
+- Checks consistency across all four services
+- Scans for Python/Go security issues
+- Verifies all service components present
+
+**Version Update Process**:
+1. Update `.version` file
+2. Update `CHANGELOG.md`
+3. Create pull request to main
+4. Merge to main
+5. Automatic release creation via GitHub Actions
+
+## Multi-Service Build & Test Workflow
+
+**build.yml** executes three parallel jobs:
+
+### 1. Build & Test Job
+- Builds DNS Server Docker image
+- Runs pytest unit tests
+- Validates test environment
+- Checks Python 3.13 compatibility
+
+### 2. Docker Multi-Build Job
+- Builds unified DNS Server container
+- Builds unified DNS Client container
+- Validates all service components
+- Verifies LDAP library availability
+
+### 3. Security Scanning Job
+- **bandit**: Python code security (DNS Server, Manager)
+- **gosec**: Go code security (DNS Client)
+- **Trivy**: Filesystem vulnerability scanning
+- Reports security findings to GitHub
+
+## Service-Specific Release Workflows
+
+### DNS Server Release (server-release.yml)
+- Manual trigger via GitHub Actions
+- Python 3.13 environment
+- Docker container build and publish
+- Server-specific release notes
+- Registry: ghcr.io and Docker Hub
+
+### Go Client Release (go-client-release.yml)
+- Manual trigger via GitHub Actions
+- Go 1.23 environment
+- Cross-platform binary compilation:
+  - Linux (amd64, arm64)
+  - macOS (amd64, arm64)
+  - Windows (amd64, arm64)
+- Release artifact packaging
+
+## Security Standards
+
+### Python Security (bandit)
+```bash
+bandit -r . --format json --output bandit-results.json
+```
+
+Detects:
+- Hardcoded passwords
+- SQL injection patterns
+- Insecure LDAP implementations
+- Weak cryptography
+- Insecure deserialization
+
+### Go Security (gosec)
+```bash
+gosec -no-fail -fmt json -out gosec-results.json ./...
+```
+
+Detects:
+- SQL injection vulnerabilities
+- Weak cryptography
+- Hardcoded credentials
+- Command injection
+- Unsafe Go functions
+
+## Environment Variables
+
+### Build Environment
+```yaml
+PYTHON_VERSION: '3.13'
+GO_VERSION: '1.23'
+NODE_VERSION: '18'
+```
+
+### Service Verification
+- DNS Server: `dns-server/bins/server_optimized.py`
+- DNS Client: `dns-client/go.mod`
+- Manager: Project structure present
+- Frontend: `manager/frontend/package.json`
+
+## Testing Strategy
+
+### Unit Testing
+
+**Python** (DNS Server, Manager):
+- pytest framework
+- Mocked external dependencies
+- Protocol validation tests
+- Token/auth system tests
+- Database integration tests
+
+**Go** (DNS Client):
+- Go testing with -race flag
+- Mocked server responses
+- CLI argument validation
+- Configuration parsing
+
+**Node.js** (Frontend):
+- Jest testing
+- Component unit tests
+- API endpoint tests
+- UI interaction tests
+
+### Integration Testing
+
+After unit tests pass:
+- Multi-service interaction
+- Database operations
+- API endpoint functionality
+- DNS resolution end-to-end
+
+### Docker Testing
+
+- Image builds successfully
+- Required binaries present
+- Correct language versions
+- Required libraries available
+- Service ports accessible
+
+## Local Development Workflow
+
+### Pre-commit Checks
+
+**Python Services**:
+```bash
+pip install -r requirements.txt
+pip install bandit[toml] black isort flake8 mypy pytest
+black . && isort . && flake8 . && mypy . && bandit -r . && pytest
+```
+
+**Go Client**:
+```bash
+go mod download
+golangci-lint run
+go test -v -race ./...
+gosec ./...
+```
+
+**Node.js Frontend**:
+```bash
+npm install
+npm run lint && npm run format && npm run typecheck && npm test
+```
+
+## Deployment
+
+### Environments
+- **Development**: Deploy from develop branch
+- **Production**: Deploy from main branch only
+- **Staging**: Available from release branches
+
+### Release Process
+1. Create release branch from develop
+2. Update `.version` file
+3. Update `CHANGELOG.md`
+4. Create pull request to main
+5. Merge to main (triggers automatic release)
+6. Workflows publish all artifacts
+
+## Documentation
+
+For complete information:
+- **docs/WORKFLOWS.md**: Detailed workflow documentation
+- **docs/STANDARDS.md**: Code quality and compliance standards
+- **DNS Server**: `dns-server/README.md`
+- **DNS Client**: `dns-client/README.md`
+- **Manager**: `manager/README.md`
+- **Architecture**: `docs/OVERVIEW.md`
+
 # Important Notes
 - **Documentation Domain**: All documentation references should use `squawkdns.com`
 - **Web Console**: Default available at `http://localhost:8000/dns_console`

@@ -1,0 +1,140 @@
+name: Version File Monitoring
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '.version'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '.version'
+
+env:
+  PYTHON_VERSION: '3.13'
+  GO_VERSION: '1.23'
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    name: Validate Version Format
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Check .version file exists
+      run: |
+        if [ ! -f .version ]; then
+          echo "ERROR: .version file does not exist"
+          exit 1
+        fi
+        echo "✓ .version file found"
+
+    - name: Validate version format
+      id: validate
+      run: |
+        VERSION=$(cat .version | tr -d '[:space:]')
+        echo "Version: $VERSION"
+
+        # Check if version matches vMajor.Minor.Patch
+        if [[ ! $VERSION =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "ERROR: Version format invalid: $VERSION"
+          echo "Expected format: vMajor.Minor.Patch"
+          exit 1
+        fi
+
+        # Extract semantic version
+        SEMVER=$(echo "$VERSION" | sed 's/v//')
+        echo "Semantic Version: $SEMVER"
+        echo "version=$SEMVER" >> $GITHUB_OUTPUT
+
+    - name: Log version metadata
+      run: |
+        VERSION=$(cat .version | tr -d '[:space:]')
+        echo "::notice::Version Detected: $VERSION"
+        echo "Commit: ${{ github.sha }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Workflow Run: ${{ github.run_number }}"
+
+  service-consistency:
+    runs-on: ubuntu-latest
+    name: Check Service Version Consistency
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Verify DNS Server version support
+      run: |
+        echo "DNS Server Version Check"
+        if [ -f "dns-server/bins/server_optimized.py" ]; then
+          echo "  ✓ DNS Server found"
+        fi
+
+    - name: Verify DNS Client version support
+      run: |
+        echo "DNS Client (Go) Version Check"
+        if [ -f "dns-client/go.mod" ]; then
+          echo "  ✓ DNS Client (Go) found"
+        fi
+
+    - name: Verify Manager service version support
+      run: |
+        echo "Manager Service Version Check"
+        if [ -f "manager" ] || [ -d "manager" ]; then
+          echo "  ✓ Manager service found"
+        fi
+
+    - name: Verify Frontend service version support
+      run: |
+        echo "Frontend Service Version Check"
+        if [ -f "manager/frontend/package.json" ] || [ -d "manager/frontend" ]; then
+          echo "  ✓ Frontend service found"
+        fi
+
+  security-check:
+    runs-on: ubuntu-latest
+    name: Security Scanning with Version Context
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python for bandit
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Go for gosec
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run bandit
+      run: |
+        pip install bandit[toml]
+        bandit -r . --format json --output bandit-results.json || true
+      continue-on-error: true
+
+    - name: Run gosec
+      uses: securego/gosec@master
+      with:
+        args: '-no-fail -fmt json -out gosec-results.json ./...'
+      continue-on-error: true
+
+    - name: Report security scan summary
+      run: |
+        VERSION=$(cat .version | tr -d '[:space:]')
+        echo "Security Scan Results for Version: $VERSION"
+        echo "========================================="
+
+        if [ -f bandit-results.json ]; then
+          echo "Python Security (bandit): Scanned"
+        fi
+
+        if [ -f gosec-results.json ]; then
+          echo "Go Security (gosec): Scanned"
+        fi

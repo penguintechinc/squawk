@@ -6,44 +6,92 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  PYTHON_VERSION: '3.13'
+  GO_VERSION: '1.23'
+  NODE_VERSION: '18'
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Build DNS Server Docker image for testing
       run: |
         docker build -f dns-server/Dockerfile --build-arg SQUAWK_ENV=test -t squawk-dns-server:test dns-server/
-    
+
     - name: Run unit tests on complete application image
       run: |
         docker run --rm -w /app/dns-server squawk-dns-server:test python3.13 -m pytest tests/ -v --tb=short
-    
+
   docker-multi-build:
     runs-on: ubuntu-latest
     needs: build-and-test
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Build unified Docker image - DNS Server
       run: |
         docker build --target dns-server -t squawk-dns-server-unified:test .
-    
-    - name: Build unified Docker image - DNS Client
+
+    - name: Build unified Docker image - DNS Client (Go)
       run: |
         docker build --target dns-client -t squawk-dns-client-unified:test .
-    
+
     - name: Test unified Docker image - DNS Server
       run: |
         docker run --rm squawk-dns-server-unified:test python3.13 --version
         docker run --rm squawk-dns-server-unified:test python -c "import sys; print(f'Virtual env: {sys.prefix}')"
         docker run --rm squawk-dns-server-unified:test python -c "import ldap; print('python-ldap OK')"
-    
-    - name: Test unified Docker image - DNS Client  
+
+    - name: Test unified Docker image - DNS Client
       run: |
         docker run --rm squawk-dns-client-unified:test python3.13 --version
         docker run --rm squawk-dns-client-unified:test python -c "import sys; print(f'Virtual env: {sys.prefix}')"
         docker run --rm squawk-dns-client-unified:test python -c "import dns.resolver; print('DNS Client OK')"
+
+  security-scanning:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python for bandit
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Go for gosec
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run bandit (Python security scanner)
+      run: |
+        pip install bandit[toml]
+        bandit -r . --format json --output bandit-results.json || true
+      continue-on-error: true
+
+    - name: Run gosec (Go security scanner)
+      uses: securego/gosec@master
+      with:
+        args: '-no-fail -fmt json -out gosec-results.json ./...'
+      continue-on-error: true
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: 'trivy'

@@ -3,18 +3,58 @@ name: Go Client Build and Release
 on:
   push:
     branches: ['*']
+    paths:
+      - 'dns-client-go/**'
+      - '.github/workflows/go-client-release.yml'
   pull_request:
     branches: ['main']
+    paths:
+      - 'dns-client-go/**'
+      - '.github/workflows/go-client-release.yml'
 
 env:
   GO_VERSION: '1.23'
   APP_NAME: 'squawk-dns-client'
 
 jobs:
+  # Check if .version changed to determine if we should build
+  check-version:
+    name: Check Version Change
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.check.outputs.version_changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if .version changed
+        id: check
+        run: |
+          VERSION_FILE="dns-client-go/.version"
+          if [ -f "$VERSION_FILE" ]; then
+            VERSION=$(cat "$VERSION_FILE" | tr -d '\n' | sed 's/^v//')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
+          fi
+
+          # Check if .version was modified in this push
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "^dns-client-go/\.version$"; then
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            echo "dns-client-go/.version file changed - will trigger full build"
+          else
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+            echo "dns-client-go/.version file not changed - skipping full build"
+          fi
+
   # Test job runs on PRs and pushes
   test:
     name: Test Go Client
     runs-on: ubuntu-latest
+    needs: check-version
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,12 +94,12 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           make security
 
-  # Build and release job - only on main branch (not PR branches)
+  # Build and release job - only when .version changes
   build-and-release:
     name: Build and Release Go Client
     runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check-version, test]
+    if: github.event_name == 'push' && needs.check-version.outputs.version_changed == 'true'
     permissions:
       contents: write
       packages: write
@@ -73,16 +113,17 @@ jobs:
         id: naming
         run: |
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          VERSION_FILE="dns-client-go/.version"
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          
-          if [ "$GITHUB_REF" = "refs/heads/main" ] && [ -f .version ]; then
-            VERSION=$(cat .version | tr -d '\n' | sed 's/^v//')
+
+          if [ -f "$VERSION_FILE" ]; then
+            VERSION=$(cat "$VERSION_FILE" | tr -d '\n' | sed 's/^v//')
             echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
             echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
             echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
             echo "DOCKER_TAG=$VERSION" >> $GITHUB_OUTPUT
             echo "DOCKER_TAG_LATEST=true" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=v$VERSION-client" >> $GITHUB_OUTPUT
+            echo "RELEASE_TAG=v$VERSION-go-client" >> $GITHUB_OUTPUT
           else
             echo "BINARY_NAME=squawk-beta" >> $GITHUB_OUTPUT
             echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
@@ -152,7 +193,14 @@ jobs:
                 -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
                 -o build/windows-amd64/$BINARY_NAME.exe \
                 ./cmd/${{ env.APP_NAME }}
-              
+
+              # Windows ARM64
+              mkdir -p build/windows-arm64
+              CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build \
+                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
+                -o build/windows-arm64/$BINARY_NAME.exe \
+                ./cmd/${{ env.APP_NAME }}
+
               echo "Build completed for all platforms"
               find build -name "*$BINARY_NAME*" -type f -exec ls -la {} \;
             '
@@ -172,6 +220,7 @@ jobs:
           cd ../darwin-amd64 && tar -czf ../packages/squawk-$VERSION-darwin-amd64.tar.gz $BINARY_NAME
           cd ../darwin-arm64 && tar -czf ../packages/squawk-$VERSION-darwin-arm64.tar.gz $BINARY_NAME
           cd ../windows-amd64 && zip -q ../packages/squawk-$VERSION-windows-amd64.zip $BINARY_NAME.exe
+          cd ../windows-arm64 && zip -q ../packages/squawk-$VERSION-windows-arm64.zip $BINARY_NAME.exe
           
           # Generate checksums
           cd ../packages
@@ -259,13 +308,14 @@ jobs:
   notify:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: build-and-release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check-version, build-and-release]
+    if: github.event_name == 'push' && needs.check-version.outputs.version_changed == 'true'
     steps:
       - name: Build Summary
         run: |
           echo "✅ Squawk DNS Client (Go) Build Complete!"
           echo "Branch: ${{ github.ref_name }}"
-          echo "Binary: ${{ needs.build-and-release.outputs.binary-name || 'squawk/squawk-beta' }}"
-          echo "Platforms: Linux (amd64, arm64), macOS (amd64, arm64), Windows (amd64)"
-          echo "Docker: penguincloud/squawk-dns-client:${{ github.ref_name }} and ghcr.io"
+          echo "Version: ${{ needs.check-version.outputs.version }}"
+          echo "Binary: ${{ needs.build-and-release.outputs.binary-name || 'squawk' }}"
+          echo "Platforms: Linux (amd64, arm64), macOS (amd64, arm64), Windows (amd64, arm64)"
+          echo "Docker: penguincloud/squawk-dns-client:${{ needs.check-version.outputs.version }} and ghcr.io"

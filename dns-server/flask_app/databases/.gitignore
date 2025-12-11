@@ -1,0 +1,4 @@
+# PyDAL databases directory
+*.table
+*.db
+sql.log

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Squawk DNS Console{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 100px auto; text-align: center;">
+    <h1 style="color: #667eea; margin-bottom: 20px;">Welcome to Squawk DNS</h1>
+    <p style="font-size: 18px; color: #666; margin-bottom: 30px;">
+        Enterprise DNS Management Console
+    </p>
+
+    <div style="display: flex; gap: 15px; justify-content: center;">
+        <a href="{{ url_for('auth.login') }}" class="btn">Login</a>
+        <a href="{{ url_for('auth.register') }}" class="btn"
+            style="background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);">Register</a>
+    </div>
+
+    <div style="margin-top: 50px; padding-top: 30px; border-top: 2px solid #f0f0f0;">
+        <h3 style="color: #667eea; margin-bottom: 15px;">Features</h3>
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: left;">
+            <div>
+                <strong style="color: #667eea;">🔒 Secure DNS</strong>
+                <p style="color: #666; font-size: 14px;">DNS-over-HTTPS with authentication</p>
+            </div>
+            <div>
+                <strong style="color: #667eea;">⚡ Fast Caching</strong>
+                <p style="color: #666; font-size: 14px;">Valkey-powered query caching</p>
+            </div>
+            <div>
+                <strong style="color: #667eea;">🛡️ IOC Blocking</strong>
+                <p style="color: #666; font-size: 14px;">Threat intelligence integration</p>
+            </div>
+            <div>
+                <strong style="color: #667eea;">📊 Analytics</strong>
+                <p style="color: #666; font-size: 14px;">Real-time query monitoring</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

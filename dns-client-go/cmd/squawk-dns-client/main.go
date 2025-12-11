@@ -13,6 +13,7 @@ import (
 
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/config"
+	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/license"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/logger"
@@ -36,6 +37,8 @@ var (
 	verbose     bool
 	jsonOutput  bool
 	enablePerformanceMonitoring bool
+	useGrpc     bool
+	batchFile   string
 
 	// Version information
 	version   = "1.0.0"
@@ -85,6 +88,10 @@ func init() {
 	
 	// Performance monitoring flags
 	rootCmd.Flags().BoolVar(&enablePerformanceMonitoring, "performance", false, "Enable DNS performance monitoring (Enterprise feature)")
+
+	// gRPC flags
+	rootCmd.Flags().BoolVarP(&useGrpc, "grpc", "g", true, "Use gRPC protocol (default: true, fallback to REST if unavailable)")
+	rootCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "Batch query file with domains (one per line)")
 
 	// Add subcommands
 	rootCmd.AddCommand(forwardCmd)
@@ -145,26 +152,125 @@ func runClient(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Validate domain is provided
-	if cfg.Domain == "" {
-		fmt.Fprintf(os.Stderr, "Error: domain is required. Use -d <domain> or set SQUAWK_DOMAIN environment variable.\n")
+	// Validate domain or batch file is provided
+	if cfg.Domain == "" && batchFile == "" {
+		fmt.Fprintf(os.Stderr, "Error: domain is required. Use -d <domain> or -b <file> or set SQUAWK_DOMAIN environment variable.\n")
 		os.Exit(1)
 	}
 
-	// Create DoH client
-	dohClient, err := client.NewDoHClient(cfg.Client)
-	if err != nil {
-		log.Fatalf("Failed to create DoH client: %v", err)
-	}
-	defer func() {
-		if err := dohClient.Close(); err != nil {
-			log.Printf("Warning: failed to close DoH client: %v", err)
-		}
-	}()
+	// Try to use gRPC if enabled and URL supports it
+	var grpcClient *grpcclient.DNSClient
+	var dohClient *client.DoHClient
 
-	// If forwarding is enabled, start forwarder and wait
+	if useGrpc && (strings.HasPrefix(cfg.Client.ServerURL, "grpc://") || strings.HasPrefix(cfg.Client.ServerURL, "grpc:")) {
+		if verbose {
+			fmt.Println("Attempting to create gRPC client...")
+		}
+		grpcClient, err = grpcclient.NewDNSClient(cfg.Client.ServerURL, cfg.Client.AuthToken)
+		if err != nil {
+			if verbose {
+				fmt.Printf("Warning: Failed to create gRPC client: %v\n", err)
+				fmt.Println("Falling back to REST DNS-over-HTTPS...")
+			}
+			grpcClient = nil
+		} else if verbose {
+			fmt.Println("Successfully created gRPC client")
+		}
+	}
+
+	// If gRPC not available, use DoH client
+	if grpcClient == nil {
+		dohClient, err = client.NewDoHClient(cfg.Client)
+		if err != nil {
+			log.Fatalf("Failed to create DoH client: %v", err)
+		}
+		defer func() {
+			if err := dohClient.Close(); err != nil {
+				log.Printf("Warning: failed to close DoH client: %v", err)
+			}
+		}()
+	} else {
+		defer grpcClient.Close()
+	}
+
+	// If forwarding is enabled, start forwarder with DoH client
 	if cfg.Forwarder.ListenUDP || cfg.Forwarder.ListenTCP {
+		if grpcClient != nil {
+			// Forwarder requires DoH client, so create one as fallback
+			if verbose {
+				fmt.Println("Forwarder requires REST client, switching to DoH client")
+			}
+			dohClient, err = client.NewDoHClient(cfg.Client)
+			if err != nil {
+				log.Fatalf("Failed to create DoH client for forwarder: %v", err)
+			}
+			defer dohClient.Close()
+		}
 		runForwarder(dohClient, cfg)
+		return
+	}
+
+	// Handle batch queries
+	if batchFile != "" {
+		// #nosec G304 -- batchFile is from user-provided command-line flag, not arbitrary input
+		data, err := os.ReadFile(batchFile)
+		if err != nil {
+			log.Fatalf("Failed to read batch file: %v", err)
+		}
+
+		domains := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if verbose {
+			fmt.Printf("Batch querying %d domains from %s\n", len(domains), batchFile)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+
+		if grpcClient != nil {
+			// Use gRPC batch query
+			results, err := grpcClient.BatchQuery(ctx, domains, cfg.RecordType)
+			if err != nil {
+				log.Fatalf("Batch DNS query failed: %v", err)
+			}
+
+			for i, domain := range domains {
+				domain = strings.TrimSpace(domain)
+				if i < len(results) {
+					result := results[i]
+					if jsonOutput {
+						jsonData, _ := json.MarshalIndent(result, "", "  ")
+						fmt.Printf("%s: %s\n", domain, string(jsonData))
+					} else {
+						fmt.Printf("%s: Status %d\n", domain, result.Status)
+						if len(result.Answers) > 0 {
+							for _, answer := range result.Answers {
+								fmt.Printf("  %s -> %s\n", answer.Name, answer.Data)
+							}
+						}
+					}
+				}
+			}
+		} else {
+			// Use sequential DoH queries
+			for _, domain := range domains {
+				domain = strings.TrimSpace(domain)
+				if domain == "" {
+					continue
+				}
+				response, err := dohClient.Query(ctx, domain, cfg.RecordType)
+				if err != nil {
+					fmt.Printf("%s: Error - %v\n", domain, err)
+					continue
+				}
+
+				if jsonOutput {
+					jsonData, _ := json.MarshalIndent(response, "", "  ")
+					fmt.Printf("%s: %s\n", domain, string(jsonData))
+				} else {
+					printDNSResponse(response)
+				}
+			}
+		}
 		return
 	}
 
@@ -172,17 +278,38 @@ func runClient(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	response, err := dohClient.Query(ctx, cfg.Domain, cfg.RecordType)
-	if err != nil {
-		log.Fatalf("DNS query failed: %v", err)
-	}
+	if grpcClient != nil {
+		response, err := grpcClient.Query(ctx, cfg.Domain, cfg.RecordType)
+		if err != nil {
+			log.Fatalf("DNS query failed: %v", err)
+		}
 
-	// Output results
-	if jsonOutput {
-		jsonData, _ := json.MarshalIndent(response, "", "  ")
-		fmt.Println(string(jsonData))
+		if jsonOutput {
+			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Query: %s (%s)\n", cfg.Domain, cfg.RecordType)
+			fmt.Printf("Status: %d\n", response.Status)
+			if len(response.Answers) > 0 {
+				fmt.Println("Answers:")
+				for _, answer := range response.Answers {
+					fmt.Printf("  %s -> %s (TTL: %d)\n", answer.Name, answer.Data, answer.Ttl)
+				}
+			}
+		}
 	} else {
-		printDNSResponse(response)
+		response, err := dohClient.Query(ctx, cfg.Domain, cfg.RecordType)
+		if err != nil {
+			log.Fatalf("DNS query failed: %v", err)
+		}
+
+		// Output results
+		if jsonOutput {
+			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			printDNSResponse(response)
+		}
 	}
 }
 

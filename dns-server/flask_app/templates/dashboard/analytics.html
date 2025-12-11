@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block page_title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Query Analytics</h3>
+        <select class="form-input" style="width: 200px;">
+            <option>Last 24 Hours</option>
+            <option>Last 7 Days</option>
+            <option>Last 30 Days</option>
+            <option>Last 90 Days</option>
+        </select>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px;">
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Queries</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);">45,892</div>
+            <div style="font-size: 13px; color: var(--success);">↑ 23% from previous period</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Unique Domains</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);">1,247</div>
+            <div style="font-size: 13px; color: var(--success);">↑ 12% from previous period</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Avg Response Time</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--success);">24ms</div>
+            <div style="font-size: 13px; color: var(--success);">↓ 15% from previous period</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Cache Hit Rate</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--success);">87.3%</div>
+            <div style="font-size: 13px; color: var(--success);">↑ 5% from previous period</div>
+        </div>
+    </div>
+
+    <div style="height: 300px; background: var(--bg-dark); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+        <div style="text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 12px;">📈</div>
+            <div style="font-size: 18px; margin-bottom: 4px;">Query Volume Over Time</div>
+            <small>(Chart.js visualization to be implemented)</small>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Top Queried Domains</h3>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th>Queries</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="color: var(--text-secondary); font-weight: 500;">google.com</td>
+                    <td style="color: var(--text-muted);">3,421</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden;">
+                                <div style="width: 45%; height: 100%; background: var(--accent-gold);"></div>
+                            </div>
+                            <span style="color: var(--text-muted); font-size: 13px;">7.5%</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-secondary); font-weight: 500;">cloudflare.com</td>
+                    <td style="color: var(--text-muted);">2,847</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden;">
+                                <div style="width: 38%; height: 100%; background: var(--accent-gold);"></div>
+                            </div>
+                            <span style="color: var(--text-muted); font-size: 13px;">6.2%</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-secondary); font-weight: 500;">github.com</td>
+                    <td style="color: var(--text-muted);">2,134</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden;">
+                                <div style="width: 30%; height: 100%; background: var(--accent-gold);"></div>
+                            </div>
+                            <span style="color: var(--text-muted); font-size: 13px;">4.7%</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-secondary); font-weight: 500;">aws.amazon.com</td>
+                    <td style="color: var(--text-muted);">1,892</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden;">
+                                <div style="width: 25%; height: 100%; background: var(--accent-gold);"></div>
+                            </div>
+                            <span style="color: var(--text-muted); font-size: 13px;">4.1%</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="color: var(--text-secondary); font-weight: 500;">microsoft.com</td>
+                    <td style="color: var(--text-muted);">1,567</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 6px; background: var(--bg-dark); border-radius: 3px; overflow: hidden;">
+                                <div style="width: 20%; height: 100%; background: var(--accent-gold);"></div>
+                            </div>
+                            <span style="color: var(--text-muted); font-size: 13px;">3.4%</span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Query Types Distribution</h3>
+        </div>
+
+        <div style="height: 300px; background: var(--bg-dark); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); margin-bottom: 20px;">
+            <div style="text-align: center;">
+                <div style="font-size: 64px; margin-bottom: 12px;">📊</div>
+                <div>Record Type Distribution</div>
+                <small>(Pie chart to be implemented)</small>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <span style="color: var(--text-secondary);">A Records</span>
+                <span style="color: var(--accent-gold); font-weight: 600;">72.3%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <span style="color: var(--text-secondary);">AAAA Records</span>
+                <span style="color: var(--accent-gold); font-weight: 600;">15.7%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <span style="color: var(--text-secondary);">CNAME Records</span>
+                <span style="color: var(--accent-gold); font-weight: 600;">8.2%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <span style="color: var(--text-secondary);">MX Records</span>
+                <span style="color: var(--accent-gold); font-weight: 600;">2.4%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Client Activity</h3>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Client IP</th>
+                <th>Queries</th>
+                <th>Unique Domains</th>
+                <th>Avg Response Time</th>
+                <th>Last Seen</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">192.168.1.100</td>
+                <td style="color: var(--text-muted);">12,847</td>
+                <td style="color: var(--text-muted);">432</td>
+                <td style="color: var(--text-muted); font-size: 13px;">18ms</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2 minutes ago</td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">192.168.1.101</td>
+                <td style="color: var(--text-muted);">8,234</td>
+                <td style="color: var(--text-muted);">287</td>
+                <td style="color: var(--text-muted); font-size: 13px;">22ms</td>
+                <td style="color: var(--text-muted); font-size: 13px;">5 minutes ago</td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">192.168.1.102</td>
+                <td style="color: var(--text-muted);">5,923</td>
+                <td style="color: var(--text-muted);">194</td>
+                <td style="color: var(--text-muted); font-size: 13px;">25ms</td>
+                <td style="color: var(--text-muted); font-size: 13px;">15 minutes ago</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

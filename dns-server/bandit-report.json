@@ -1,0 +1,534 @@
+{
+  "errors": [],
+  "generated_at": "2025-12-08T22:24:48Z",
+  "metrics": {
+    "_totals": {
+      "CONFIDENCE.HIGH": 12,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 2,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 1,
+      "SEVERITY.LOW": 11,
+      "SEVERITY.MEDIUM": 2,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 9131,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/cache_manager.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 376,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/cert_manager.py": {
+      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 563,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/client_config_api.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 633,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/extended_api_endpoints.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 391,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/ioc_manager.py": {
+      "CONFIDENCE.HIGH": 4,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 2,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1742,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/logging_manager.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 299,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/performance_api.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 582,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/premium_features.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 817,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/prometheus_metrics.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 346,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/py4web_extended_app.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 562,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/selective_dns_routing.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 537,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/server.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 366,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/server_http3.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 263,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/server_optimized.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 1,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 614,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/server_premium_integrated.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 508,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "bins/whois_manager.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 532,
+      "nosec": 0,
+      "skipped_tests": 0
+    }
+  },
+  "results": [
+    {
+      "code": "228                     ip_addresses.append(local_ip)\n229             except:\n230                 pass\n231 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "bins/cert_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 229,
+      "line_range": [
+        229,
+        230
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "248                 san_list.append(x509.IPAddress(ipaddress.ip_address(ip)))\n249             except:\n250                 pass\n251 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "bins/cert_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 249,
+      "line_range": [
+        249,
+        250
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "617             info[\"subject_alternative_names\"] = sans\n618         except:\n619             pass\n620 \n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "bins/cert_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 618,
+      "line_range": [
+        618,
+        619
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "523                     return part[3:]  # Remove \"CN=\" prefix\n524         except Exception:\n525             pass\n526         return None\n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "bins/client_config_api.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 524,
+      "line_range": [
+        524,
+        525
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "15 import csv\n16 import xml.etree.ElementTree as ET\n17 import yaml\n",
+      "col_offset": 0,
+      "end_col_offset": 34,
+      "filename": "bins/ioc_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Using xml.etree.ElementTree to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree with the equivalent defusedxml package, or make sure defusedxml.defuse_stdlib() is called.",
+      "line_number": 16,
+      "line_range": [
+        16
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b405-import-xml-etree",
+      "test_id": "B405",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "777         try:\n778             root = ET.fromstring(content)\n779             extract_network = config.get(\"extract_network_indicators\", True)\n",
+      "col_offset": 19,
+      "end_col_offset": 41,
+      "filename": "bins/ioc_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+      "line_number": 778,
+      "line_range": [
+        778
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+      "test_id": "B314",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "910                                     )\n911                             except Exception:\n912                                 pass\n913 \n",
+      "col_offset": 28,
+      "end_col_offset": 36,
+      "filename": "bins/ioc_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 911,
+      "line_range": [
+        911,
+        912
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "1135         try:\n1136             root = ET.fromstring(content)\n1137 \n",
+      "col_offset": 19,
+      "end_col_offset": 41,
+      "filename": "bins/ioc_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+      "line_number": 1136,
+      "line_range": [
+        1136
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+      "test_id": "B314",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "1983 \n1984     def __init__(\n1985         self,\n1986         api_root: str,\n1987         collection_id: str,\n1988         auth_type: str = \"none\",\n1989         token: str = \"\",\n1990         username: str = \"\",\n1991         password: str = \"\",\n1992         verify_ssl: bool = True,\n1993     ):\n1994         self.api_root = api_root.rstrip(\"/\")\n1995         self.collection_id = collection_id\n1996         self.auth_type = auth_type\n1997         self.token = token\n1998         self.username = username\n1999         self.password = password\n2000         self.verify_ssl = verify_ssl\n2001 \n",
+      "col_offset": 4,
+      "end_col_offset": 36,
+      "filename": "bins/ioc_manager.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 259,
+        "link": "https://cwe.mitre.org/data/definitions/259.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Possible hardcoded password: ''",
+      "line_number": 1984,
+      "line_range": [
+        1984,
+        1985,
+        1986,
+        1987,
+        1988,
+        1989,
+        1990,
+        1991,
+        1992,
+        1993,
+        1994,
+        1995,
+        1996,
+        1997,
+        1998,
+        1999,
+        2000
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b107_hardcoded_password_default.html",
+      "test_id": "B107",
+      "test_name": "hardcoded_password_default"
+    },
+    {
+      "code": "56                             return True\n57                 except:\n58                     continue\n59 \n",
+      "col_offset": 16,
+      "end_col_offset": 28,
+      "filename": "bins/logging_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 57,
+      "line_range": [
+        57,
+        58
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "440     if KEY_FILE and CERT_FILE:\n441         httpd.socket = ssl.wrap_socket(\n442             httpd.socket, keyfile=KEY_FILE, certfile=CERT_FILE, server_side=True\n443         )\n444         print(f\"Serving DNS-over-HTTPS on port {PORT} with TLS\")\n",
+      "col_offset": 23,
+      "end_col_offset": 9,
+      "filename": "bins/server.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 327,
+        "link": "https://cwe.mitre.org/data/definitions/327.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "ssl.wrap_socket call with no SSL/TLS protocol version specified, the default SSLv23 could be insecure, possible security issue.",
+      "line_number": 441,
+      "line_range": [
+        441,
+        442,
+        443
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b504_ssl_with_no_version.html",
+      "test_id": "B504",
+      "test_name": "ssl_with_no_version"
+    },
+    {
+      "code": "163             with tarfile.open(temp_file, \"r:gz\") as tar:\n164                 tar.extractall(self.blacklist_path)\n165 \n",
+      "col_offset": 16,
+      "end_col_offset": 51,
+      "filename": "bins/server_optimized.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "HIGH",
+      "issue_text": "tarfile.extractall used without any validation. Please check and discard dangerous members.",
+      "line_number": 164,
+      "line_range": [
+        164
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b202_tarfile_unsafe_members.html",
+      "test_id": "B202",
+      "test_name": "tarfile_unsafe_members"
+    },
+    {
+      "code": "279                 dns_type = dns_type or \"A\"\n280             except Exception:\n281                 pass\n282 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "bins/server_premium_integrated.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 280,
+      "line_range": [
+        280,
+        281
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "12 import time\n13 import subprocess\n14 from datetime import datetime, timedelta\n",
+      "col_offset": 0,
+      "end_col_offset": 17,
+      "filename": "bins/whois_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 78,
+        "link": "https://cwe.mitre.org/data/definitions/78.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Consider possible security implications associated with the subprocess module.",
+      "line_number": 13,
+      "line_range": [
+        13
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_imports.html#b404-import-subprocess",
+      "test_id": "B404",
+      "test_name": "blacklist"
+    }
+  ]
+}

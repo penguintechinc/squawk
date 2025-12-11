@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package squawkdns.query;
+
+service DNSQueryService {
+  // Single DNS query
+  rpc Query(QueryRequest) returns (QueryResponse);
+
+  // Batch DNS queries (efficient for multiple lookups)
+  rpc BatchQuery(BatchQueryRequest) returns (BatchQueryResponse);
+
+  // Streaming queries (persistent connection for multiple queries)
+  rpc StreamQuery(stream QueryRequest) returns (stream QueryResponse);
+
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message QueryRequest {
+  string name = 1;                // Domain name to resolve
+  string type = 2;                // A, AAAA, CNAME, MX, TXT, etc.
+  string token = 3;               // Authentication token (optional)
+  bool dnssec_ok = 4;             // DNSSEC validation requested
+  bool check_disabled = 5;        // Bypass cache/IOC checking
+  string client_subnet = 6;       // EDNS Client Subnet
+}
+
+message QueryResponse {
+  int32 status = 1;               // 0=NOERROR, 2=SERVFAIL, 3=NXDOMAIN
+  repeated Answer answers = 2;
+  repeated Answer authority = 3;
+  repeated Answer additional = 4;
+  QueryMetadata metadata = 5;
+}
+
+message Answer {
+  string name = 1;
+  string type = 2;
+  int32 ttl = 3;
+  string data = 4;
+}
+
+message QueryMetadata {
+  int64 timestamp = 1;
+  double response_time_ms = 2;
+  bool from_cache = 3;
+  bool ioc_blocked = 4;
+  string server_id = 5;
+}
+
+message BatchQueryRequest {
+  repeated QueryRequest queries = 1;
+  int32 max_concurrent = 2;       // Max parallel resolution
+}
+
+message BatchQueryResponse {
+  repeated QueryResponse responses = 1;
+  BatchMetadata metadata = 2;
+}
+
+message BatchMetadata {
+  int32 total_queries = 1;
+  int32 successful = 2;
+  int32 failed = 3;
+  double total_time_ms = 4;
+}
+
+message HealthCheckRequest {
+  string service = 1;
+}
+
+message HealthCheckResponse {
+  enum Status {
+    UNKNOWN = 0;
+    SERVING = 1;
+    NOT_SERVING = 2;
+    SERVICE_UNKNOWN = 3;
+  }
+  Status status = 1;
+}

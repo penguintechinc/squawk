@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block page_title %}Threat Intelligence{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Threat Intelligence Overview</h3>
+        <button class="btn btn-primary" onclick="updateFeeds()">🔄 Update All Feeds</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Indicators</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--accent-gold);">127,492</div>
+            <div style="font-size: 13px; color: var(--success);">↑ 1,247 today</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Active Feeds</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--success);">8/10</div>
+            <div style="font-size: 13px; color: var(--text-muted);">2 feeds disabled</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Critical Threats</div>
+            <div style="font-size: 32px; font-weight: 700; color: var(--danger);">3,421</div>
+            <div style="font-size: 13px; color: var(--danger);">Active C2 servers</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Last Update</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--accent-gold);">2m ago</div>
+            <div style="font-size: 13px; color: var(--success);">All feeds current</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Active Threat Feeds</h3>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Feed Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Indicators</th>
+                <th>Last Updated</th>
+                <th>Update Frequency</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">abuse.ch URLhaus</td>
+                <td><span class="badge badge-danger">Malware</span></td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td style="color: var(--text-muted);">42,847</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 5 min</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Update</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Disable</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">Spamhaus DBL</td>
+                <td><span class="badge badge-warning">Spam</span></td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td style="color: var(--text-muted);">28,392</td>
+                <td style="color: var(--text-muted); font-size: 13px;">15 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 15 min</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Update</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Disable</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">Emerging Threats</td>
+                <td><span class="badge badge-danger">C2</span></td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td style="color: var(--text-muted);">15,234</td>
+                <td style="color: var(--text-muted); font-size: 13px;">5 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 10 min</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Update</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Disable</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">Feodo Tracker</td>
+                <td><span class="badge badge-danger">Botnet</span></td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td style="color: var(--text-muted);">8,921</td>
+                <td style="color: var(--text-muted); font-size: 13px;">10 minutes ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 30 min</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Update</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Disable</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">PhishTank</td>
+                <td><span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #a855f7;">Phishing</span></td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td style="color: var(--text-muted);">12,547</td>
+                <td style="color: var(--text-muted); font-size: 13px;">1 hour ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 1 hour</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Update</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Disable</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">Malware Domains</td>
+                <td><span class="badge badge-danger">Malware</span></td>
+                <td><span class="badge" style="background: rgba(107, 114, 128, 0.2); color: #6b7280;">Disabled</span></td>
+                <td style="color: var(--text-muted);">19,551</td>
+                <td style="color: var(--text-muted); font-size: 13px;">2 days ago</td>
+                <td style="color: var(--text-muted); font-size: 13px;">Every 24 hours</td>
+                <td>
+                    <button class="btn btn-success" style="padding: 6px 12px; font-size: 12px;">Enable</button>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Threat Distribution</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid #ef4444;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 600; color: #ef4444; margin-bottom: 4px;">Critical</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Active C2 servers, zero-day exploits</div>
+                    </div>
+                    <div style="font-size: 24px; font-weight: 700; color: #ef4444;">3,421</div>
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 600; color: #f59e0b; margin-bottom: 4px;">High</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Known malware, botnets</div>
+                    </div>
+                    <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">42,847</div>
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid #facc15;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 600; color: #facc15; margin-bottom: 4px;">Medium</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Spam domains, suspicious activity</div>
+                    </div>
+                    <div style="font-size: 24px; font-weight: 700; color: #facc15;">28,392</div>
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 4px solid #3b82f6;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 600; color: #3b82f6; margin-bottom: 4px;">Low</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Ads, trackers, minor threats</div>
+                    </div>
+                    <div style="font-size: 24px; font-weight: 700; color: #3b82f6;">52,832</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Recent Threat Discoveries</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 3px solid #ef4444;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">ransomware-c2-2025.xyz</span>
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.3); color: #ef4444;">Critical</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Source: URLhaus • Added: 5 minutes ago
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 3px solid #f59e0b;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">malware-dropper-site.com</span>
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">High</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Source: Emerging Threats • Added: 12 minutes ago
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 3px solid #a855f7;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">fake-bank-login.phish</span>
+                    <span class="badge badge-warning">Medium</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Source: PhishTank • Added: 45 minutes ago
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-dark); border-radius: 8px; border-left: 3px solid #f59e0b;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">cryptominer-inject.bad</span>
+                    <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">High</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Source: Feodo Tracker • Added: 1 hour ago
+                </div>
+            </div>
+        </div>
+
+        <button class="btn btn-secondary" style="width: 100%; margin-top: 16px;">View All Discoveries →</button>
+    </div>
+</div>
+
+<script>
+    function updateFeeds() {
+        if (confirm('Update all threat intelligence feeds? This may take a few minutes.')) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '🔄 Updating...';
+
+            fetch('{{ url_for("dashboard.update_feeds") }}', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '🔄 Update All Feeds';
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        showNotification('Failed to update feeds: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = '🔄 Update All Feeds';
+                    showNotification('Failed to update feeds', 'error');
+                });
+        }
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 8px; z-index: 9999; font-weight: 500;';
+        notification.style.background = type === 'error' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(16, 185, 129, 0.9)';
+        notification.style.color = 'white';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+    }
+</script>
+{% endblock %}

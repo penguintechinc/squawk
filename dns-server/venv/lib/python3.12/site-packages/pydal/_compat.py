@@ -16,7 +16,6 @@ if PY2:
     from email.MIMEText import MIMEText
     from string import maketrans
     from types import ClassType
-    from urllib import FancyURLopener
     from urllib import quote as urllib_quote
     from urllib import quote_plus as urllib_quote_plus
     from urllib import unquote
@@ -111,7 +110,7 @@ else:
     from urllib.parse import unquote
     from urllib.parse import unquote as urllib_unquote
     from urllib.parse import urlencode
-    from urllib.request import FancyURLopener, urlopen
+    from urllib.request import urlopen
     from xmlrpc.client import ProtocolError
 
     hashlib_md5 = lambda s: hashlib.md5(bytes(s, "utf8"))

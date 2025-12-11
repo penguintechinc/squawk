@@ -1,5 +1,6 @@
 import unittest
 
+
 class TestAppName(unittest.TestCase):
 
     def setUp(self):
@@ -14,5 +15,6 @@ class TestAppName(unittest.TestCase):
         # Example test case
         self.assertEqual(1, 1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

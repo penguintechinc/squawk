@@ -11,21 +11,29 @@
 # under the License.
 
 import asyncio
+import contextvars
 import threading
 import time
 import unittest
 import warnings
 
 from concurrent.futures import ThreadPoolExecutor
+import tornado.platform.asyncio
 from tornado import gen
 from tornado.ioloop import IOLoop
 from tornado.platform.asyncio import (
     AsyncIOLoop,
     to_asyncio_future,
-    AnyThreadEventLoopPolicy,
     AddThreadSelectorEventLoop,
 )
-from tornado.testing import AsyncTestCase, gen_test
+from tornado.testing import (
+    AsyncTestCase,
+    gen_test,
+    setup_with_context_manager,
+    AsyncHTTPTestCase,
+)
+from tornado.test.util import ignore_deprecation
+from tornado.web import Application, RequestHandler
 
 
 class AsyncIOLoopTest(AsyncTestCase):
@@ -111,10 +119,6 @@ class LeakTest(unittest.TestCase):
     def setUp(self):
         # Trigger a cleanup of the mapping so we start with a clean slate.
         AsyncIOLoop(make_current=False).close()
-        # If we don't clean up after ourselves other tests may fail on
-        # py34.
-        self.orig_policy = asyncio.get_event_loop_policy()
-        asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
     def tearDown(self):
         try:
@@ -124,7 +128,6 @@ class LeakTest(unittest.TestCase):
             pass
         else:
             loop.close()
-        asyncio.set_event_loop_policy(self.orig_policy)
 
     def test_ioloop_close_leak(self):
         orig_count = len(IOLoop._ioloop_for_asyncio)
@@ -205,6 +208,12 @@ class SelectorThreadLeakTest(unittest.TestCase):
 
 class AnyThreadEventLoopPolicyTest(unittest.TestCase):
     def setUp(self):
+        setup_with_context_manager(self, ignore_deprecation())
+        # Referencing the event loop policy attributes raises deprecation warnings,
+        # so instead of importing this at the top of the file we capture it here.
+        self.AnyThreadEventLoopPolicy = (
+            tornado.platform.asyncio.AnyThreadEventLoopPolicy
+        )
         self.orig_policy = asyncio.get_event_loop_policy()
         self.executor = ThreadPoolExecutor(1)
 
@@ -237,7 +246,7 @@ class AnyThreadEventLoopPolicyTest(unittest.TestCase):
                 RuntimeError, self.executor.submit(asyncio.get_event_loop).result
             )
             # Set the policy and we can get a loop.
-            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
+            asyncio.set_event_loop_policy(self.AnyThreadEventLoopPolicy())
             self.assertIsInstance(
                 self.executor.submit(asyncio.get_event_loop).result(),
                 asyncio.AbstractEventLoop,
@@ -256,6 +265,34 @@ class AnyThreadEventLoopPolicyTest(unittest.TestCase):
             # IOLoop doesn't (currently) close the underlying loop.
             self.executor.submit(lambda: asyncio.get_event_loop().close()).result()  # type: ignore
 
-            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
+            asyncio.set_event_loop_policy(self.AnyThreadEventLoopPolicy())
             self.assertIsInstance(self.executor.submit(IOLoop.current).result(), IOLoop)
             self.executor.submit(lambda: asyncio.get_event_loop().close()).result()  # type: ignore
+
+
+class SelectorThreadContextvarsTest(AsyncHTTPTestCase):
+    ctx_value = "foo"
+    test_endpoint = "/"
+    tornado_test_ctx = contextvars.ContextVar("tornado_test_ctx", default="default")
+    tornado_test_ctx.set(ctx_value)
+
+    def get_app(self) -> Application:
+        tornado_test_ctx = self.tornado_test_ctx
+
+        class Handler(RequestHandler):
+            async def get(self):
+                # On the Windows platform,
+                # when a asyncio.events.Handle is created
+                # in the SelectorThread without providing a context,
+                # it will copy the current thread's context,
+                # which can lead to the loss of the main thread's context
+                # when executing the handle.
+                # Therefore, it is necessary to
+                # save a copy of the main thread's context in the SelectorThread
+                # for creating the handle.
+                self.write(tornado_test_ctx.get())
+
+        return Application([(self.test_endpoint, Handler)])
+
+    def test_context_vars(self):
+        self.assertEqual(self.ctx_value, self.fetch(self.test_endpoint).body.decode())

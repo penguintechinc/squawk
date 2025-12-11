@@ -72,9 +72,9 @@ RUN python3.13 -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip wheel setuptools && \
     /app/venv/bin/pip install -r requirements.txt && \
     if [ "$SQUAWK_ENV" = "development" ] || [ "$SQUAWK_ENV" = "test" ] || [ -f requirements-dev.txt ]; then \
-        echo "Installing development dependencies..." && \
-        /app/venv/bin/pip install -r requirements-dev.txt 2>/dev/null || \
-        echo "No dev requirements found or installation failed - continuing with production setup"; \
+    echo "Installing development dependencies..." && \
+    /app/venv/bin/pip install -r requirements-dev.txt 2>/dev/null || \
+    echo "No dev requirements found or installation failed - continuing with production setup"; \
     fi && \
     /app/venv/bin/python -c "import sys; print(f'Python {sys.version}')" && \
     echo "✓ Python dependencies installed successfully"
@@ -104,9 +104,9 @@ EXPOSE 8080 8000
 
 # Smart command selection based on environment
 CMD if [ "$SQUAWK_ENV" = "test" ]; then \
-        echo "Running tests..." && \
-        python -m pytest tests/ -v; \
+    echo "Running tests..." && \
+    python -m pytest tests/ -v; \
     else \
-        echo "Starting DNS server..." && \
-        python /app/dns-server/bins/server.py -p ${PORT:-8080} -n; \
+    echo "Starting DNS server..." && \
+    python /app/dns-server/bins/server_premium_integrated.py -p ${PORT:-8080} -n; \
     fi

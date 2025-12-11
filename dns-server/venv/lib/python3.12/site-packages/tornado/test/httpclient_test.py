@@ -28,7 +28,7 @@ from tornado.iostream import IOStream
 from tornado.log import gen_log, app_log
 from tornado import netutil
 from tornado.testing import AsyncHTTPTestCase, bind_unused_port, gen_test, ExpectLog
-from tornado.test.util import skipOnTravis, ignore_deprecation
+from tornado.test.util import ignore_deprecation
 from tornado.web import Application, RequestHandler, url
 from tornado.httputil import format_timestamp, HTTPHeaders
 
@@ -146,7 +146,7 @@ class InvalidGzipHandler(RequestHandler):
         # Triggering the potential bug seems to depend on input length.
         # This length is taken from the bad-response example reported in
         # https://github.com/tornadoweb/tornado/pull/2875 (uncompressed).
-        text = "".join("Hello World {}\n".format(i) for i in range(9000))[:149051]
+        text = "".join(f"Hello World {i}\n" for i in range(9000))[:149051]
         body = gzip.compress(text.encode(), compresslevel=6) + b"\00"
         self.write(body)
 
@@ -191,7 +191,6 @@ class HTTPClientCommonTestCase(AsyncHTTPTestCase):
         self.assertEqual(response.code, 200)
         self.assertEqual(response.body, body)
 
-    @skipOnTravis
     def test_hello_world(self):
         response = self.fetch("/hello")
         self.assertEqual(response.code, 200)
@@ -443,7 +442,7 @@ Transfer-Encoding: chunked
         # test if client hangs on tricky invalid gzip
         # curl/simple httpclient have different behavior (exception, logging)
         with ExpectLog(
-            app_log, "(Uncaught exception|Exception in callback)", required=False
+            gen_log, ".*Malformed HTTP message.*unconsumed gzip data", required=False
         ):
             try:
                 response = self.fetch("/invalid_gzip")
@@ -482,6 +481,23 @@ Transfer-Encoding: chunked
         self.assertEqual(len(first_line), 1, first_line)
         self.assertRegex(first_line[0], "HTTP/[0-9]\\.[0-9] 200.*\r\n")
         self.assertEqual(chunks, [b"asdf", b"qwer"])
+
+    def test_header_callback_to_parse_line(self):
+        # Make a request with header_callback and feed the headers to HTTPHeaders.parse_line.
+        # (Instead of HTTPHeaders.parse which is used in normal cases). Ensure that the resulting
+        # headers are as expected, and in particular do not have trailing whitespace added
+        # due to the final CRLF line.
+        headers = HTTPHeaders()
+
+        def header_callback(line):
+            if line.startswith("HTTP/"):
+                # Ignore the first status line
+                return
+            headers.parse_line(line)
+
+        self.fetch("/hello", header_callback=header_callback)
+        for k, v in headers.get_all():
+            self.assertTrue(v == v.strip(), (k, v))
 
     @gen_test
     def test_configure_defaults(self):
@@ -690,16 +706,18 @@ X-XSS-Protection: 1;
         start_time = time.time()
         response = self.fetch("/hello")
         response.rethrow()
-        assert response.request_time is not None
+        self.assertIsNotNone(response.request_time)
+        assert response.request_time is not None  # for mypy
         self.assertGreaterEqual(response.request_time, 0)
         self.assertLess(response.request_time, 1.0)
         # A very crude check to make sure that start_time is based on
         # wall time and not the monotonic clock.
-        assert response.start_time is not None
+        self.assertIsNotNone(response.start_time)
+        assert response.start_time is not None  # for mypy
         self.assertLess(abs(response.start_time - start_time), 1.0)
 
         for k, v in response.time_info.items():
-            self.assertTrue(0 <= v < 1.0, "time_info[%s] out of bounds: %s" % (k, v))
+            self.assertTrue(0 <= v < 1.0, f"time_info[{k}] out of bounds: {v}")
 
     def test_zero_timeout(self):
         response = self.fetch("/hello", connect_timeout=0)
@@ -763,7 +781,7 @@ class RequestProxyTest(unittest.TestCase):
 
     def test_neither_set(self):
         proxy = _RequestProxy(HTTPRequest("http://example.com/"), dict())
-        self.assertIs(proxy.auth_username, None)
+        self.assertIsNone(proxy.auth_username)
 
     def test_bad_attribute(self):
         proxy = _RequestProxy(HTTPRequest("http://example.com/"), dict())
@@ -772,7 +790,7 @@ class RequestProxyTest(unittest.TestCase):
 
     def test_defaults_none(self):
         proxy = _RequestProxy(HTTPRequest("http://example.com/"), None)
-        self.assertIs(proxy.auth_username, None)
+        self.assertIsNone(proxy.auth_username)
 
 
 class HTTPResponseTestCase(unittest.TestCase):

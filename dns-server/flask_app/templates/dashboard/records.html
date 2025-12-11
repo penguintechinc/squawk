@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block page_title %}DNS Records{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">DNS Records</h3>
+        <div style="display: flex; gap: 12px;">
+            <select class="form-input" style="width: 200px;" id="zoneFilter">
+                <option value="">All Zones</option>
+                <option value="example.com">example.com</option>
+                <option value="internal.company.com">internal.company.com</option>
+                <option value="secure.company.com">secure.company.com</option>
+            </select>
+            <button class="btn btn-primary" onclick="showAddRecordModal()">+ Add Record</button>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Value</th>
+                <th>TTL</th>
+                <th>Zone</th>
+                <th>Visibility</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">www.example.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted); font-size: 13px; font-family: monospace;">192.168.1.100</td>
+                <td style="color: var(--text-muted); font-size: 13px;">300</td>
+                <td style="color: var(--text-muted);">example.com</td>
+                <td><span class="badge badge-success">PUBLIC</span></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">example.com</td>
+                <td><span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">MX</span></td>
+                <td style="color: var(--text-muted); font-size: 13px; font-family: monospace;">10 mail.example.com</td>
+                <td style="color: var(--text-muted); font-size: 13px;">3600</td>
+                <td style="color: var(--text-muted);">example.com</td>
+                <td><span class="badge badge-success">PUBLIC</span></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">intranet.internal.company.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted); font-size: 13px; font-family: monospace;">10.0.1.50</td>
+                <td style="color: var(--text-muted); font-size: 13px;">600</td>
+                <td style="color: var(--text-muted);">internal.company.com</td>
+                <td><span class="badge badge-warning">INTERNAL</span></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">api.secure.company.com</td>
+                <td><span class="badge badge-success">A</span></td>
+                <td style="color: var(--text-muted); font-size: 13px; font-family: monospace;">10.0.2.100</td>
+                <td style="color: var(--text-muted); font-size: 13px;">300</td>
+                <td style="color: var(--text-muted);">secure.company.com</td>
+                <td><span class="badge badge-danger">RESTRICTED</span></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">example.com</td>
+                <td><span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #a855f7;">TXT</span></td>
+                <td style="color: var(--text-muted); font-size: 13px; font-family: monospace;">v=spf1 include:_spf.google.com ~all</td>
+                <td style="color: var(--text-muted); font-size: 13px;">3600</td>
+                <td style="color: var(--text-muted);">example.com</td>
+                <td><span class="badge badge-success">PUBLIC</span></td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Record Type Distribution</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="badge badge-success">A</span>
+                    <span style="color: var(--text-secondary);">IPv4 Address Records</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;">
+                        <div style="width: 65%; height: 100%; background: var(--accent-gold);"></div>
+                    </div>
+                    <span style="color: var(--accent-gold); font-weight: 600;">52</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e;">AAAA</span>
+                    <span style="color: var(--text-secondary);">IPv6 Address Records</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;">
+                        <div style="width: 20%; height: 100%; background: var(--accent-gold);"></div>
+                    </div>
+                    <span style="color: var(--accent-gold); font-weight: 600;">15</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">CNAME</span>
+                    <span style="color: var(--text-secondary);">Canonical Name Records</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;">
+                        <div style="width: 30%; height: 100%; background: var(--accent-gold);"></div>
+                    </div>
+                    <span style="color: var(--accent-gold); font-weight: 600;">12</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6;">MX</span>
+                    <span style="color: var(--text-secondary);">Mail Exchange Records</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;">
+                        <div style="width: 10%; height: 100%; background: var(--accent-gold);"></div>
+                    </div>
+                    <span style="color: var(--accent-gold); font-weight: 600;">4</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-dark); border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #a855f7;">TXT</span>
+                    <span style="color: var(--text-secondary);">Text Records</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 100px; height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;">
+                        <div style="width: 5%; height: 100%; background: var(--accent-gold);"></div>
+                    </div>
+                    <span style="color: var(--accent-gold); font-weight: 600;">2</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title" style="color: var(--accent-gold);">Quick Actions</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button class="btn btn-primary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 20px;">➕</span>
+                <div>
+                    <div>Add A Record</div>
+                    <small style="opacity: 0.7;">Map domain to IPv4 address</small>
+                </div>
+            </button>
+
+            <button class="btn btn-secondary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 20px;">📧</span>
+                <div>
+                    <div>Add MX Record</div>
+                    <small style="opacity: 0.7;">Configure email routing</small>
+                </div>
+            </button>
+
+            <button class="btn btn-secondary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 20px;">🔗</span>
+                <div>
+                    <div>Add CNAME Record</div>
+                    <small style="opacity: 0.7;">Create domain alias</small>
+                </div>
+            </button>
+
+            <button class="btn btn-secondary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 20px;">📝</span>
+                <div>
+                    <div>Add TXT Record</div>
+                    <small style="opacity: 0.7;">SPF, DKIM, verification</small>
+                </div>
+            </button>
+
+            <button class="btn btn-secondary" style="width: 100%; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 20px;">📦</span>
+                <div>
+                    <div>Bulk Import</div>
+                    <small style="opacity: 0.7;">Import from zone file</small>
+                </div>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Record Modal -->
+<div id="addRecordModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 550px; width: 100%; margin: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--accent-gold); margin: 0;">Add DNS Record</h3>
+            <button onclick="closeAddRecordModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.add_record') }}">
+            <div class="form-group">
+                <label class="form-label">Record Name</label>
+                <input type="text" name="name" class="form-input" required placeholder="e.g., www, mail, @">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Record Type</label>
+                <select name="record_type" class="form-input" required onchange="updateValuePlaceholder(this.value)">
+                    <option value="A">A - IPv4 Address</option>
+                    <option value="AAAA">AAAA - IPv6 Address</option>
+                    <option value="CNAME">CNAME - Canonical Name</option>
+                    <option value="MX">MX - Mail Exchange</option>
+                    <option value="TXT">TXT - Text Record</option>
+                    <option value="NS">NS - Name Server</option>
+                    <option value="SRV">SRV - Service Record</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Value</label>
+                <input type="text" name="value" id="recordValue" class="form-input" required placeholder="192.168.1.100">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Zone</label>
+                <select name="zone" class="form-input" required>
+                    <option value="example.com">example.com</option>
+                    <option value="internal.company.com">internal.company.com</option>
+                    <option value="secure.company.com">secure.company.com</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label">TTL (seconds)</label>
+                    <input type="number" name="ttl" class="form-input" value="300" placeholder="300">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority (MX/SRV)</label>
+                    <input type="number" name="priority" class="form-input" value="10" placeholder="10">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Visibility</label>
+                <select name="visibility" class="form-input">
+                    <option value="PUBLIC">PUBLIC - Visible to all users</option>
+                    <option value="INTERNAL">INTERNAL - Visible to internal groups</option>
+                    <option value="RESTRICTED">RESTRICTED - Visible to specific groups</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeAddRecordModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function showAddRecordModal() {
+        document.getElementById('addRecordModal').style.display = 'flex';
+    }
+    function closeAddRecordModal() {
+        document.getElementById('addRecordModal').style.display = 'none';
+    }
+    document.getElementById('addRecordModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddRecordModal();
+    });
+    function updateValuePlaceholder(type) {
+        const placeholders = {
+            'A': '192.168.1.100',
+            'AAAA': '2001:db8::1',
+            'CNAME': 'target.example.com',
+            'MX': 'mail.example.com',
+            'TXT': 'v=spf1 include:_spf.google.com ~all',
+            'NS': 'ns1.example.com',
+            'SRV': '0 5 5060 sipserver.example.com'
+        };
+        document.getElementById('recordValue').placeholder = placeholders[type] || '';
+    }
+
+    document.getElementById('zoneFilter').addEventListener('change', function(e) {
+        const filterZone = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const zone = row.cells[4]?.textContent.toLowerCase() || '';
+            row.style.display = !filterZone || zone.includes(filterZone) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}

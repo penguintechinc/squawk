@@ -14,7 +14,6 @@
 # under the License.
 from contextlib import closing
 import getpass
-import os
 import socket
 import unittest
 
@@ -64,8 +63,6 @@ class TCPClientTest(AsyncTestCase):
         self.client = TCPClient()
 
     def start_server(self, family):
-        if family == socket.AF_UNSPEC and "TRAVIS" in os.environ:
-            self.skipTest("dual-stack servers often have port conflicts on travis")
         self.server = TestTCPServer(family)
         return self.server.port
 
@@ -83,7 +80,7 @@ class TCPClientTest(AsyncTestCase):
         # The port used here doesn't matter, but some systems require it
         # to be non-zero if we do not also pass AI_PASSIVE.
         addrinfo = self.io_loop.run_sync(lambda: Resolver().resolve("localhost", 80))
-        families = set(addr[0] for addr in addrinfo)
+        families = {addr[0] for addr in addrinfo}
         if socket.AF_INET6 not in families:
             self.skipTest("localhost does not resolve to ipv6")
 
@@ -118,8 +115,6 @@ class TCPClientTest(AsyncTestCase):
     @skipIfNoIPv6
     def test_connect_ipv6_dual(self):
         self.skipIfLocalhostV4()
-        if Resolver.configured_class().__name__.endswith("TwistedResolver"):
-            self.skipTest("TwistedResolver does not support multiple addresses")
         self.do_test_connect(socket.AF_INET6, "localhost")
 
     def test_connect_unspec_ipv4(self):
@@ -199,7 +194,7 @@ class TestConnectorSplit(unittest.TestCase):
 
 
 class ConnectorTest(AsyncTestCase):
-    class FakeStream(object):
+    class FakeStream:
         def __init__(self):
             self.closed = False
 
@@ -362,7 +357,7 @@ class ConnectorTest(AsyncTestCase):
         self.resolve_connect(AF1, "a", True)
         conn.on_connect_timeout()
         self.assert_pending()
-        self.assertEqual(self.streams["a"].closed, False)
+        self.assertFalse(self.streams["a"].closed)
         # success stream will be pop
         self.assertEqual(len(conn.streams), 0)
         # streams in connector should be closed after connect timeout

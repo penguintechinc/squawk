@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">Users</h3>
+        <button class="btn btn-primary" onclick="showAddUserModal()">+ Add User</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Admin</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if users %}
+            {% for user in users %}
+            <tr>
+                <td style="color: var(--text-secondary); font-weight: 500;">{{ user.email }}</td>
+                <td style="color: var(--text-muted);">{{ user.first_name }} {{ user.last_name }}</td>
+                <td>
+                    {% if user.is_admin %}
+                    <span class="badge badge-warning">Admin</span>
+                    {% else %}
+                    <span class="badge" style="background: var(--bg-hover); color: var(--text-secondary);">User</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.is_active %}
+                    <span class="badge badge-success">Active</span>
+                    {% else %}
+                    <span class="badge badge-danger">Inactive</span>
+                    {% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 13px;">
+                    {{ user.created_on.strftime('%Y-%m-%d') if user.created_on else 'N/A' }}
+                </td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Edit</button>
+                    {% if not user.is_admin %}
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                    No users found.
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" style="color: var(--accent-gold);">User Statistics</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Total Users</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--accent-gold);">{{ users|length if users else 0 }}</div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Active Users</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--success);">
+                {{ users|selectattr('is_active')|list|length if users else 0 }}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Administrators</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--warning);">
+                {{ users|selectattr('is_admin')|list|length if users else 0 }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 500px; width: 100%; margin: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--accent-gold); margin: 0;">Add New User</h3>
+            <button onclick="closeAddUserModal()" style="background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('dashboard.add_user') }}">
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="email" class="form-input" required placeholder="user@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">First Name</label>
+                <input type="text" name="first_name" class="form-input" required placeholder="John">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Last Name</label>
+                <input type="text" name="last_name" class="form-input" required placeholder="Doe">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-input" required placeholder="Enter password">
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" name="is_admin">
+                    Grant Administrator privileges
+                </label>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeAddUserModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function showAddUserModal() {
+        document.getElementById('addUserModal').style.display = 'flex';
+    }
+    function closeAddUserModal() {
+        document.getElementById('addUserModal').style.display = 'none';
+    }
+    document.getElementById('addUserModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAddUserModal();
+    });
+</script>
+{% endblock %}

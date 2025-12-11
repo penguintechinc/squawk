@@ -54,12 +54,12 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           make security
 
-  # Build and release job for all pushes
+  # Build and release job - only on main branch (not PR branches)
   build-and-release:
     name: Build and Release Go Client
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
       packages: write
@@ -260,7 +260,7 @@ jobs:
     name: Build Summary
     runs-on: ubuntu-latest
     needs: build-and-release
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Build Summary
         run: |

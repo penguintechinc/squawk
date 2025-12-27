@@ -92,6 +92,40 @@ ALL user configuration for Squawk DNS is done via environment variables:
 - `SQUAWK_CONSOLE_URL`: Admin console URL (default: http://localhost:8080/dns_console)
 - `LOG_LEVEL`: Logging level (default: INFO)
 
+## Feature Flags (Go Client)
+- `SQUAWK_FEATURES`: Enabled features, comma-separated (default: dns) - Options: dns,dhcp,ntp
+- `SQUAWK_COMMUNICATION`: Communication protocol (default: http2) - Options: http1 (REST), http2 (gRPC), http3 (QUIC)
+
+## DHCP Client Configuration (Go Client)
+- `SQUAWK_DHCP_SERVER_URL`: DHCP server URL (default: https://localhost:8081)
+- `SQUAWK_DHCP_INTERFACE`: Network interface for DHCP intercept
+- `SQUAWK_DHCP_INTERCEPT`: Enable DHCP port interception (true/false, requires root)
+- `SQUAWK_DHCP_LEASE_FILE`: Path to lease storage file (default: /var/lib/squawk/dhcp.leases)
+
+## NTP Client Configuration (Go Client)
+- `SQUAWK_NTP_SERVER_URL`: NTP/NTS server URL (default: https://localhost:8082)
+- `SQUAWK_NTP_PORT`: Local NTP port for interception (default: 123)
+- `SQUAWK_NTP_INTERCEPT`: Enable NTP port interception (true/false, requires root)
+- `SQUAWK_NTP_SYNC_INTERVAL`: Time sync interval in seconds (default: 3600)
+
+## DHCP Server Configuration
+- `DHCP_PORT`: DHCP server port (default: 8081)
+- `DHCP_POOL_SUBNET`: DHCP pool subnet (default: 192.168.1.0/24)
+- `DHCP_POOL_START`: Pool start IP (default: 192.168.1.100)
+- `DHCP_POOL_END`: Pool end IP (default: 192.168.1.200)
+- `DHCP_GATEWAY`: Default gateway (default: 192.168.1.1)
+- `DHCP_DNS_SERVERS`: DNS servers, comma-separated (default: 8.8.8.8,8.8.4.4)
+- `DHCP_LEASE_TIME`: Lease time in seconds (default: 86400)
+- `AUTH_REQUIRED`: Require authentication (default: true)
+- `SHARED_AUTH_URL`: DNS server URL for auth validation (default: http://localhost:8080)
+
+## NTP Server Configuration
+- `NTP_PORT`: NTP server port (default: 8082)
+- `NTS_KE_PORT`: NTS Key Establishment port (default: 4460)
+- `UPSTREAM_NTP`: Upstream NTP server (default: pool.ntp.org)
+- `AUTH_REQUIRED`: Require authentication (default: true)
+- `SHARED_AUTH_URL`: DNS server URL for auth validation (default: http://localhost:8080)
+
 ## Logging Configuration
 - `LOG_LEVEL`: Logging level - DEBUG, INFO, WARNING, ERROR (default: INFO)
 - `LOG_FORMAT`: Log format - json or text (default: json)

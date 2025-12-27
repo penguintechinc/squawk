@@ -40,6 +40,20 @@ var (
 	useGrpc     bool
 	batchFile   string
 
+	// New feature and transport flags
+	enabledFeatures   string // --features "dns,dhcp,ntp"
+	communicationMode string // --communication "http1|http2|http3"
+
+	// DHCP flags
+	dhcpServerURL string
+	dhcpInterface string
+	dhcpIntercept bool
+
+	// NTP flags
+	ntpServerURL string
+	ntpPort      int
+	ntpIntercept bool
+
 	// Version information
 	version   = "1.0.0"
 	buildTime = "unknown"
@@ -92,6 +106,20 @@ func init() {
 	// gRPC flags
 	rootCmd.Flags().BoolVarP(&useGrpc, "grpc", "g", true, "Use gRPC protocol (default: true, fallback to REST if unavailable)")
 	rootCmd.Flags().StringVarP(&batchFile, "batch", "b", "", "Batch query file with domains (one per line)")
+
+	// Feature flags
+	rootCmd.Flags().StringVar(&enabledFeatures, "features", "dns", "Enabled features: dns,dhcp,ntp (comma-separated)")
+	rootCmd.Flags().StringVar(&communicationMode, "communication", "http2", "Protocol: http1 (REST), http2 (gRPC), http3 (QUIC)")
+
+	// DHCP flags
+	rootCmd.Flags().StringVar(&dhcpServerURL, "dhcp-server", "", "DHCP server URL")
+	rootCmd.Flags().StringVar(&dhcpInterface, "dhcp-interface", "", "Network interface for DHCP intercept")
+	rootCmd.Flags().BoolVar(&dhcpIntercept, "dhcp-intercept", false, "Enable DHCP port interception (requires root)")
+
+	// NTP flags
+	rootCmd.Flags().StringVar(&ntpServerURL, "ntp-server", "", "NTP server URL")
+	rootCmd.Flags().IntVar(&ntpPort, "ntp-port", 123, "Local NTP port for interception")
+	rootCmd.Flags().BoolVar(&ntpIntercept, "ntp-intercept", false, "Enable NTP port interception (requires root)")
 
 	// Add subcommands
 	rootCmd.AddCommand(forwardCmd)
@@ -349,6 +377,51 @@ func overrideConfigWithFlags(cmd *cobra.Command, cfg *config.AppConfig) {
 	}
 	if tcpForward {
 		cfg.Forwarder.ListenTCP = true
+	}
+
+	// Features configuration
+	if cmd.Flags().Changed("features") && enabledFeatures != "" {
+		cfg.Features.DNS = false
+		cfg.Features.DHCP = false
+		cfg.Features.NTP = false
+		for _, feature := range strings.Split(enabledFeatures, ",") {
+			feature = strings.TrimSpace(strings.ToLower(feature))
+			switch feature {
+			case "dns":
+				cfg.Features.DNS = true
+			case "dhcp":
+				cfg.Features.DHCP = true
+			case "ntp":
+				cfg.Features.NTP = true
+			}
+		}
+	}
+
+	// Transport/Communication mode
+	if cmd.Flags().Changed("communication") && communicationMode != "" {
+		cfg.Transport.Mode = strings.ToLower(strings.TrimSpace(communicationMode))
+	}
+
+	// DHCP configuration
+	if dhcpServerURL != "" {
+		cfg.DHCP.ServerURL = dhcpServerURL
+	}
+	if dhcpInterface != "" {
+		cfg.DHCP.Interface = dhcpInterface
+	}
+	if cmd.Flags().Changed("dhcp-intercept") {
+		cfg.DHCP.EnableIntercept = dhcpIntercept
+	}
+
+	// NTP configuration
+	if ntpServerURL != "" {
+		cfg.NTP.ServerURL = ntpServerURL
+	}
+	if cmd.Flags().Changed("ntp-port") {
+		cfg.NTP.ListenPort = ntpPort
+	}
+	if cmd.Flags().Changed("ntp-intercept") {
+		cfg.NTP.EnableIntercept = ntpIntercept
 	}
 }
 

@@ -21,6 +21,36 @@ type LicenseConfig struct {
 	CacheTime      int    `yaml:"cache_time" json:"cache_time"` // minutes
 }
 
+// FeaturesConfig holds the enabled features configuration
+type FeaturesConfig struct {
+	DNS  bool `yaml:"dns" json:"dns"`
+	DHCP bool `yaml:"dhcp" json:"dhcp"`
+	NTP  bool `yaml:"ntp" json:"ntp"`
+}
+
+// TransportConfig holds the transport/communication mode configuration
+type TransportConfig struct {
+	Mode string `yaml:"mode" json:"mode"` // http1, http2, http3
+}
+
+// DHCPConfig holds the DHCP client configuration
+type DHCPConfig struct {
+	ServerURL       string `yaml:"server_url" json:"server_url"`
+	Interface       string `yaml:"interface" json:"interface"`
+	EnableIntercept bool   `yaml:"enable_intercept" json:"enable_intercept"`
+	LeaseFile       string `yaml:"lease_file" json:"lease_file"`
+	ListenPort      int    `yaml:"listen_port" json:"listen_port"`
+}
+
+// NTPConfig holds the NTP/NTS client configuration
+type NTPConfig struct {
+	ServerURL       string `yaml:"server_url" json:"server_url"`
+	ListenPort      int    `yaml:"listen_port" json:"listen_port"`
+	SyncInterval    int    `yaml:"sync_interval" json:"sync_interval"` // seconds
+	EnableIntercept bool   `yaml:"enable_intercept" json:"enable_intercept"`
+	NTSKEPort       int    `yaml:"nts_ke_port" json:"nts_ke_port"` // NTS Key Establishment port
+}
+
 // AppConfig holds the complete application configuration
 type AppConfig struct {
 	Domain       string                `yaml:"domain" json:"domain"`
@@ -29,6 +59,10 @@ type AppConfig struct {
 	Forwarder    *forwarder.Config     `yaml:"forwarder" json:"forwarder"`
 	License      *LicenseConfig        `yaml:"license" json:"license"`
 	LogLevel     string                `yaml:"log_level" json:"log_level"`
+	Features     *FeaturesConfig       `yaml:"features" json:"features"`
+	Transport    *TransportConfig      `yaml:"transport" json:"transport"`
+	DHCP         *DHCPConfig           `yaml:"dhcp" json:"dhcp"`
+	NTP          *NTPConfig            `yaml:"ntp" json:"ntp"`
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -60,6 +94,28 @@ func DefaultConfig() *AppConfig {
 			UserToken:      "",
 			ValidateOnline: true,
 			CacheTime:      1440, // 24 hours (daily validation)
+		},
+		Features: &FeaturesConfig{
+			DNS:  true,  // DNS enabled by default
+			DHCP: false, // DHCP disabled by default
+			NTP:  false, // NTP disabled by default
+		},
+		Transport: &TransportConfig{
+			Mode: "http2", // Default to gRPC
+		},
+		DHCP: &DHCPConfig{
+			ServerURL:       "",
+			Interface:       "",
+			EnableIntercept: false,
+			LeaseFile:       "/var/lib/squawk/dhcp.leases",
+			ListenPort:      68,
+		},
+		NTP: &NTPConfig{
+			ServerURL:       "",
+			ListenPort:      123,
+			SyncInterval:    3600, // 1 hour
+			EnableIntercept: false,
+			NTSKEPort:       4460,
 		},
 	}
 }
@@ -220,6 +276,77 @@ func loadFromEnv(config *AppConfig) {
 			config.License.CacheTime = val
 		}
 	}
+
+	// Features configuration
+	if features := os.Getenv("SQUAWK_FEATURES"); features != "" {
+		// Reset features to false first
+		config.Features.DNS = false
+		config.Features.DHCP = false
+		config.Features.NTP = false
+		// Parse comma-separated features
+		for _, feature := range strings.Split(features, ",") {
+			feature = strings.TrimSpace(strings.ToLower(feature))
+			switch feature {
+			case "dns":
+				config.Features.DNS = true
+			case "dhcp":
+				config.Features.DHCP = true
+			case "ntp":
+				config.Features.NTP = true
+			}
+		}
+	}
+
+	// Transport/Communication mode configuration
+	if mode := os.Getenv("SQUAWK_COMMUNICATION"); mode != "" {
+		config.Transport.Mode = strings.ToLower(strings.TrimSpace(mode))
+	}
+
+	// DHCP configuration
+	if dhcpServerURL := os.Getenv("SQUAWK_DHCP_SERVER_URL"); dhcpServerURL != "" {
+		config.DHCP.ServerURL = dhcpServerURL
+	}
+	if dhcpInterface := os.Getenv("SQUAWK_DHCP_INTERFACE"); dhcpInterface != "" {
+		config.DHCP.Interface = dhcpInterface
+	}
+	if dhcpIntercept := os.Getenv("SQUAWK_DHCP_INTERCEPT"); dhcpIntercept != "" {
+		if val, err := strconv.ParseBool(dhcpIntercept); err == nil {
+			config.DHCP.EnableIntercept = val
+		}
+	}
+	if dhcpLeaseFile := os.Getenv("SQUAWK_DHCP_LEASE_FILE"); dhcpLeaseFile != "" {
+		config.DHCP.LeaseFile = dhcpLeaseFile
+	}
+	if dhcpListenPort := os.Getenv("SQUAWK_DHCP_LISTEN_PORT"); dhcpListenPort != "" {
+		if val, err := strconv.Atoi(dhcpListenPort); err == nil && val > 0 {
+			config.DHCP.ListenPort = val
+		}
+	}
+
+	// NTP configuration
+	if ntpServerURL := os.Getenv("SQUAWK_NTP_SERVER_URL"); ntpServerURL != "" {
+		config.NTP.ServerURL = ntpServerURL
+	}
+	if ntpPort := os.Getenv("SQUAWK_NTP_PORT"); ntpPort != "" {
+		if val, err := strconv.Atoi(ntpPort); err == nil && val > 0 {
+			config.NTP.ListenPort = val
+		}
+	}
+	if ntpSyncInterval := os.Getenv("SQUAWK_NTP_SYNC_INTERVAL"); ntpSyncInterval != "" {
+		if val, err := strconv.Atoi(ntpSyncInterval); err == nil && val > 0 {
+			config.NTP.SyncInterval = val
+		}
+	}
+	if ntpIntercept := os.Getenv("SQUAWK_NTP_INTERCEPT"); ntpIntercept != "" {
+		if val, err := strconv.ParseBool(ntpIntercept); err == nil {
+			config.NTP.EnableIntercept = val
+		}
+	}
+	if ntsKePort := os.Getenv("SQUAWK_NTS_KE_PORT"); ntsKePort != "" {
+		if val, err := strconv.Atoi(ntsKePort); err == nil && val > 0 {
+			config.NTP.NTSKEPort = val
+		}
+	}
 }
 
 // validateConfig validates the configuration
@@ -290,10 +417,10 @@ func SaveConfig(config *AppConfig, filename string) error {
 func GetEnvVarList() []string {
 	return []string{
 		"SQUAWK_DOMAIN",
-		"SQUAWK_RECORD_TYPE", 
+		"SQUAWK_RECORD_TYPE",
 		"SQUAWK_SERVER_URL",
 		"SQUAWK_SERVER_URLS",
-		"SQUAWK_MAX_RETRIES", 
+		"SQUAWK_MAX_RETRIES",
 		"SQUAWK_RETRY_DELAY",
 		"SQUAWK_AUTH_TOKEN",
 		"SQUAWK_CLIENT_CERT",
@@ -301,7 +428,7 @@ func GetEnvVarList() []string {
 		"SQUAWK_CA_CERT",
 		"SQUAWK_VERIFY_SSL",
 		"SQUAWK_UDP_ADDRESS",
-		"SQUAWK_TCP_ADDRESS", 
+		"SQUAWK_TCP_ADDRESS",
 		"SQUAWK_LISTEN_UDP",
 		"SQUAWK_LISTEN_TCP",
 		"SQUAWK_LICENSE_SERVER_URL",
@@ -310,6 +437,21 @@ func GetEnvVarList() []string {
 		"SQUAWK_VALIDATE_ONLINE",
 		"SQUAWK_LICENSE_CACHE_TIME",
 		"LOG_LEVEL",
+		// Features and Transport
+		"SQUAWK_FEATURES",
+		"SQUAWK_COMMUNICATION",
+		// DHCP configuration
+		"SQUAWK_DHCP_SERVER_URL",
+		"SQUAWK_DHCP_INTERFACE",
+		"SQUAWK_DHCP_INTERCEPT",
+		"SQUAWK_DHCP_LEASE_FILE",
+		"SQUAWK_DHCP_LISTEN_PORT",
+		// NTP configuration
+		"SQUAWK_NTP_SERVER_URL",
+		"SQUAWK_NTP_PORT",
+		"SQUAWK_NTP_SYNC_INTERVAL",
+		"SQUAWK_NTP_INTERCEPT",
+		"SQUAWK_NTS_KE_PORT",
 		// Legacy support
 		"CLIENT_CERT_PATH",
 		"CLIENT_KEY_PATH",
@@ -320,7 +462,7 @@ func GetEnvVarList() []string {
 // PrintConfig prints the configuration in a human-readable format
 func (c *AppConfig) String() string {
 	var sb strings.Builder
-	
+
 	sb.WriteString("Squawk DNS Client Configuration:\n")
 	sb.WriteString("================================\n")
 	sb.WriteString(fmt.Sprintf("Domain: %s\n", c.Domain))
@@ -342,7 +484,29 @@ func (c *AppConfig) String() string {
 	sb.WriteString(fmt.Sprintf("  User Token: %s\n", maskToken(c.License.UserToken)))
 	sb.WriteString(fmt.Sprintf("  Validate Online: %t\n", c.License.ValidateOnline))
 	sb.WriteString(fmt.Sprintf("  Cache Time: %d minutes\n", c.License.CacheTime))
-	
+	sb.WriteString("\nFeatures Configuration:\n")
+	sb.WriteString(fmt.Sprintf("  DNS: %t\n", c.Features.DNS))
+	sb.WriteString(fmt.Sprintf("  DHCP: %t\n", c.Features.DHCP))
+	sb.WriteString(fmt.Sprintf("  NTP: %t\n", c.Features.NTP))
+	sb.WriteString("\nTransport Configuration:\n")
+	sb.WriteString(fmt.Sprintf("  Mode: %s\n", c.Transport.Mode))
+	if c.Features.DHCP {
+		sb.WriteString("\nDHCP Configuration:\n")
+		sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.DHCP.ServerURL))
+		sb.WriteString(fmt.Sprintf("  Interface: %s\n", c.DHCP.Interface))
+		sb.WriteString(fmt.Sprintf("  Enable Intercept: %t\n", c.DHCP.EnableIntercept))
+		sb.WriteString(fmt.Sprintf("  Lease File: %s\n", c.DHCP.LeaseFile))
+		sb.WriteString(fmt.Sprintf("  Listen Port: %d\n", c.DHCP.ListenPort))
+	}
+	if c.Features.NTP {
+		sb.WriteString("\nNTP Configuration:\n")
+		sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.NTP.ServerURL))
+		sb.WriteString(fmt.Sprintf("  Listen Port: %d\n", c.NTP.ListenPort))
+		sb.WriteString(fmt.Sprintf("  Sync Interval: %d seconds\n", c.NTP.SyncInterval))
+		sb.WriteString(fmt.Sprintf("  Enable Intercept: %t\n", c.NTP.EnableIntercept))
+		sb.WriteString(fmt.Sprintf("  NTS-KE Port: %d\n", c.NTP.NTSKEPort))
+	}
+
 	return sb.String()
 }
 

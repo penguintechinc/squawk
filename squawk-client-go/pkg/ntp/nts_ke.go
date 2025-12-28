@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/transport"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/transport"
 )
 
 // NTS-KE Record Types (RFC 8915 Section 4)

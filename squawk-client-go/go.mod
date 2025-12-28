@@ -1,4 +1,4 @@
-module github.com/penguintechinc/squawk/dns-client-go
+module github.com/penguintechinc/squawk/squawk-client-go
 
 go 1.23.0
 

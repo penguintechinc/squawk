@@ -57,13 +57,13 @@ services:
     depends_on:
       - dns-server
 
-  # DNS Client Forwarder
-  dns-client:
+  # Squawk Client Forwarder (DNS, DHCP, NTP)
+  squawk-client:
     build:
-      context: ./dns-client
+      context: ./squawk-client
       dockerfile: Dockerfile
-    image: squawk-dns-client:latest
-    container_name: squawk-dns-client
+    image: squawk-client:latest
+    container_name: squawk-client
     restart: unless-stopped
     ports:
       - "5353:53/udp"
@@ -76,9 +76,9 @@ services:
       - LOG_LEVEL=INFO
       - SQUAWK_VERIFY_SSL=false
     volumes:
-      - ./dns-client/data:/app/data
-      - ./dns-client/logs:/app/logs
-      - ./dns-client/certs:/app/certs
+      - ./squawk-client/data:/app/data
+      - ./squawk-client/logs:/app/logs
+      - ./squawk-client/certs:/app/certs
     networks:
       - squawk-network
     depends_on:

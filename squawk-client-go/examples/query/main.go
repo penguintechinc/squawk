@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
+	grpcclient "github.com/penguintechinc/squawk/squawk-client-go/pkg/grpc"
 )
 
 func main() {

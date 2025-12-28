@@ -84,26 +84,48 @@ def ioc_feed_detail(feed_id):
     # GET
     return jsonify(dict(feed))
 
-@api_bp.route('/whois/<domain>', methods=['GET'])
+@api_bp.route('/whois/<query>', methods=['GET'])
 @login_required
-def whois_lookup(domain):
-    """WHOIS lookup with caching"""
-    # Check cache first
-    cached = db(db.whois_cache.domain == domain).select().first()
-    if cached and cached.expires_at > datetime.utcnow():
-        return jsonify({
-            'domain': domain,
-            'data': cached.whois_data,
-            'cached': True
-        })
-    
-    # In production, this would call actual WHOIS service
-    # For now, return placeholder
-    return jsonify({
-        'domain': domain,
-        'data': {'status': 'WHOIS lookup not implemented yet'},
-        'cached': False
-    })
+def whois_lookup(query):
+    """WHOIS lookup with caching using WHOISManager"""
+    import asyncio
+    from ipaddress import ip_address
+
+    # Import WHOISManager
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'bins'))
+    from whois_manager import WHOISManager
+
+    # Get database URL from environment
+    db_url = os.getenv('DATABASE_URL', 'sqlite://storage.sqlite')
+    manager = WHOISManager(db_url)
+
+    # Determine if query is IP or domain
+    try:
+        ip_address(query)
+        is_ip = True
+    except ValueError:
+        is_ip = False
+
+    # Get client IP for logging
+    client_ip = request.remote_addr
+    force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+
+    # Run async lookup
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        if is_ip:
+            result = loop.run_until_complete(
+                manager.lookup_ip(query, client_ip, force_refresh)
+            )
+        else:
+            result = loop.run_until_complete(
+                manager.lookup_domain(query, client_ip, force_refresh)
+            )
+    finally:
+        loop.close()
+
+    return jsonify(result)
 
 @api_bp.route('/stats/summary', methods=['GET'])
 @login_required

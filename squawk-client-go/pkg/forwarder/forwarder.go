@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/client"
 )
 
 // safeUint32 safely converts an int to uint32, clamping to valid range

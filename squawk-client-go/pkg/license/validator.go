@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/config"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/config"
 )
 
 // ValidationResponse represents the response from license validation

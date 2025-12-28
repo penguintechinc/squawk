@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/transport"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/transport"
 )
 
 // Client is a DHCP-over-HTTPS client with local intercept support.

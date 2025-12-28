@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/transport"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/transport"
 )
 
 // NTP epoch offset (seconds between 1900 and 1970)

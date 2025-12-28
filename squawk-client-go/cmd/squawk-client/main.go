@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/config"
-	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/license"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/logger"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/performance"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/client"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/config"
+	grpcclient "github.com/penguintechinc/squawk/squawk-client-go/pkg/grpc"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/forwarder"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/license"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/logger"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/performance"
 	"github.com/spf13/cobra"
 )
 

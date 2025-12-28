@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
-	"github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/client"
+	"github.com/penguintechinc/squawk/squawk-client-go/pkg/forwarder"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )

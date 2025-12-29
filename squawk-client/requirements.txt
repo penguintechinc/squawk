@@ -1,7 +1,7 @@
 dnspython>=2.4.2
-requests>=2.31.0
+requests>=2.32.5
 PyYAML>=6.0.1
-cryptography>=41.0.7
+cryptography>=45.0.0
 pystray>=0.19.5
 Pillow>=10.0.0
 grpcio>=1.60.0

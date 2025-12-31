@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -161,10 +162,43 @@ type DNSResponse struct {
 
 // DNSRecord represents a DNS record in the JSON response
 type DNSRecord struct {
-	Name string `json:"name"`
-	Type int    `json:"type"`
-	TTL  int    `json:"TTL,omitempty"`
-	Data string `json:"data"`
+	Name     string      `json:"name"`
+	Type     interface{} `json:"type"` // Can be int (RFC standard) or string (some servers)
+	TTL      int         `json:"TTL,omitempty"`
+	Data     string      `json:"data"`
+}
+
+// GetTypeString returns the record type as a string
+func (r *DNSRecord) GetTypeString() string {
+	switch v := r.Type.(type) {
+	case string:
+		return v
+	case float64:
+		return recordTypeIntToString(int(v))
+	case int:
+		return recordTypeIntToString(v)
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// recordTypeIntToString converts DNS record type integer to string
+func recordTypeIntToString(typeInt int) string {
+	typeMap := map[int]string{
+		1:  "A",
+		2:  "NS",
+		5:  "CNAME",
+		6:  "SOA",
+		12: "PTR",
+		15: "MX",
+		16: "TXT",
+		28: "AAAA",
+		33: "SRV",
+	}
+	if s, ok := typeMap[typeInt]; ok {
+		return s
+	}
+	return "TYPE" + strconv.Itoa(typeInt)
 }
 
 // validateServerURL ensures the server URL uses an IP address to prevent DNS loops
@@ -477,7 +511,13 @@ func normalizeServerURL(serverURL string) string {
 			parsedURL.Path = "/dns-query"
 		}
 	}
-	
+
+	// Default: If no path is set and it's not a known provider,
+	// use /dns-query which is the standard DoH endpoint per RFC 8484
+	if parsedURL.Path == "" || parsedURL.Path == "/" {
+		parsedURL.Path = "/dns-query"
+	}
+
 	return parsedURL.String()
 }
 

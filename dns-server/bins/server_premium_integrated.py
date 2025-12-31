@@ -12,6 +12,8 @@ import ssl
 import sys
 import time
 import getopt
+import dns.asyncresolver
+import dns.resolver
 from datetime import datetime
 from functools import wraps
 from quart import Quart, request, jsonify
@@ -23,6 +25,7 @@ from cert_manager import CertificateManager
 from logging_manager import get_request_logger
 from premium_features import init_premium_features
 from selective_dns_routing import SelectiveDNSRouter
+from db_init import init_database
 import re
 import logging
 from typing import Dict
@@ -60,6 +63,11 @@ CERT_DIR = os.environ.get("CERT_DIR", "certs")
 cache_manager = get_cache_manager() if CACHE_ENABLED else None
 cert_manager = CertificateManager(cert_dir=CERT_DIR) if ENABLE_MTLS else None
 request_logger = get_request_logger()
+
+# Initialize database schema (SQLAlchemy creates tables, pyDAL handles operations)
+if USE_NEW_AUTH:
+    logger.info("Initializing database schema...")
+    init_database()
 
 @app.before_serving
 async def startup():
@@ -196,10 +204,20 @@ def validate_token_advanced(token_value, domain):
         )
 
         # Check if token exists and is active
-        token_record = db(db.tokens.token == token_value).select().first()
-        if not token_record or not token_record.active:
+        # Use raw SQL for boolean check due to pyDAL/SQLite boolean handling issues
+        token_rows = db.executesql(
+            "SELECT id, active FROM tokens WHERE token = ?",
+            [token_value]
+        )
+        if not token_rows:
             db.close()
             return False
+        token_id, is_active_raw = token_rows[0]
+        # SQLite stores boolean as 1/0, check both integer and True
+        if is_active_raw not in (1, True, 'T', '1'):
+            db.close()
+            return False
+        token_record = type('TokenRecord', (), {'id': token_id})()
 
         # Check for wildcard domain permission
         wildcard = (

@@ -16,7 +16,7 @@ GOARCH ?= $(shell go env GOARCH)
 # Directories
 BIN_DIR = bin
 BUILD_DIR = build
-SRC_DIR = cmd/$(APP_NAME)
+SRC_DIR = cmd/squawk-client
 
 # Default target
 .PHONY: all

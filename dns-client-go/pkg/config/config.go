@@ -8,6 +8,7 @@ import (
 
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder"
+	timeservice "github.com/penguintechinc/squawk/dns-client-go/pkg/time"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +22,13 @@ type LicenseConfig struct {
 	CacheTime      int    `yaml:"cache_time" json:"cache_time"` // minutes
 }
 
+// TimeConfig holds NTP client and forwarder configuration
+type TimeConfig struct {
+	Enabled       bool                        `yaml:"enabled" json:"enabled"`
+	Client        *timeservice.ClientConfig   `yaml:"client" json:"client"`
+	Forwarder     *timeservice.ForwarderConfig `yaml:"forwarder" json:"forwarder"`
+}
+
 // AppConfig holds the complete application configuration
 type AppConfig struct {
 	Domain       string                `yaml:"domain" json:"domain"`
@@ -28,6 +36,7 @@ type AppConfig struct {
 	Client       *client.Config        `yaml:"client" json:"client"`
 	Forwarder    *forwarder.Config     `yaml:"forwarder" json:"forwarder"`
 	License      *LicenseConfig        `yaml:"license" json:"license"`
+	Time         *TimeConfig           `yaml:"time" json:"time"`
 	LogLevel     string                `yaml:"log_level" json:"log_level"`
 }
 
@@ -60,6 +69,23 @@ func DefaultConfig() *AppConfig {
 			UserToken:      "",
 			ValidateOnline: true,
 			CacheTime:      1440, // 24 hours (daily validation)
+		},
+		Time: &TimeConfig{
+			Enabled: false,
+			Client: &timeservice.ClientConfig{
+				ServerURLs: []string{
+					"pool.ntp.org:123",
+					"time.google.com:123",
+					"time.cloudflare.com:123",
+				},
+				Timeout:    5,
+				MaxRetries: 6,
+				RetryDelay: 1,
+			},
+			Forwarder: &timeservice.ForwarderConfig{
+				ListenAddress: "127.0.0.1:123",
+				CacheTTL:      60,
+			},
 		},
 	}
 }
@@ -220,6 +246,33 @@ func loadFromEnv(config *AppConfig) {
 			config.License.CacheTime = val
 		}
 	}
+
+	// Time/NTP configuration
+	if timeEnabled := os.Getenv("SQUAWK_TIME_ENABLED"); timeEnabled != "" {
+		if val, err := strconv.ParseBool(timeEnabled); err == nil {
+			config.Time.Enabled = val
+		}
+	}
+	if ntpServers := os.Getenv("SQUAWK_NTP_SERVERS"); ntpServers != "" {
+		servers := strings.Split(ntpServers, ",")
+		for i, server := range servers {
+			servers[i] = strings.TrimSpace(server)
+		}
+		config.Time.Client.ServerURLs = servers
+	}
+	if ntpTimeout := os.Getenv("SQUAWK_NTP_TIMEOUT"); ntpTimeout != "" {
+		if val, err := strconv.Atoi(ntpTimeout); err == nil && val > 0 {
+			config.Time.Client.Timeout = val
+		}
+	}
+	if ntpListenAddr := os.Getenv("SQUAWK_NTP_LISTEN_ADDRESS"); ntpListenAddr != "" {
+		config.Time.Forwarder.ListenAddress = ntpListenAddr
+	}
+	if ntpCacheTTL := os.Getenv("SQUAWK_NTP_CACHE_TTL"); ntpCacheTTL != "" {
+		if val, err := strconv.Atoi(ntpCacheTTL); err == nil && val > 0 {
+			config.Time.Forwarder.CacheTTL = val
+		}
+	}
 }
 
 // validateConfig validates the configuration
@@ -290,10 +343,10 @@ func SaveConfig(config *AppConfig, filename string) error {
 func GetEnvVarList() []string {
 	return []string{
 		"SQUAWK_DOMAIN",
-		"SQUAWK_RECORD_TYPE", 
+		"SQUAWK_RECORD_TYPE",
 		"SQUAWK_SERVER_URL",
 		"SQUAWK_SERVER_URLS",
-		"SQUAWK_MAX_RETRIES", 
+		"SQUAWK_MAX_RETRIES",
 		"SQUAWK_RETRY_DELAY",
 		"SQUAWK_AUTH_TOKEN",
 		"SQUAWK_CLIENT_CERT",
@@ -301,7 +354,7 @@ func GetEnvVarList() []string {
 		"SQUAWK_CA_CERT",
 		"SQUAWK_VERIFY_SSL",
 		"SQUAWK_UDP_ADDRESS",
-		"SQUAWK_TCP_ADDRESS", 
+		"SQUAWK_TCP_ADDRESS",
 		"SQUAWK_LISTEN_UDP",
 		"SQUAWK_LISTEN_TCP",
 		"SQUAWK_LICENSE_SERVER_URL",
@@ -309,6 +362,11 @@ func GetEnvVarList() []string {
 		"SQUAWK_USER_TOKEN",
 		"SQUAWK_VALIDATE_ONLINE",
 		"SQUAWK_LICENSE_CACHE_TIME",
+		"SQUAWK_TIME_ENABLED",
+		"SQUAWK_NTP_SERVERS",
+		"SQUAWK_NTP_TIMEOUT",
+		"SQUAWK_NTP_LISTEN_ADDRESS",
+		"SQUAWK_NTP_CACHE_TTL",
 		"LOG_LEVEL",
 		// Legacy support
 		"CLIENT_CERT_PATH",
@@ -320,7 +378,7 @@ func GetEnvVarList() []string {
 // PrintConfig prints the configuration in a human-readable format
 func (c *AppConfig) String() string {
 	var sb strings.Builder
-	
+
 	sb.WriteString("Squawk DNS Client Configuration:\n")
 	sb.WriteString("================================\n")
 	sb.WriteString(fmt.Sprintf("Domain: %s\n", c.Domain))
@@ -342,7 +400,13 @@ func (c *AppConfig) String() string {
 	sb.WriteString(fmt.Sprintf("  User Token: %s\n", maskToken(c.License.UserToken)))
 	sb.WriteString(fmt.Sprintf("  Validate Online: %t\n", c.License.ValidateOnline))
 	sb.WriteString(fmt.Sprintf("  Cache Time: %d minutes\n", c.License.CacheTime))
-	
+	sb.WriteString("\nTime/NTP Configuration:\n")
+	sb.WriteString(fmt.Sprintf("  Enabled: %t\n", c.Time.Enabled))
+	sb.WriteString(fmt.Sprintf("  NTP Servers: %v\n", c.Time.Client.ServerURLs))
+	sb.WriteString(fmt.Sprintf("  Timeout: %d seconds\n", c.Time.Client.Timeout))
+	sb.WriteString(fmt.Sprintf("  Listen Address: %s\n", c.Time.Forwarder.ListenAddress))
+	sb.WriteString(fmt.Sprintf("  Cache TTL: %d seconds\n", c.Time.Forwarder.CacheTTL))
+
 	return sb.String()
 }
 

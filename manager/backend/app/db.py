@@ -27,12 +27,16 @@ def init_db(app):
     from app.models.dns_server import define_dns_server_tables
     from app.models.dns import define_dns_tables
     from app.models.config import define_config_tables
+    from app.models.dhcp import define_dhcp_tables
+    from app.models.time import define_time_tables
 
     define_auth_tables(db)
     define_team_tables(db)
     define_dns_server_tables(db)
     define_dns_tables(db)
     define_config_tables(db)
+    define_dhcp_tables(db)
+    define_time_tables(db)
 
     return db
 

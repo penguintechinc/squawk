@@ -13,11 +13,12 @@ import (
 
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/config"
-	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder"
+	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/license"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/logger"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/performance"
+	timeservice "github.com/penguintechinc/squawk/dns-client-go/pkg/time"
 	"github.com/spf13/cobra"
 )
 
@@ -98,6 +99,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(licenseCmd)
+	rootCmd.AddCommand(timeCmd)
 }
 
 // runClient is the main client function
@@ -643,4 +645,180 @@ func init() {
 	// Add license subcommands
 	licenseCmd.AddCommand(licenseStatusCmd)
 	// License portal command removed - customers should contact administrator
+
+	// Add time subcommands
+	timeCmd.AddCommand(timeQueryCmd)
+	timeCmd.AddCommand(timeForwardCmd)
+	timeCmd.AddCommand(timeStatusCmd)
+}
+
+// Time command
+var timeCmd = &cobra.Command{
+	Use:   "time",
+	Short: "Time synchronization commands",
+	Long:  "Commands for NTP time queries and forwarding services",
+}
+
+// Time query command
+var timeQueryCmd = &cobra.Command{
+	Use:   "query [server]",
+	Short: "Query an NTP time server",
+	Long:  "Query an NTP time server and display the current time offset",
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		cfg, err := loadConfiguration()
+		if err != nil {
+			log.Fatalf("Configuration error: %v", err)
+		}
+
+		// Override server if provided as argument
+		if len(args) > 0 {
+			cfg.Time.Client.ServerURLs = []string{args[0]}
+		}
+
+		// Create NTP client
+		ntpClient, err := timeservice.NewNTPClient(cfg.Time.Client)
+		if err != nil {
+			log.Fatalf("Failed to create NTP client: %v", err)
+		}
+		defer ntpClient.Close()
+
+		// Query time
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		response, err := ntpClient.Query(ctx)
+		if err != nil {
+			log.Fatalf("NTP query failed: %v", err)
+		}
+
+		// Output results
+		if jsonOutput {
+			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("NTP Time Query Results:\n")
+			fmt.Printf("=======================\n")
+			fmt.Printf("Server: %s\n", response.ServerAddr)
+			fmt.Printf("Server Time: %s\n", response.ServerTime.Format(time.RFC3339Nano))
+			fmt.Printf("Local Time: %s\n", response.LocalTime.Format(time.RFC3339Nano))
+			fmt.Printf("Offset: %v\n", response.Offset)
+			fmt.Printf("Round Trip: %v\n", response.RoundTrip)
+			fmt.Printf("Stratum: %d\n", response.Stratum)
+			fmt.Printf("Synchronized: %t\n", response.Synchronized)
+		}
+	},
+}
+
+// Time forward command
+var timeForwardCmd = &cobra.Command{
+	Use:   "forward",
+	Short: "Start NTP forwarding service",
+	Long: `Start the NTP forwarding service to intercept local OS time requests.
+This will listen on the configured address (default 127.0.0.1:123) and forward
+time queries to upstream NTP servers.
+
+NOTE: Port 123 typically requires root/administrator privileges.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		cfg, err := loadConfiguration()
+		if err != nil {
+			log.Fatalf("Configuration error: %v", err)
+		}
+
+		if verbose {
+			fmt.Println(cfg.String())
+		}
+
+		// Create NTP client
+		ntpClient, err := timeservice.NewNTPClient(cfg.Time.Client)
+		if err != nil {
+			log.Fatalf("Failed to create NTP client: %v", err)
+		}
+
+		// Create forwarder
+		ntpForwarder := timeservice.NewForwarder(ntpClient, cfg.Time.Forwarder)
+
+		// Handle graceful shutdown
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Setup signal handling
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		// Start forwarder in goroutine
+		go func() {
+			if err := ntpForwarder.Start(ctx); err != nil {
+				log.Printf("NTP forwarder error: %v", err)
+			}
+		}()
+
+		fmt.Printf("NTP forwarder started on %s\n", cfg.Time.Forwarder.ListenAddress)
+		fmt.Println("Press Ctrl+C to stop...")
+
+		// Wait for shutdown signal
+		<-sigChan
+		log.Println("Received shutdown signal, stopping NTP forwarder...")
+		cancel()
+
+		// Give some time for graceful shutdown
+		time.Sleep(1 * time.Second)
+		ntpClient.Close()
+	},
+}
+
+// Time status command
+var timeStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show time synchronization status",
+	Long:  "Display current time synchronization status from configured NTP servers",
+	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		cfg, err := loadConfiguration()
+		if err != nil {
+			log.Fatalf("Configuration error: %v", err)
+		}
+
+		fmt.Printf("Time Synchronization Status:\n")
+		fmt.Printf("============================\n")
+		fmt.Printf("Configured NTP Servers:\n")
+		for i, server := range cfg.Time.Client.ServerURLs {
+			fmt.Printf("  %d. %s\n", i+1, server)
+		}
+		fmt.Printf("\nForwarder Configuration:\n")
+		fmt.Printf("  Listen Address: %s\n", cfg.Time.Forwarder.ListenAddress)
+		fmt.Printf("  Cache TTL: %d seconds\n", cfg.Time.Forwarder.CacheTTL)
+		fmt.Printf("  Enabled: %t\n", cfg.Time.Enabled)
+
+		// Try to query each server
+		fmt.Printf("\nServer Reachability:\n")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		for _, serverURL := range cfg.Time.Client.ServerURLs {
+			singleServerConfig := &timeservice.ClientConfig{
+				ServerURLs: []string{serverURL},
+				Timeout:    5,
+				MaxRetries: 1,
+				RetryDelay: 0,
+			}
+
+			ntpClient, err := timeservice.NewNTPClient(singleServerConfig)
+			if err != nil {
+				fmt.Printf("  %s: FAILED (config error: %v)\n", serverURL, err)
+				continue
+			}
+
+			resp, err := ntpClient.Query(ctx)
+			ntpClient.Close()
+
+			if err != nil {
+				fmt.Printf("  %s: UNREACHABLE (%v)\n", serverURL, err)
+			} else {
+				fmt.Printf("  %s: OK (stratum %d, offset %v)\n", serverURL, resp.Stratum, resp.Offset)
+			}
+		}
+	},
 }

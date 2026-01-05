@@ -45,6 +45,8 @@ def create_app(config_class=Config):
     from app.blueprints.zones import zones_bp
     from app.blueprints.ioc_feeds import ioc_feeds_bp
     from app.blueprints.analytics import analytics_bp
+    from app.blueprints.dhcp import dhcp_bp
+    from app.blueprints.time import time_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -54,6 +56,8 @@ def create_app(config_class=Config):
     app.register_blueprint(zones_bp)
     app.register_blueprint(ioc_feeds_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(dhcp_bp)
+    app.register_blueprint(time_bp)
 
     # Health check endpoint
     @app.route('/health')

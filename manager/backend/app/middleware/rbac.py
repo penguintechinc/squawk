@@ -174,6 +174,29 @@ def requires_admin(f):
     return requires_role('SystemAdmin', 'OrgAdmin')(f)
 
 
+def check_team_access(team_id: int) -> bool:
+    """
+    Check if current user can access a specific team's resources.
+
+    Args:
+        team_id: Team ID to check access for
+
+    Returns:
+        True if user has access, False otherwise
+    """
+    user = get_current_user()
+    if not user:
+        return False
+
+    # System admins can access all teams
+    if user.get('global_role') == 'SystemAdmin':
+        return True
+
+    # Check if user is a member of the team
+    team_roles = user.get('team_roles', {})
+    return int(team_id) in team_roles
+
+
 def check_zone_access(zone_id: int) -> bool:
     """
     Check if current user can access a DNS zone.

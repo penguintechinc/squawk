@@ -11,11 +11,14 @@
 7. [Performance Considerations](#performance-considerations)
 8. [Scalability & Deployment](#scalability--deployment)
 9. [Integration Points](#integration-points)
-10. [Future Architecture Considerations](#future-architecture-considerations)
+10. [Network Services Architecture](#network-services-architecture)
+    - [Time Synchronization (PTP/NTP)](#time-synchronization-ptpntp)
+    - [DHCP Service](#dhcp-service)
+11. [Future Architecture Considerations](#future-architecture-considerations)
 
 ## System Overview
 
-Squawk is a DNS-over-HTTPS (DoH) proxy system designed with a microservices architecture that provides secure, authenticated DNS resolution services. The system follows a modular design pattern with clear separation of concerns between DNS resolution, authentication, and management functions.
+Squawk is an enterprise network infrastructure platform providing DNS-over-HTTPS (DoH), DHCP, and Time Synchronization (PTP/NTP) services. Designed with a microservices architecture, it delivers secure, authenticated network services with centralized management. The system follows a modular design pattern with clear separation of concerns between DNS resolution, IP address management, time synchronization, authentication, and management functions.
 
 ### High-Level Architecture
 
@@ -766,6 +769,195 @@ class TokenRateLimit:
 └─────────────────────────────────────────────────┘
 ```
 
+## Network Services Architecture
+
+### Time Synchronization (PTP/NTP)
+
+Squawk provides enterprise-grade time synchronization with a hybrid architecture optimized for both precision and compatibility.
+
+**Architecture Overview**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Time Synchronization Architecture                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Server Side (High Precision)              Client Side (OS Compat)  │
+│  ┌─────────────────────────┐              ┌─────────────────────┐   │
+│  │     PTP (IEEE 1588)     │              │   NTPv4 + Chrony    │   │
+│  │     Primary Protocol    │              │   Local Forwarder   │   │
+│  │   (microsecond accuracy)│              │                     │   │
+│  └───────────┬─────────────┘              │  ┌───────────────┐  │   │
+│              │                            │  │ Windows Time  │  │   │
+│  ┌───────────▼─────────────┐              │  │ Service (W32) │  │   │
+│  │    NTPv4 Fallback       │              │  └───────┬───────┘  │   │
+│  │    Secondary Protocol   │◄─────────────┤          │          │   │
+│  │   (millisecond accuracy)│              │  ┌───────▼───────┐  │   │
+│  └─────────────────────────┘              │  │  macOS timed  │  │   │
+│                                           │  └───────┬───────┘  │   │
+│                                           │          │          │   │
+│                                           │  ┌───────▼───────┐  │   │
+│                                           │  │ Linux chrony/ │  │   │
+│                                           │  │ systemd-timed │  │   │
+│                                           │  └───────────────┘  │   │
+│                                           └─────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Server-Side Time Services**
+
+| Protocol | Port | Accuracy | Use Case |
+|----------|------|----------|----------|
+| PTP (IEEE 1588) | 319/320 UDP | <1 μs | Primary - Financial, industrial, data centers |
+| NTPv4 | 123 UDP | 1-10 ms | Fallback - General enterprise, legacy systems |
+
+**Client-Side Time Forwarder**
+
+The Squawk client intercepts local OS time synchronization requests (similar to DNS forwarding on port 53):
+
+```
+OS Time Request → Squawk Client (NTPv4/Chrony) → Squawk Server (PTP preferred)
+                         ↓
+                   Local Cache +
+                   Fallback to public NTP
+```
+
+**Supported Client Operating Systems**:
+- **Windows**: W32Time service interception (NTP port 123)
+- **macOS**: timed service integration
+- **Linux**: chrony/systemd-timesyncd forwarding
+
+**Time Server Database Schema**:
+```sql
+CREATE TABLE time_servers (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    server_url VARCHAR(255) NOT NULL,
+    protocol VARCHAR(10) NOT NULL,          -- 'ptp' or 'ntp'
+    stratum INTEGER DEFAULT 2,
+    priority INTEGER DEFAULT 100,
+    team_id INTEGER REFERENCES teams(id),
+    active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE time_sync_logs (
+    id INTEGER PRIMARY KEY,
+    client_id INTEGER REFERENCES tokens(id),
+    server_id INTEGER REFERENCES time_servers(id),
+    offset_ms DECIMAL(10,6),
+    delay_ms DECIMAL(10,6),
+    protocol VARCHAR(10),
+    status VARCHAR(20),
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+### DHCP Service
+
+Squawk provides centralized DHCP management for enterprise IP address allocation with team-based access control.
+
+**Architecture Overview**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DHCP Architecture                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────┐     ┌─────────────────────────────────┐   │
+│  │    DHCP Server      │     │        Manager Service          │   │
+│  │                     │     │                                 │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ IP Pool Mgmt  │  │◄────┤  │   Pool Configuration API  │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ Lease Manager │  │────►│  │   Lease Tracking DB       │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ Reservations  │  │◄────┤  │   Static Assignment API   │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  Port 67/68 UDP     │     │                                 │   │
+│  └─────────────────────┘     └─────────────────────────────────┘   │
+│                                           │                         │
+│                              ┌────────────▼────────────┐            │
+│                              │      Web Console        │            │
+│                              │  - Pool Management      │            │
+│                              │  - Lease Monitoring     │            │
+│                              │  - Reservation Config   │            │
+│                              └─────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**DHCP Features**:
+- IP address pool management with CIDR notation
+- Static reservations by MAC address
+- Lease duration configuration
+- DHCP options (gateway, DNS, domain, NTP servers)
+- Team-based pool visibility and access control
+- Lease history and audit logging
+- Integration with DNS for dynamic DNS updates (DDNS)
+
+**DHCP Database Schema**:
+```sql
+CREATE TABLE dhcp_pools (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    network CIDR NOT NULL,                  -- e.g., '192.168.1.0/24'
+    range_start INET NOT NULL,
+    range_end INET NOT NULL,
+    gateway INET,
+    dns_servers TEXT,                       -- JSON array
+    ntp_servers TEXT,                       -- JSON array
+    domain_name VARCHAR(255),
+    lease_duration INTEGER DEFAULT 86400,   -- seconds
+    team_id INTEGER REFERENCES teams(id),
+    active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE dhcp_reservations (
+    id INTEGER PRIMARY KEY,
+    pool_id INTEGER REFERENCES dhcp_pools(id),
+    mac_address VARCHAR(17) NOT NULL,       -- 'AA:BB:CC:DD:EE:FF'
+    ip_address INET NOT NULL,
+    hostname VARCHAR(255),
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(pool_id, mac_address),
+    UNIQUE(pool_id, ip_address)
+);
+
+CREATE TABLE dhcp_leases (
+    id INTEGER PRIMARY KEY,
+    pool_id INTEGER REFERENCES dhcp_pools(id),
+    mac_address VARCHAR(17) NOT NULL,
+    ip_address INET NOT NULL,
+    hostname VARCHAR(255),
+    lease_start DATETIME NOT NULL,
+    lease_end DATETIME NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',    -- active, expired, released
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**DHCP API Endpoints**:
+```
+GET    /api/v1/dhcp/pools              # List IP pools
+POST   /api/v1/dhcp/pools              # Create pool
+GET    /api/v1/dhcp/pools/{id}         # Get pool details
+PUT    /api/v1/dhcp/pools/{id}         # Update pool
+DELETE /api/v1/dhcp/pools/{id}         # Delete pool
+
+GET    /api/v1/dhcp/pools/{id}/leases  # List active leases
+DELETE /api/v1/dhcp/pools/{id}/leases/{lease_id}  # Release lease
+
+GET    /api/v1/dhcp/reservations       # List reservations
+POST   /api/v1/dhcp/reservations       # Create reservation
+DELETE /api/v1/dhcp/reservations/{id}  # Delete reservation
+```
+
+---
+
 ### Technology Evolution
 
 **Emerging Standards**
@@ -773,6 +965,8 @@ class TokenRateLimit:
 - DNS-over-QUIC (DoQ) integration
 - DNSSEC validation
 - DNS64/NAT64 support
+- PTPv2.1 (IEEE 1588-2019) enhanced profiles
+- NTS (Network Time Security) for authenticated NTP
 
 **Cloud-Native Features**
 - Service mesh integration

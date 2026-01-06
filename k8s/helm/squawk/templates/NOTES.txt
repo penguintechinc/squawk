@@ -1,0 +1,107 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ include "squawk.namespace" . }}
+
+=============================================================================
+SQUAWK DNS - Enterprise DNS-over-HTTPS with Selective Routing
+=============================================================================
+
+{{- if .Values.dnsServer.enabled }}
+
+DNS Server:
+  Internal URL: http://{{ include "squawk.fullname" . }}-dns-server:{{ .Values.dnsServer.service.port }}
+
+  To access the DNS server from within the cluster:
+    kubectl port-forward -n {{ include "squawk.namespace" . }} svc/{{ include "squawk.fullname" . }}-dns-server {{ .Values.dnsServer.service.port }}:{{ .Values.dnsServer.service.port }}
+
+{{- end }}
+
+{{- if .Values.manager.enabled }}
+
+Manager API:
+  Internal URL: http://{{ include "squawk.fullname" . }}-manager:{{ .Values.manager.service.port }}
+
+  To access the manager API:
+    kubectl port-forward -n {{ include "squawk.namespace" . }} svc/{{ include "squawk.fullname" . }}-manager {{ .Values.manager.service.port }}:{{ .Values.manager.service.port }}
+
+{{- end }}
+
+{{- if .Values.frontend.enabled }}
+
+Web Console:
+  Internal URL: http://{{ include "squawk.fullname" . }}-frontend:{{ .Values.frontend.service.port }}
+
+  To access the web console:
+    kubectl port-forward -n {{ include "squawk.namespace" . }} svc/{{ include "squawk.fullname" . }}-frontend {{ .Values.frontend.service.port }}:{{ .Values.frontend.service.port }}
+    Then open: http://localhost:{{ .Values.frontend.service.port }}
+
+{{- end }}
+
+{{- if .Values.dnsAgent.enabled }}
+
+DNS Agent (DaemonSet):
+  The DNS agent is running on every node in your cluster.
+
+  To use Squawk DNS for external resolution in your pods, configure your pods to use:
+    DNS Server: {{ include "squawk.fullname" . }}-dns-agent.{{ include "squawk.namespace" . }}.svc.cluster.local
+    Port: {{ .Values.dnsAgent.listenPort }}
+
+  Service/Namespace Metadata:
+    The agent forwards source pod/service/namespace information to enable
+    selective DNS routing based on which service made the request.
+
+    Headers sent with each request:
+    - {{ .Values.dnsAgent.serviceMetadata.headers.sourceNamespace }}: Source namespace
+    - {{ .Values.dnsAgent.serviceMetadata.headers.sourceService }}: Source service name
+    - {{ .Values.dnsAgent.serviceMetadata.headers.sourcePod }}: Source pod name
+    - {{ .Values.dnsAgent.serviceMetadata.headers.nodeId }}: Node ID
+    - {{ .Values.dnsAgent.serviceMetadata.headers.agentId }}: Agent ID
+
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress:
+  DNS Server:  https://{{ .Values.ingress.hosts.dns }}
+  Manager API: https://{{ .Values.ingress.hosts.api }}
+  Web Console: https://{{ .Values.ingress.hosts.console }}
+
+{{- end }}
+
+=============================================================================
+CONFIGURATION
+=============================================================================
+
+To configure selective DNS routing based on service/namespace:
+1. Access the Manager API or Web Console
+2. Create DNS zones with visibility settings (PUBLIC, INTERNAL, RESTRICTED)
+3. Create groups with appropriate permissions
+4. Assign user tokens to groups
+5. The DNS agent will automatically forward source metadata with each request
+
+Example: Configure internal-only DNS entries
+  - Create zone: internal.company.com with visibility: INTERNAL
+  - Create group: INTERNAL_USERS with zone access
+  - Pods in authorized namespaces will resolve internal.company.com
+  - Unauthorized pods will receive NXDOMAIN
+
+=============================================================================
+IMPORTANT NOTES
+=============================================================================
+
+1. Change the default secrets before production use:
+   - AUTH_TOKEN
+   - POSTGRES_PASSWORD
+   - SQUAWK_AUTH_TOKEN
+
+2. For mTLS, generate and provide certificates:
+   kubectl create secret tls {{ include "squawk.fullname" . }}-tls \
+     --cert=path/to/tls.crt \
+     --key=path/to/tls.key \
+     -n {{ include "squawk.namespace" . }}
+
+3. For monitoring, enable ServiceMonitor:
+   --set metrics.serviceMonitor.enabled=true
+
+=============================================================================

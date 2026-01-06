@@ -1,0 +1,5 @@
+
+[test]
+
+[test:python_version >= "3.13"]
+legacy-cgi

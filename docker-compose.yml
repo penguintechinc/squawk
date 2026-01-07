@@ -89,8 +89,8 @@ services:
     image: valkey/valkey:latest
     container_name: squawk-valkey
     restart: unless-stopped
-    ports:
-      - "6380:6379"
+    expose:
+      - "6379"
     volumes:
       - valkey-data:/data
     networks:
@@ -106,8 +106,8 @@ services:
       POSTGRES_DB: squawk
       POSTGRES_USER: squawk_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5433:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro

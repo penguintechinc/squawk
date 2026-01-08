@@ -440,6 +440,16 @@ docker exec container-name python -c "import ldap; print('LDAP OK')"
 - **Manager README**: manager/README.md
 - **Architecture Overview**: docs/OVERVIEW.md
 
+
+## License & Legal
+
+**License File**: `LICENSE.md` (located at project root)
+
+**License Type**: Limited AGPL-3.0 with commercial use restrictions and Contributor Employer Exception
+
+The `LICENSE.md` file is located at the project root following industry standards. This project uses a modified AGPL-3.0 license with additional exceptions for commercial use and special provisions for companies employing contributors.
+
+
 ---
 
 **Template Version**: Gold Standard (matches project-template design patterns)

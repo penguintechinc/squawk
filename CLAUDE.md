@@ -1,583 +1,779 @@
-- to memorize
-# important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-
-# Python Version Standard
-ALL Python-based builds and deployments MUST use Python 3.13. This includes:
-- Dockerfiles
-- CI/CD workflows
-- Requirements files
-- Local development environments
-
-# Go Version Standard
-ALL Go-based builds and deployments MUST use Go 1.23. This includes:
-- go.mod files: `go 1.23.0` (no explicit toolchain specification)
-- CI/CD workflows: `GO_VERSION: '1.23'`
-- Local development environments
-- NEVER specify a higher toolchain version that conflicts with GitHub Actions golangci-lint
-- This prevents "Go language version used to build golangci-lint is lower than targeted Go version" errors
-
-# Go Security Tools Standard
-For Go security scanning, ALWAYS use the official and actively maintained repositories:
-- **gosec**: Use `github.com/securego/gosec/v2/cmd/gosec@latest` (8,401+ stars, actively maintained)
-- NEVER use `github.com/securecodewarrior/gosec` (repository does not exist)
-- Verify repository status before adding new security tools to workflows
-
-# Docker Container Architecture
-Each Python component is built as its own separate Docker container image:
-- DNS Server: Separate container with server-specific dependencies
-- DNS Client (Python): Separate container with client-specific dependencies
-- Testing Environment: Separate container with development/testing tools
-- Production Environment: Separate optimized container for production deployments
-
-# Docker Base Image Standard
-ALL Docker containers MUST use Ubuntu 24.04 LTS as the base image with Python 3.13 from deadsnakes PPA.
-This is REQUIRED because:
-- python-ldap compilation requires lber.h header which is missing in Debian-based images
-- Ubuntu provides proper LDAP development packages (libldap-dev, libldap2-dev, libsasl2-dev)
-- deadsnakes PPA provides reliable Python 3.13 installation on Ubuntu
-- DO NOT use python:3.13-slim or other Debian-based images due to LDAP header issues
-
-# Docker Build Testing
-ALWAYS test Dockerfile changes by running a build before committing:
-- Run `docker build -f <dockerfile-path> -t <test-tag> <context-path>` after ANY Dockerfile modification
-- Verify the build completes successfully without errors
-- Test critical functionality (python-ldap import, package installations)
-- Only commit after successful build verification
-
-# Docker Virtual Environment Standard
-ALL Docker containers MUST use Python virtual environments to avoid system package conflicts. This prevents issues with packages like blinker that may conflict with system versions.
-
-Requirements:
-- Use `python3.13 -m venv /app/venv` to create virtual environment
-- Install packages using `/app/venv/bin/pip install` instead of system pip
-- Set `ENV PATH="/app/venv/bin:$PATH"` to make venv the default
-- Never use `--break-system-packages` flag - virtual environments eliminate the need
-- Ensures clean dependency isolation and prevents system package conflicts
-
-# Environment Variable Configuration
-ALL user configuration for Squawk DNS is done via environment variables:
-
-## Server Configuration
-- `PORT`: Server port (default: 8080)
-- `MAX_WORKERS`: Number of worker processes (default: 100)
-- `MAX_CONCURRENT_REQUESTS`: Max concurrent DNS requests (default: 1000)
-- `AUTH_TOKEN`: Legacy authentication token
-- `USE_NEW_AUTH`: Enable new token management system (true/false)
-- `DB_TYPE`: Database type for auth
-- `DB_URL`: Database connection URL
-
-## Cache Configuration
-- `CACHE_ENABLED`: Enable caching (default: true)
-- `CACHE_TTL`: Cache TTL in seconds (default: 300)
-- `VALKEY_URL` or `REDIS_URL`: Valkey/Redis connection URL (e.g., redis://localhost:6379)
-- `CACHE_PREFIX`: Cache key prefix (default: squawk:dns:)
-
-## Blacklist Configuration
-- `ENABLE_BLACKLIST`: Enable Maravento blacklist (default: false)
-- `BLACKLIST_UPDATE_HOURS`: Update interval in hours (default: 24)
-
-## Client Configuration
-- `SQUAWK_SERVER_URL`: DNS server URL (default: https://dns.google/resolve)
-- `SQUAWK_AUTH_TOKEN`: Authentication token
-- `SQUAWK_DOMAIN`: Default domain to query
-- `SQUAWK_RECORD_TYPE`: Default DNS record type (default: A)
-- `SQUAWK_CLIENT_CERT`: Client certificate path for mTLS
-- `SQUAWK_CLIENT_KEY`: Client private key path for mTLS
-- `SQUAWK_CA_CERT`: CA certificate path for verification
-- `SQUAWK_VERIFY_SSL`: Enable SSL verification (true/false)
-- `SQUAWK_CONSOLE_URL`: Admin console URL (default: http://localhost:8080/dns_console)
-- `LOG_LEVEL`: Logging level (default: INFO)
-
-## Feature Flags (Go Client)
-- `SQUAWK_FEATURES`: Enabled features, comma-separated (default: dns) - Options: dns,dhcp,ntp
-- `SQUAWK_COMMUNICATION`: Communication protocol (default: http2) - Options: http1 (REST), http2 (gRPC), http3 (QUIC)
-
-## DHCP Client Configuration (Go Client)
-- `SQUAWK_DHCP_SERVER_URL`: DHCP server URL (default: https://localhost:8081)
-- `SQUAWK_DHCP_INTERFACE`: Network interface for DHCP intercept
-- `SQUAWK_DHCP_INTERCEPT`: Enable DHCP port interception (true/false, requires root)
-- `SQUAWK_DHCP_LEASE_FILE`: Path to lease storage file (default: /var/lib/squawk/dhcp.leases)
-
-## NTP Client Configuration (Go Client)
-- `SQUAWK_NTP_SERVER_URL`: NTP/NTS server URL (default: https://localhost:8082)
-- `SQUAWK_NTP_PORT`: Local NTP port for interception (default: 123)
-- `SQUAWK_NTP_INTERCEPT`: Enable NTP port interception (true/false, requires root)
-- `SQUAWK_NTP_SYNC_INTERVAL`: Time sync interval in seconds (default: 3600)
-
-## DHCP Server Configuration
-- `DHCP_PORT`: DHCP server port (default: 8081)
-- `DHCP_POOL_SUBNET`: DHCP pool subnet (default: 192.168.1.0/24)
-- `DHCP_POOL_START`: Pool start IP (default: 192.168.1.100)
-- `DHCP_POOL_END`: Pool end IP (default: 192.168.1.200)
-- `DHCP_GATEWAY`: Default gateway (default: 192.168.1.1)
-- `DHCP_DNS_SERVERS`: DNS servers, comma-separated (default: 8.8.8.8,8.8.4.4)
-- `DHCP_LEASE_TIME`: Lease time in seconds (default: 86400)
-- `AUTH_REQUIRED`: Require authentication (default: true)
-- `SHARED_AUTH_URL`: DNS server URL for auth validation (default: http://localhost:8080)
-
-## NTP Server Configuration
-- `NTP_PORT`: NTP server port (default: 8082)
-- `NTS_KE_PORT`: NTS Key Establishment port (default: 4460)
-- `UPSTREAM_NTP`: Upstream NTP server (default: pool.ntp.org)
-- `AUTH_REQUIRED`: Require authentication (default: true)
-- `SHARED_AUTH_URL`: DNS server URL for auth validation (default: http://localhost:8080)
-
-## Logging Configuration
-- `LOG_LEVEL`: Logging level - DEBUG, INFO, WARNING, ERROR (default: INFO)
-- `LOG_FORMAT`: Log format - json or text (default: json)
-- `LOG_FILE`: Log file path (optional)
-- `TRUSTED_PROXIES`: Comma-separated trusted proxy IP ranges (default: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16)
-
-## Syslog Configuration
-- `ENABLE_SYSLOG`: Enable UDP syslog forwarding (default: false)
-- `SYSLOG_HOST`: Syslog server hostname/IP (default: localhost)
-- `SYSLOG_PORT`: Syslog server port (default: 514)
-- `SYSLOG_FACILITY`: Syslog facility number (default: 16)
-
-## mTLS Configuration
-- `ENABLE_MTLS`: Enable mutual TLS authentication (default: false)
-- `MTLS_ENFORCE`: Require client certificates (default: false)
-- `MTLS_CA_CERT`: CA certificate path for client verification (default: certs/ca.crt)
-- `CERT_DIR`: Certificate storage directory (default: certs)
-
-## TLS Certificate Configuration
-- `USE_ECC_KEYS`: Use ECC keys instead of RSA (default: true)
-- `ECC_CURVE`: ECC curve to use - SECP256R1, SECP384R1, SECP521R1 (default: SECP384R1)
-- `CA_VALIDITY_DAYS`: CA certificate validity period (default: 3650)
-- `CERT_VALIDITY_DAYS`: Server/client certificate validity (default: 365)
-- `TLS_ADDITIONAL_HOSTS`: Additional hostnames for server cert (comma-separated)
-- `CLIENT_CERT_PATH`: Client certificate path for mTLS
-- `CLIENT_KEY_PATH`: Client private key path for mTLS
-- `CA_CERT_PATH`: CA certificate path for verification
-
-Note: ECC certificates provide equivalent security to RSA with smaller key sizes and better performance.
-
-# System Tray Client Configuration
-The desktop system tray application (dns-client/bins/systray.py) provides enhanced functionality:
-
-## System Tray Features
-- **Health Monitoring**: Real-time DNS server health checks every 30 seconds
-- **Visual Health Status**: Icon colors indicate server health (green=healthy, yellow=degraded, red=unhealthy)
-- **Smart Notifications**: Automatic alerts when DNS servers become unreachable
-- **DNS Fallback**: One-click fallback to original DHCP DNS servers for captive portals
-- **Manual Health Check**: On-demand server connectivity verification
-
-## DNS Fallback System
-- Automatically detects original DNS servers from system configuration
-- Supports Windows, macOS, and Linux platforms
-- Essential for hotel/airport WiFi captive portals
-- Restores DNS settings on application exit
-
-# Release Automation
-Automated GitHub CI/CD release pipeline with comprehensive release notes:
-
-## Release Notes Integration
-- **Script**: `.github/scripts/extract-release-notes.sh`
-- **Source**: `docs/RELEASE_NOTES.md` 
-- **Automation**: Both client and server releases automatically include full release notes
-- **Components**: Separate release processes for Go client (-client) and DNS server (-server)
-
-## Release Process
-1. Version updates in `.version` file trigger releases
-2. Automatic extraction of release notes from documentation
-3. Component-specific quick start guides included
-4. Platform-specific installation instructions
-5. GitHub releases created with comprehensive documentation
-
-# Subscription Licensing System
-Squawk DNS now includes a comprehensive subscription-based licensing system for premium features:
-
-## License Server Configuration
-- **Repository**: https://github.com/PenguinCloud/license-server - Shared license server for all Penguin Technologies products
-- **Domain**: `license.squawkdns.com` - hardcoded license server domain
-- **Technology**: py4web-based license management portal
-- **Database**: PostgreSQL for license and token storage
-- **Authentication**: Sales team access only (no customer portal)
-- **Multi-Product**: Handles licensing for Squawk DNS and other Penguin Technologies products
-
-## License Management
-- **Sales Portal**: `/sales/dashboard` - Create and manage customer licenses (sales team only)
-- **License Format**: `SQWK-XXXX-XXXX-XXXX-XXXX-YYYY` (with checksum validation)
-- **License Distribution**: Sales team emails license keys directly to customers
-- **Customer Access**: Customers do NOT access license.squawkdns.com directly
-
-## DNS Server License Integration
-- **License Validation**: `USE_LICENSE_SERVER=true` enables subscription validation
-- **Server Flag**: `--license-server` or `-l` enables license mode
-- **Token Validation**: Real-time validation via license server API endpoints
-- **Environment**: `LICENSE_SERVER_URL=https://license.squawkdns.com`
-
-## Go Client License Integration
-- **Daily Validation**: License checked once per day (not per query)
-- **Smart Caching**: 24-hour cache minimizes license server load
-- **Offline Resilience**: Falls back to cached validation if license server unavailable
-- **Backward Compatibility**: Works without license (with warnings)
-
-## License Environment Variables
-- `SQUAWK_LICENSE_SERVER_URL`: License server URL (default: https://license.squawkdns.com)
-- `SQUAWK_LICENSE_KEY`: Customer license key for evaluation/setup
-- `SQUAWK_USER_TOKEN`: Individual user token (preferred for production)
-- `SQUAWK_VALIDATE_ONLINE`: Enable online validation vs cache-only (default: true)
-- `SQUAWK_LICENSE_CACHE_TIME`: Cache time in minutes (default: 1440 = 24 hours)
-- `USE_LICENSE_SERVER`: Enable license server validation in DNS server (default: false)
-- `LICENSE_KEY`: DNS server license key for validation
-
-## Feature Comparison by Edition
-
-### Community Edition (Free)
-- Basic DNS resolution
-- Standard DNS-over-HTTPS support
-- mTLS authentication
-- Basic caching
-- Single-token authentication
-- 1 threat intelligence feed
-- Basic web console
-
-### Enterprise Self-Hosted ($5/user/month)
-- **All Community Features**
-- **Selective DNS Routing**: Per-user/group access to private and public DNS entries
-- **Advanced Token Management**: Individual user tokens with usage tracking
-- **Priority DNS Resolution**: Faster query processing for licensed users
-- **Enhanced Caching**: Advanced cache optimization and performance tuning
-- **Unlimited Threat Intelligence**: No feed limits, advanced parsers
-- **Multi-tenant Architecture**: Secure isolation between different user groups
-- **SAML/LDAP/SSO Integration**: Enterprise identity provider integration
-- **SCIM Provisioning**: Automated user provisioning and deprovisioning
-- **Technical Support**: Professional support and assistance
-- **Self-Managed**: Customer controls infrastructure and updates
-
-### Enterprise Cloud-Hosted ($7/user/month)
-- **All Self-Hosted Features**
-- **Managed Infrastructure**: Penguin Technologies operates and maintains servers
-- **99.9% SLA**: Guaranteed uptime with redundant infrastructure
-- **Automatic Updates**: Zero-downtime updates and security patches
-- **Advanced Monitoring**: 24/7 monitoring with proactive alerting
-- **Compliance Reporting**: SOC2, HIPAA, GDPR automated compliance reports
-- **24/7 Support**: Dedicated support team with guaranteed response times
-- **Global Infrastructure**: Multi-region deployment with CDN edge locations
-- **Advanced Threat Intel**: Curated and enhanced threat intelligence feeds
-- **Custom Development**: Dedicated engineering resources for custom features
-- **Enterprise Monitoring**: Advanced logging, alerting, and SIEM integration
-- **Priority Processing**: Highest priority request processing across all users
-
-## Key Enterprise Benefit: Selective DNS Routing
-The major advantage of enterprise licensing is the ability to have **one secure DNS endpoint that selectively provides private and public DNS entries based on user or group permissions**:
-- Internal users get access to both private corporate DNS entries AND public internet DNS
-- External users only get public DNS resolution
-- Different user groups can have different levels of DNS access
-- Secure authentication ensures only authorized users can resolve private DNS entries
-- Single DNS infrastructure serves multiple security contexts
-
-# Selective DNS Routing Architecture
-The selective DNS routing system is built on a token-based identity and group membership model:
-
-## Core Concept
-- **Individual User Tokens**: Each user has a unique token generated when created on the platform
-- **Group Membership**: Tokens map to groups (configured manually or via IDP integration)
-- **Permission-Based Response**: Groups determine which DNS zones/entries are visible to users
-- **Single Endpoint**: Same DNS server endpoint serves different responses based on user's group membership
-
-## Token Management System
-### User Token Creation
-- Each user receives a unique authentication token
-- Tokens are mapped to user identity and group memberships
-- Token validation occurs on every DNS request
-
-### Group Types
-- **INTERNAL**: Full access to private + public DNS (company employees)
-- **EXTERNAL**: Public DNS only (general internet users)  
-- **PARTNER**: Limited private zones + public DNS (business partners)
-- **CONTRACTOR**: Specific private zones + public DNS (contractors)
-- **ADMIN**: Full access + management capabilities
-
-## DNS Zone Visibility
-### Visibility Levels
-- **PUBLIC**: Visible to all users (example.com, google.com)
-- **INTERNAL**: Visible to internal groups only (intranet.company.com)
-- **RESTRICTED**: Visible to specific groups only (secure.company.com)
-- **PRIVATE**: Visible to admins only (admin.company.com)
-
-### Response Filtering
-1. User makes DNS request with authentication token
-2. System identifies user's group memberships
-3. DNS resolver checks if requested domain is accessible to user's groups
-4. Returns appropriate response:
-   - **Authorized**: Returns actual DNS records
-   - **Unauthorized**: Returns NXDOMAIN (domain appears to not exist)
-
-## IDP Integration (Enterprise Only)
-### SAML Integration
-- Maps SAML assertion groups to internal Squawk DNS groups
-- Automatic group assignment based on IDP group membership
-- Real-time group sync during authentication
-
-### LDAP Integration  
-- Queries LDAP directory for user group memberships
-- Maps LDAP groups to internal DNS access groups
-- Supports nested group structures
-
-### SCIM Provisioning
-- Automated user creation and deprovisioning
-- Group membership synchronization
-- Lifecycle management integration
-
-## Database Schema
-### Core Tables
-- `tokens`: Individual user authentication tokens
-- `groups`: Access control groups with permissions
-- `user_groups`: Many-to-many mapping of users to groups
-- `dns_zones`: DNS zones with visibility settings
-- `dns_records`: Individual DNS records with per-record visibility
-- `group_zone_permissions`: Group access permissions to DNS zones
-
-### IDP Integration Tables
-- `idp_group_mappings`: Maps IDP groups to local groups
-- `saml_assertions`: Cached SAML group data
-- `ldap_sync_log`: LDAP synchronization audit trail
-
-# Enterprise Feature Implementation
-All enterprise features are implemented with proper license enforcement across two enterprise tiers:
-
-## Enterprise Tier Structure
-
-### Community Edition (Free)
-- Basic DNS resolution and caching
-- Single threat intelligence feed (1 feed limit)
-- Standard DNS-over-HTTPS support
-- mTLS authentication
-- Basic web console
-
-### Enterprise Self-Hosted ($5/user/month)
-- All Community features
-- Unlimited threat intelligence feeds
-- Advanced token management
-- Selective DNS routing
-- Priority DNS resolution
-- Enhanced caching and analytics
-- Technical support
-- Multi-tenant architecture
-- SAML/LDAP/SSO integration
-- Self-managed infrastructure
-
-### Enterprise Cloud-Hosted ($7/user/month)  
-- All Self-Hosted features
-- Penguin Technologies managed infrastructure
-- 99.9% SLA with redundancy
-- Automatic updates and patching
-- Advanced monitoring and alerting
-- Compliance reporting (SOC2, HIPAA, GDPR)
-- 24/7 managed support
-- Global CDN and edge locations
-- Advanced threat intelligence curation
-- Custom integrations and development
-
-## License Enforcement Model
-- **Feature Gates**: Each feature tier checks appropriate license status before activation
-- **Graceful Degradation**: Unlicensed features return appropriate error messages with upgrade prompts
-- **Real-time Validation**: License status checked via license server API
-- **Offline Resilience**: Cached license validation for temporary connectivity loss
-- **Tier Detection**: Automatic detection of Self-Hosted vs Cloud-Hosted licensing
-
-## Priority DNS Resolution
-- **Request Queuing**: Enterprise users get priority in processing queue
-- **Performance Tiers**: Different response time guarantees based on license
-- **Load Balancing**: Enterprise requests bypass rate limits
-
-## Enhanced Caching
-- **Extended TTLs**: Enterprise users get longer cache retention
-- **Predictive Prefetching**: AI-based query prediction for common patterns
-- **Premium Cache Layer**: Separate high-performance cache for licensed users
-
-## Analytics & Reporting
-- **Query Tracking**: Detailed logging of all DNS requests per user
-- **Usage Reports**: Daily, weekly, monthly usage analytics
-- **Performance Metrics**: Response times, cache hit rates, error analysis
-- **Compliance Reports**: Automated generation of regulatory compliance reports
-
-## Multi-Tenant Architecture
-- **Tenant Isolation**: Complete DNS namespace separation per organization
-- **Resource Quotas**: Per-tenant limits on queries, users, zones
-- **Custom Configurations**: Tenant-specific DNS policies and settings
-
-## Enterprise Monitoring
-- **Security Audit Logs**: Comprehensive logging of all authentication and access events
-- **SIEM Integration**: Export logs in CEF, LEEF, and JSON formats
-- **Alert Rules**: Configurable thresholds for error rates, response times
-- **Compliance Dashboards**: Real-time visibility into security posture
-
-# Server Implementation Files
-## Core Server Files
-- `dns-server/bins/server_optimized.py`: Standard community server
-- `dns-server/bins/server_premium_integrated.py`: Enterprise server with all features
-- `dns-server/bins/premium_features.py`: Core enterprise functionality module
-- `dns-server/bins/selective_dns_routing.py`: User/group-based DNS filtering
-
-## Feature Modules
-- `cache_manager.py`: Enhanced caching with enterprise features
-- `cert_manager.py`: mTLS certificate management
-- `request_logger.py`: Advanced logging and analytics
-- Web console: Token and group management interface
-
-# GitHub Issues Implementation Status
-All open GitHub issues have been addressed with full implementations:
-
-## Issue #24: Local DNS Fallback ✅ **IMPLEMENTED**
-- **File**: `dns-client/bins/systray.py`
-- **Features**: Automatic fallback to DHCP DNS servers for captive portals
-- **Platforms**: Windows (netsh), macOS (networksetup), Linux (manual)
-- **Integration**: One-click toggle in system tray application
-
-## Issue #23: Per User Token ✅ **IMPLEMENTED** 
-- **File**: `dns-server/bins/selective_dns_routing.py`
-- **Features**: Individual user tokens with group-based permissions
-- **JWT Integration**: Token validation with user identity mapping
-- **Audit Trail**: Per-user query logging and analytics
-
-## Issue #17: WHOIS Lookup Section ✅ **IMPLEMENTED**
-- **File**: `dns-server/bins/whois_manager.py` 
-- **Features**: Domain and IP WHOIS lookups with PostgreSQL caching
-- **Web Interface**: Searchable interface via py4web forms and grids
-- **API**: RESTful endpoints for programmatic access
-- **Caching**: Monthly cleanup with configurable retention policies
-
-## Issue #16: IOC API Management ✅ **IMPLEMENTED**
-- **File**: `dns-server/bins/ioc_manager.py`
-- **Features**: Per-token IOC overrides (allow/block specific domains/IPs)
-- **Scope Control**: User-specific, token-specific, or global overrides
-- **API**: Full CRUD operations via REST API
-- **Integration**: Works with existing authentication and mTLS
-
-## Issue #15: IOC/Threat Intelligence Blocking ✅ **IMPLEMENTED**
-- **File**: `dns-server/bins/ioc_manager.py`
-- **Feed Sources**: abuse.ch URLhaus, Malware Domains, Spamhaus DBL, Emerging Threats, Feodo Tracker
-- **Real-time Updates**: Automatic feed updates with configurable intervals
-- **Performance**: In-memory caching for fast lookup performance
-- **Override System**: User-specific allow/block overrides
-
-## Issue #14: Prometheus/Grafana Stats ✅ **IMPLEMENTED**
-- **File**: `dns-server/bins/prometheus_metrics.py`
-- **Metrics**: DNS queries, response times, cache hits, top domains, user analytics
-- **Integration**: Native Prometheus metrics endpoint at `/metrics`
-- **Dashboard Ready**: Compatible with Grafana for visualization
-- **Performance**: Background collection with minimal overhead
-
-## Issue #10: Client Configuration Pull ✅ **IMPLEMENTED**
-- **File**: `dns-server/bins/client_config_api.py` and `py4web_extended_app.py`
-- **Features**: JWT-based client authentication with deployment domains
-- **Security Integration**: Uses existing token authentication and mTLS
-- **API**: Native py4web REST API for configuration management
-- **Role-based Access**: Client-Reader, Client-Maintainer, Domain-Admin roles
-- **Py4web Integration**: Native forms, grids, and REST endpoints
-
-# Py4web Integration
-All new features utilize py4web's native capabilities:
-
-## Native REST API
-- **Publisher**: Automatic CRUD operations for database tables
-- **Authentication**: Integrated with py4web auth system
-- **CORS**: Cross-origin request support for web interfaces
-
-## Web Interface Components
-- **Forms**: FormStyleBulma for consistent UI across all features
-- **Grids**: Automatic data grids with search, sort, and pagination
-- **Dashboard**: Combined statistics view with real-time data
-
-## Background Tasks
-- **Scheduler**: Automatic IOC feed updates, cache cleanup, client maintenance
-- **Async Support**: Full asyncio integration for non-blocking operations
-
-## Security Integration
-- **Authentication**: Seamless integration with existing token system
-- **mTLS Support**: Certificate validation for client configuration API
-- **Permission System**: Role-based access control for all features
-
-# License Requirements by Feature
-
-## Community Edition Features (Free)
-- Basic DNS resolution and caching
-- Standard DNS-over-HTTPS support  
-- mTLS authentication
-- Single threat intelligence feed
-- Basic web console
-- Community support via GitHub
-
-## Enterprise Self-Hosted Features ($5/user/month)
-- **All Community Features**
-- **SAML/SSO**: Enterprise identity provider integration
-- **SCIM Provisioning**: Automated user management
-- **Advanced Analytics**: Detailed reporting and compliance features
-- **Priority Support**: Professional support with SLA guarantees
-- **Multi-tenant**: Organization-level isolation and management
-- **Unlimited Threat Intel**: No limits on threat intelligence feeds
-- **Selective DNS Routing**: Per-user/group access control
-- **Self-Managed Infrastructure**: Customer controls deployment and updates
-
-## Enterprise Cloud-Hosted Exclusive Features ($7/user/month)
-
-### 🏢 Managed Infrastructure
-- **Penguin Technologies Operated**: Professional DevOps team manages all infrastructure
-- **Multi-Region Deployment**: Geographically distributed servers for optimal performance
-- **Auto-Scaling**: Automatic resource scaling based on demand
-- **High Availability**: 99.9% uptime SLA with redundant infrastructure
-- **Disaster Recovery**: Automated backup and recovery procedures
-
-### 🔄 Automatic Operations
-- **Zero-Downtime Updates**: Seamless rolling updates without service interruption
-- **Security Patching**: Automatic security updates and vulnerability management
-- **Configuration Management**: Centralized configuration with change tracking
-- **Health Monitoring**: 24/7 automated monitoring with proactive alerting
-
-### 📊 Advanced Monitoring & Alerting
-- **Real-Time Dashboards**: Live system performance and usage metrics
-- **Predictive Analytics**: AI-powered capacity planning and performance optimization
-- **Custom Alerting**: Configurable alerts for performance, security, and availability
-- **Incident Response**: Dedicated NOC team for 24/7 incident management
-
-### 📋 Compliance & Reporting
-- **SOC2 Type II**: Automated SOC2 compliance reporting and audits
-- **HIPAA Compliance**: Healthcare data protection with encrypted storage
-- **GDPR Compliance**: EU data protection with data residency controls
-- **Custom Compliance**: Support for industry-specific compliance requirements
-- **Audit Trails**: Comprehensive logging for regulatory compliance
-
-### 🌐 Global Performance Infrastructure
-- **CDN Integration**: Cloudflare-powered global content delivery network
-- **Edge Locations**: DNS resolution from geographically closest locations
-- **Anycast Network**: Automatic routing to optimal servers
-- **Network Optimization**: Premium network peering for reduced latency
-
-### 🎯 Advanced Threat Intelligence
-- **Curated Feeds**: Professional threat intelligence curation and validation
-- **Custom Threat Intel**: Penguin Technologies proprietary threat research
-- **Real-Time Updates**: Sub-minute threat intelligence updates
-- **Threat Attribution**: Enhanced context and attribution for security events
-- **Custom IOC Integration**: Private threat intelligence feed integration
-
-### 👥 Dedicated Support & Development
-- **24/7 Dedicated Support**: Guaranteed response times with escalation procedures
-- **Dedicated Customer Success Manager**: Personal account management
-- **Custom Feature Development**: Dedicated engineering resources for customer-specific needs
-- **Priority Feature Requests**: Influence on product roadmap and feature prioritization
-- **Direct Engineering Access**: Direct communication with development team
-
-### 🔐 Enterprise Security Enhancements
-- **Advanced Threat Detection**: ML-based anomaly detection and threat hunting
-- **Zero Trust Architecture**: Identity-based access with continuous verification
-- **Security Operations Center**: 24/7 security monitoring and incident response
-- **Penetration Testing**: Regular security assessments and vulnerability testing
-- **Threat Intelligence Sharing**: Bi-directional threat intelligence with customers
-
-# Important Notes
-- **Documentation Domain**: All documentation references should use `squawkdns.com`
-- **Web Console**: Default available at `http://localhost:8000/dns_console`
-- **License Portal**: Sales team only at `https://license.squawkdns.com/sales/dashboard` (internal access)
-- **Health Monitoring**: System tray provides real-time server health status
-- **DNS Validation**: All components implement RFC 1035 compliant validation
-- **Multi-Server Support**: Clients support multiple DNS servers with automatic failover
-
-# Git Workflow
-ALWAYS commit all changes when completing work or making significant modifications to ensure proper version control and deployment tracking.
+# Project Template - Claude Code Context
+
+## 🚫 DO NOT MODIFY THIS FILE OR `.claude/` STANDARDS
+
+**These are centralized template files that will be overwritten when standards are updated.**
+
+- ❌ **NEVER edit** `CLAUDE.md`, `.claude/*.md`, `docs/STANDARDS.md`, or `docs/standards/*.md`
+- ✅ **CREATE NEW FILES** for app-specific context:
+  - `docs/APP_STANDARDS.md` - App-specific architecture, requirements, context
+  - `.claude/app.md` - App-specific rules for Claude (create if needed)
+  - `.claude/[feature].md` - Feature-specific context (create as needed)
+
+---
+
+## ⚠️ CRITICAL RULES - READ FIRST
+
+**Language & Versions:**
+- **Python 3.13** default (3.12+ minimum) - use for most applications
+- **Go 1.24.x** only for >10K req/sec (1.23.x fallback allowed)
+- **Node.js 18+** for React frontend
+
+**Database (MANDATORY):**
+- **SQLAlchemy**: Schema creation and Alembic migrations ONLY
+- **PyDAL**: ALL runtime database operations - NO EXCEPTIONS
+- Support ALL: PostgreSQL, MySQL, MariaDB Galera, SQLite
+
+**Git Rules:**
+- **NEVER commit** unless explicitly requested
+- **NEVER push** to remote repositories
+- Run security scans before commit (bandit, gosec, npm audit)
+
+**Code Quality:**
+- ALL code must pass linting before commit
+- No hardcoded secrets or credentials
+- Input validation mandatory
+
+**Architecture:**
+- Web UI and API are ALWAYS separate containers
+- Flask-Security-Too mandatory for authentication
+- REST APIs use `/api/v{major}/endpoint` versioning
+
+**Container Images (CRITICAL):**
+- **Debian 12 (bookworm) ONLY** - use `-slim` variants when available
+- **NEVER use Alpine** - causes too many compatibility issues
+- Fallback order: Debian 12 → Debian 11 → Debian 13 → Ubuntu (if no Debian option)
+- Examples: `postgres:16-bookworm`, `redis:7-bookworm`, `python:3.13-slim-bookworm`
+
+**Kubernetes Deployments:**
+- **Support BOTH**: Helm v3 (packaged) AND Kustomize (prescriptive) - every project needs both
+- All K8s files in `k8s/` directory (helm/, kustomize/, manifests/)
+- Always set resource limits (cpu/memory) and health checks (liveness/readiness)
+- Environment overlays: dev, staging, prod with appropriate resource scaling
+
+📚 **Detailed Standards**: See `.claude/` directory for language and service-specific rules
+
+---
+
+**⚠️ Important**: Application-specific context should be added to `docs/APP_STANDARDS.md` instead of this file. This allows the template CLAUDE.md to be updated across all projects without losing app-specific information. See `docs/APP_STANDARDS.md` for app-specific architecture, requirements, and context.
+
+## Project Overview
+
+This is a comprehensive project template incorporating best practices and patterns from Penguin Tech Inc projects. It provides a standardized foundation for multi-language projects with enterprise-grade infrastructure and integrated licensing.
+
+**Template Features:**
+- Multi-language support (Go 1.24.x, Python 3.12/3.13, Node.js 18+)
+- Enterprise security and licensing integration
+- Comprehensive CI/CD pipeline
+- Production-ready containerization
+- Monitoring and observability
+- Version management system
+- PenguinTech License Server integration
+
+## Technology Stack
+
+### Languages & Frameworks
+
+**Language Selection Criteria (Case-by-Case Basis):**
+- **Python 3.13**: Default choice for most applications
+  - Web applications and APIs
+  - Business logic and data processing
+  - Integration services and connectors
+- **Go 1.24.x**: ONLY for high-traffic/performance-critical applications
+  - Applications handling >10K requests/second
+  - Network-intensive services
+  - Low-latency requirements (<10ms)
+  - CPU-bound operations requiring maximum throughput
+  - Go 1.23.x acceptable as fallback if 1.24.x compatibility constraints exist
+
+**Python Stack:**
+- **Python**: 3.13 for all applications (3.12+ minimum)
+- **Web Framework**:
+  - **Flask + Flask-Security-Too**: Standard choice for typical applications (mandatory)
+  - **Quart**: Async-first framework for high-performance/high-concurrency applications (>100 concurrent requests, <10ms latency requirements). Drop-in Flask replacement with native async/await support.
+- **Database Libraries** (mandatory for all Python applications):
+  - **SQLAlchemy**: Database initialization and schema creation only
+  - **PyDAL**: Runtime database operations and migrations
+- **Performance**: Dataclasses with slots, type hints, async/await required
+
+**Frontend Stack:**
+- **React**: ReactJS for all frontend applications
+- **Node.js**: 18+ for build tooling and React development
+- **JavaScript/TypeScript**: Modern ES2022+ standards
+
+**Go Stack (When Required):**
+- **Go**: 1.24.x (latest patch version, minimum 1.24.2); Go 1.23.x acceptable as fallback if compatibility constraints exist
+- **Database**: Use DAL with PostgreSQL/MySQL cross-support (e.g., GORM, sqlx)
+- Use only for traffic-intensive applications
+
+### Infrastructure & DevOps
+- **Containers**: Docker with multi-stage builds, Docker Compose
+- **Orchestration**: Kubernetes with Helm charts
+- **Configuration Management**: Ansible for infrastructure automation
+- **CI/CD**: GitHub Actions with comprehensive pipelines
+- **Monitoring**: Prometheus metrics, Grafana dashboards
+- **Logging**: Structured logging with configurable levels
+
+### Databases & Storage
+- **Primary**: PostgreSQL (default, configurable via `DB_TYPE` environment variable)
+- **Cache**: Redis/Valkey with optional TLS and authentication
+- **Supported Databases** (ALL must be supported by default):
+  - **PostgreSQL**: Primary/default database for production
+  - **MySQL**: Full support for MySQL 8.0+
+  - **MariaDB Galera**: Cluster support with WSREP, auto-increment, transaction handling
+  - **SQLite**: Development and lightweight deployments
+- **Database Libraries (Python)**:
+  - **SQLAlchemy + Alembic**: Database schema definition and version-controlled migrations
+  - **PyDAL**: Used for ALL runtime database operations only
+  - `DB_TYPE` must match PyDAL connection string prefixes exactly
+- **Database Libraries (Go)**: GORM or sqlx (mandatory for cross-database support)
+  - Must support PostgreSQL, MySQL/MariaDB, and SQLite
+  - Stable, well-maintained library required
+- **Migrations**: Alembic for schema migrations, PyDAL for runtime operations
+- **MariaDB Galera Support**: Handle Galera-specific requirements (WSREP, auto-increment, transactions)
+
+📚 **Supported DB_TYPE Values**: See [Database Standards](docs/standards/DATABASE.md) for complete list and configuration details.
+
+### Security & Authentication
+- **Flask-Security-Too**: Mandatory for all Flask applications
+  - Role-based access control (RBAC) with OAuth2-style scopes
+  - User authentication and session management
+  - Password hashing with bcrypt
+  - Email confirmation and password reset
+  - Two-factor authentication (2FA)
+- **Permissions Model**: Global, container/team, and resource-level roles with custom scope-based permissions
+- **TLS**: Enforce TLS 1.2 minimum, prefer TLS 1.3
+- **HTTP3/QUIC**: Utilize UDP with TLS for high-performance connections where possible
+- **Authentication**: JWT and MFA (standard), mTLS where applicable
+- **SSO**: SAML/OAuth2 SSO as enterprise-only features
+- **Secrets**: Environment variable management
+- **Scanning**: Trivy vulnerability scanning, CodeQL analysis
+- **Code Quality**: All code must pass CodeQL security analysis
+
+## PenguinTech License Server Integration
+
+All projects integrate with the centralized PenguinTech License Server at `https://license.penguintech.io` for feature gating and enterprise functionality.
+
+**IMPORTANT: License enforcement is ONLY enabled when project is marked as release-ready**
+- Development phase: All features available, no license checks
+- Release phase: License validation required, feature gating active
+
+**License Key Format**: `PENG-XXXX-XXXX-XXXX-XXXX-ABCD`
+
+**Core Endpoints**:
+- `POST /api/v2/validate` - Validate license
+- `POST /api/v2/features` - Check feature entitlements
+- `POST /api/v2/keepalive` - Report usage statistics
+
+**Environment Variables**:
+```bash
+# License configuration
+LICENSE_KEY=PENG-XXXX-XXXX-XXXX-XXXX-ABCD
+LICENSE_SERVER_URL=https://license.penguintech.io
+PRODUCT_NAME=your-product-identifier
+
+# Release mode (enables license enforcement)
+RELEASE_MODE=false  # Development (default)
+RELEASE_MODE=true   # Production (explicitly set)
+```
+
+📚 **Detailed Documentation**: [License Server Integration Guide](docs/licensing/license-server-integration.md)
+
+## WaddleAI Integration (Optional)
+
+For projects requiring AI capabilities, integrate with WaddleAI located at `~/code/WaddleAI`.
+
+**When to Use WaddleAI:**
+- Natural language processing (NLP)
+- Machine learning model inference
+- AI-powered features and automation
+- Intelligent data analysis
+- Chatbots and conversational interfaces
+
+**Integration Pattern:**
+- WaddleAI runs as separate microservice container
+- Communicate via REST API or gRPC
+- Environment variable configuration for API endpoints
+- License-gate AI features as enterprise functionality
+
+📚 **WaddleAI Documentation**: See WaddleAI project at `~/code/WaddleAI` for integration details
+
+## Project Structure
+
+```
+project-name/
+├── .github/             # CI/CD pipelines and templates
+│   └── workflows/       # GitHub Actions for each container
+├── services/            # Microservices (separate containers by default)
+│   ├── flask-backend/   # Flask + PyDAL teams API backend (auth, teams, users, standard APIs)
+│   ├── go-backend/      # Go high-performance backend (XDP/AF_XDP, NUMA)
+│   ├── webui/           # Node.js + React frontend shell
+│   └── connector/       # Integration services (placeholder)
+├── shared/              # Shared components
+├── infrastructure/      # Infrastructure as code
+├── scripts/             # Utility scripts
+├── tests/               # Test suites (unit, integration, e2e, performance, smoke)
+│   ├── smoke/           # Smoke tests (build, run, API, page loads)
+│   ├── api/             # API tests
+│   ├── unit/            # Unit tests
+│   ├── integration/     # Integration tests
+│   └── e2e/             # End-to-end tests
+├── docs/                # Documentation
+├── config/              # Configuration files
+├── docker-compose.yml   # Production environment
+├── docker-compose.dev.yml # Local development
+├── Makefile             # Build automation
+├── .version             # Version tracking
+└── CLAUDE.md            # This file
+```
+
+### Three-Container Architecture
+
+| Container | Purpose | When to Use |
+|-----------|---------|-------------|
+| **teams-api** (flask-backend) | Standard APIs, auth, teams, user management | <10K req/sec, business logic |
+| **go-backend** | High-performance networking | >10K req/sec, <10ms latency |
+| **webui** | Node.js + React frontend | All frontend applications |
+
+**Default Roles**: Admin (full access), Maintainer (read/write, no user mgmt), Viewer (read-only)
+**Team Roles**: Owner, Admin, Member, Viewer (team-scoped permissions)
+
+📚 **Architecture diagram and details**: [Architecture Standards](docs/standards/ARCHITECTURE.md)
+
+## Version Management System
+
+**Format**: `vMajor.Minor.Patch.build`
+- **Major**: Breaking changes, API changes, removed features
+- **Minor**: Significant new features and functionality additions
+- **Patch**: Minor updates, bug fixes, security patches
+- **Build**: Epoch64 timestamp of build time
+
+**Update Commands**:
+```bash
+./scripts/version/update-version.sh          # Increment build timestamp
+./scripts/version/update-version.sh patch    # Increment patch version
+./scripts/version/update-version.sh minor    # Increment minor version
+./scripts/version/update-version.sh major    # Increment major version
+```
+
+## Development Workflow
+
+### Quick Start
+
+```bash
+git clone <repository-url>
+cd project-name
+make setup                    # Install dependencies
+make dev                      # Start development environment
+make seed-mock-data          # Populate with 3-4 test items per feature
+```
+
+### Essential Documentation (Complete for Your Project)
+
+Before starting development on this template, projects MUST complete and maintain these three critical documentation files:
+
+**📚 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** - LOCAL DEVELOPMENT SETUP GUIDE
+- Prerequisites and installation for your tech stack
+- Environment configuration specifics
+- Starting your services locally
+- Development workflow with mock data injection
+- Common developer tasks and troubleshooting
+- Tips for your specific architecture
+
+**📚 [docs/TESTING.md](docs/TESTING.md)** - TESTING & VALIDATION GUIDE
+- Mock data scripts (3-4 items per feature pattern)
+- Smoke tests (mandatory verification)
+- Unit, integration, and E2E testing
+- Performance testing procedures
+- Cross-architecture testing with QEMU
+- Pre-commit test execution order
+
+**📚 [docs/PRE_COMMIT.md](docs/PRE_COMMIT.md)** - PRE-COMMIT CHECKLIST
+- Required steps before every git commit
+- Smoke tests (mandatory, <2 min)
+- Mock data seeding for feature testing
+- Screenshot capture with realistic data
+- Security scanning requirements
+- Build and test verification steps
+
+**🔄 Workflow**: DEVELOPMENT.md → TESTING.md → PRE_COMMIT.md (integrated flow)
+- Developers follow DEVELOPMENT.md to set up locally
+- Reference TESTING.md for testing patterns and mock data
+- Run PRE_COMMIT.md checklist before commits (includes smoke tests + screenshots)
+
+### Essential Commands
+```bash
+# Development
+make dev                      # Start development services
+make test                     # Run all tests
+make lint                     # Run linting
+make build                    # Build all services
+make clean                    # Clean build artifacts
+
+# Production
+make docker-build             # Build containers
+make docker-push              # Push to registry
+make deploy-dev               # Deploy to development
+make deploy-prod              # Deploy to production
+
+# Testing
+make test-unit               # Run unit tests
+make test-integration        # Run integration tests
+make test-e2e                # Run end-to-end tests
+make smoke-test              # Run smoke tests (build, run, API, page loads)
+
+# License Management
+make license-validate        # Validate license
+make license-check-features  # Check available features
+```
+
+## Critical Development Rules
+
+### Development Philosophy: Safe, Stable, and Feature-Complete
+
+**NEVER take shortcuts or the "easy route" - ALWAYS prioritize safety, stability, and feature completeness**
+
+#### Core Principles
+- **No Quick Fixes**: Resist quick workarounds or partial solutions
+- **Complete Features**: Fully implemented with proper error handling and validation
+- **Safety First**: Security, data integrity, and fault tolerance are non-negotiable
+- **Stable Foundations**: Build on solid, tested components
+- **Future-Proof Design**: Consider long-term maintainability and scalability
+- **No Technical Debt**: Address issues properly the first time
+
+#### Red Flags (Never Do These)
+- ❌ Skipping input validation "just this once"
+- ❌ Hardcoding credentials or configuration
+- ❌ Ignoring error returns or exceptions
+- ❌ Commenting out failing tests to make CI pass
+- ❌ Deploying without proper testing
+- ❌ Using deprecated or unmaintained dependencies
+- ❌ Implementing partial features with "TODO" placeholders
+- ❌ Bypassing security checks for convenience
+- ❌ Assuming data is valid without verification
+- ❌ Leaving debug code or backdoors in production
+
+#### Quality Checklist Before Completion
+- ✅ All error cases handled properly
+- ✅ Unit tests cover all code paths
+- ✅ Integration tests verify component interactions
+- ✅ Smoke tests verify build, run, API health, and page loads
+- ✅ Security requirements fully implemented
+- ✅ Performance meets acceptable standards
+- ✅ Documentation complete and accurate
+- ✅ Code review standards met
+- ✅ No hardcoded secrets or credentials
+- ✅ Logging and monitoring in place
+- ✅ Build passes in containerized environment
+- ✅ No security vulnerabilities in dependencies
+- ✅ Edge cases and boundary conditions tested
+
+### Git Workflow
+- **NEVER commit automatically** unless explicitly requested by the user
+- **NEVER push to remote repositories** under any circumstances
+- **ONLY commit when explicitly asked** - never assume commit permission
+- **Prefer `gh` CLI over direct GitHub access** - use GitHub CLI (`gh`) for all GitHub operations (PRs, issues, releases, repo info) instead of web scraping or direct API calls
+- Always use feature branches for development
+- Require pull request reviews for main branch
+- Automated testing must pass before merge
+
+**Before Every Commit - Security Scanning**:
+- **Run security audits on all modified packages**:
+  - **Go packages**: Run `gosec ./...` on modified Go services
+  - **Node.js packages**: Run `npm audit` on modified Node.js services
+  - **Python packages**: Run `bandit -r .` and `safety check` on modified Python services
+- **Do NOT commit if security vulnerabilities are found** - fix all issues first
+- **Document vulnerability fixes** in commit message if applicable
+
+**Before Every Commit - API Testing**:
+- **Create and run API testing scripts** for each modified container service
+- **Testing scope**: All new endpoints and modified functionality
+- **Test files location**: `tests/api/` directory with service-specific subdirectories
+  - `tests/api/flask-backend/` - Flask backend API tests
+  - `tests/api/go-backend/` - Go backend API tests
+  - `tests/api/webui/` - WebUI container tests
+- **Run before commit**: Each test script should be executable and pass completely
+- **Test coverage**: Health checks, authentication, CRUD operations, error cases
+- **Command pattern**: `cd services/<service-name> && npm run test:api` or equivalent
+
+**Before Every Commit - Screenshots**:
+- **Requirement**: Update UI screenshots with current application state when features change
+- **Prerequisites**: Start development environment with mock data populated
+  ```bash
+  make dev                    # Start all services
+  make seed-mock-data         # Populate with 3-4 test items per feature
+  ```
+- **Capture screenshots**: Run from project root (auto-removes old, captures fresh)
+  ```bash
+  node scripts/capture-screenshots.cjs
+  # Or via npm script if configured
+  npm run screenshots
+  ```
+- **Purpose**: Screenshots should showcase features with realistic mock data (3-4 items)
+  - Demonstrates feature functionality and purpose
+  - Shows data in context (products list, orders, user profiles, etc.)
+  - Updated whenever UI changes or new features added
+- **Location**: Screenshots saved to `docs/screenshots/`
+- **Commit**: Include updated screenshots with relevant feature/UI changes
+
+**Before Every Commit - Smoke Tests**:
+- **Create and run smoke tests** to verify basic functionality (build, runtime, API health, UI loads)
+- **Mandatory requirements**: All must be created and passing before commit
+- **Run before commit**: `make smoke-test` or `./tests/smoke/run-all.sh`
+- **Continuous validation**: Smoke tests prevent regressions in core functionality
+
+📚 **Detailed smoke testing requirements**: [Testing Documentation](docs/TESTING.md#smoke-tests)
+
+### Local State Management (Crash Recovery)
+- **ALWAYS maintain local .PLAN and .TODO files** for crash recovery
+- **Keep .PLAN file updated** with current implementation plans and progress
+- **Keep .TODO file updated** with task lists and completion status
+- **Update these files in real-time** as work progresses
+- **Add to .gitignore**: Both .PLAN and .TODO files must be in .gitignore
+- **File format**: Use simple text format for easy recovery
+- **Automatic recovery**: Upon restart, check for existing files to resume work
+
+### Dependency Security Requirements
+- **ALWAYS check for Dependabot alerts** before every commit
+- **Monitor vulnerabilities via Socket.dev** for all dependencies
+- **Mandatory security scanning** before any dependency changes
+- **Fix all security alerts immediately** - no commits with outstanding vulnerabilities
+- **Regular security audits**: `npm audit`, `go mod audit`, `safety check`
+
+### Linting & Code Quality Requirements
+- **ALL code must pass linting** before commit - no exceptions
+- **Python**: flake8, black, isort, mypy (type checking), bandit (security)
+- **JavaScript/TypeScript**: ESLint, Prettier
+- **Go**: golangci-lint (includes staticcheck, gosec, etc.)
+- **Ansible**: ansible-lint
+- **Docker**: hadolint
+- **YAML**: yamllint
+- **Markdown**: markdownlint
+- **Shell**: shellcheck
+- **CodeQL**: All code must pass CodeQL security analysis
+- **PEP Compliance**: Python code must follow PEP 8, PEP 257 (docstrings), PEP 484 (type hints)
+
+### Build & Deployment Requirements
+- **NEVER mark tasks as completed until successful build verification**
+- All Go and Python builds MUST be executed within Docker containers
+- Use containerized builds for local development and CI/CD pipelines
+- Build failures must be resolved before task completion
+
+### Documentation Standards
+- **README.md**: Keep as overview and pointer to comprehensive docs/ folder
+- **docs/ folder**: Create comprehensive documentation for all aspects
+- **RELEASE_NOTES.md**: Maintain in docs/ folder, prepend new version releases to top
+- Update CLAUDE.md when adding significant context
+- **Build status badges**: Always include in README.md
+- **ASCII art**: Include catchy, project-appropriate ASCII art in README
+- **Company homepage**: Point to www.penguintech.io
+- **License**: All projects use Limited AGPL3 with preamble for fair use
+
+### File Size Limits
+- **Maximum file size**: 25,000 characters for ALL code and markdown files
+- **Split large files**: Decompose into modules, libraries, or separate documents
+- **CLAUDE.md exception**: Maximum 39,000 characters (only exception to 25K rule)
+- **High-level approach**: CLAUDE.md contains high-level context and references detailed docs
+- **Documentation strategy**: Create detailed documentation in `docs/` folder and link to them from CLAUDE.md
+- **Keep focused**: Critical context, architectural decisions, and workflow instructions only
+- **User approval required**: ALWAYS ask user permission before splitting CLAUDE.md files
+- **Use Task Agents**: Utilize task agents (subagents) to be more expedient and efficient when making changes to large files, updating or reviewing multiple files, or performing complex multi-step operations
+- **Avoid sed/cat**: Use sed and cat commands only when necessary; prefer dedicated Read/Edit/Write tools for file operations
+
+### Task Agent Usage Guidelines
+
+**Model Selection:**
+- **Haiku model**: Use for the majority of task agent work (file searches, simple edits, routine operations)
+- **Sonnet model**: Use for more complex jobs requiring deeper reasoning (architectural decisions, complex refactoring, multi-file coordination)
+- Default to haiku unless the task explicitly requires complex analysis
+
+**Response Size Requirements:**
+- **CRITICAL**: Task agents MUST return minimal responses to avoid context overload of the orchestration model
+- Agents should return only essential information: file paths, line numbers, brief summaries
+- Avoid returning full file contents or verbose explanations in agent responses
+- Use bullet points and concise formatting in agent outputs
+
+**Concurrency Limits:**
+- **Maximum 10 task agents** running concurrently at any time
+- Even with minimal responses, running more than 10 agents risks context overload
+- Queue additional tasks if the limit would be exceeded
+- Monitor active agent count before spawning new agents
+
+**Best Practices:**
+- Provide clear, specific prompts to agents to get focused responses
+- Request only the information needed, not comprehensive analysis
+- Use agents for parallelizable work (searching multiple directories, checking multiple files)
+- Combine related small tasks into single agent calls when possible
+
+## Development Standards
+
+**⚠️ Documentation Structure:**
+- **Company-wide standards**: [docs/STANDARDS.md](docs/STANDARDS.md) (index) + [docs/standards/](docs/standards/) (detailed categories)
+- **App-specific standards**: [docs/APP_STANDARDS.md](docs/APP_STANDARDS.md) (application-specific architecture, requirements, context)
+
+Comprehensive development standards are organized by category in `docs/standards/` directory. The main STANDARDS.md serves as an index with quick reference.
+
+📚 **Complete Standards Documentation**: [Development Standards](docs/STANDARDS.md) (index to 12 category files)
+
+### Quick Reference
+
+**API Versioning**:
+- ALL REST APIs MUST use versioning: `/api/v{major}/endpoint` format
+- Semantic versioning for major versions only in URL
+- Support current and 2 previous versions (N-2) minimum
+- Add deprecation headers to old versions
+- Document migration paths for version changes
+- Keep APIs simple and extensible: use flexible inputs, backward-compatible responses
+- Leverage and reuse existing APIs where possible
+
+**Database Standards**:
+- SQLAlchemy for database initialization and schema creation only
+- PyDAL mandatory for ALL runtime database operations and migrations
+- Supported databases: PostgreSQL, MySQL, MariaDB Galera, SQLite
+- Thread-safe usage with thread-local connections
+- Environment variable configuration for all database settings
+- Connection pooling and retry logic required
+- Async/multi-threading based on workload (see Performance Optimization)
+
+**API Design Principles**:
+- **Simple & Extensible**: Keep REST and gRPC APIs simple, use flexible input structures and backward-compatible responses
+- **Leverage Existing**: Reuse existing APIs where possible, avoid creating duplicate endpoints
+- **Consistent Versioning**: All APIs use `/api/v{major}/endpoint` versioning for REST and semantic versioning for gRPC
+- **Deprecation Support**: Maintain N-2 API versions minimum (current + 2 previous), include deprecation headers and migration paths
+
+**Protocol Support**:
+- **External Communication** (clients, third-party integrations): REST API over HTTPS
+  - Flask REST endpoints for client-facing APIs
+  - Supports external consumers and web UIs
+  - Versioned: `/api/v1/endpoint`, `/api/v2/endpoint`, etc.
+- **Inter-Container Communication** (within cluster): gRPC preferred for best performance
+  - Service-to-service calls between containers in same namespace/cluster
+  - Binary protocol with Protocol Buffers for lower latency and bandwidth
+  - Use for internal APIs between microservices
+  - Fallback to REST over HTTP/2 if gRPC unavailable
+- **HTTP/3 (QUIC)**: Consider for high-performance inter-container scenarios (>10K req/sec)
+  - UDP-based, reduced latency, connection multiplexing
+- Environment variables for protocol configuration
+- Multi-protocol implementation: REST for external, gRPC for internal
+
+**Performance Optimization (Python):**
+- Dataclasses with slots mandatory (30-50% memory reduction)
+- Type hints required for all Python code
+- **Concurrency selection based on workload:**
+  - `asyncio` + `databases` library for I/O-bound operations (>100 concurrent requests)
+  - `threading` + `ThreadPoolExecutor` for blocking I/O and legacy integrations
+  - `multiprocessing` for CPU-bound operations
+- Connection pool sizing: `(2 * CPU_cores) + disk_spindles`
+- Avoid premature optimization - profile first
+
+**High-Performance Networking (Case-by-Case):**
+- XDP (eXpress Data Path): Kernel-level packet processing
+- AF_XDP: Zero-copy socket for user-space packet processing
+- Use only for network-intensive applications requiring >100K packets/sec
+- Evaluate Python vs Go based on traffic requirements
+
+**Microservices Architecture**:
+- Web UI, API, and Connector as **separate containers by default**
+- Single responsibility per service
+- API-first design
+- Independent deployment and scaling
+- Each service has its own Dockerfile and dependencies
+
+**MarchProxy API Gateway/LB Integration**:
+- Applications are expected to run behind MarchProxy (`~/code/MarchProxy`)
+- **DO NOT include MarchProxy in default deployment** - it's external infrastructure
+- **Generate MarchProxy-compatible import configuration** in `config/marchproxy/`
+- Import config via MarchProxy's API: `POST /api/v1/services/import`
+- See [Integration Standards - MarchProxy](docs/standards/INTEGRATIONS.md)
+
+**Docker Standards**:
+- Multi-arch builds (amd64/arm64)
+- Debian-slim base images
+- Docker Compose for local development
+- Minimal host port exposure
+- **Cross-Architecture Testing**: Before final commit, test on alternate architecture:
+  - If developing on amd64: Use QEMU to build and test arm64 (`docker buildx build --platform linux/arm64 ...`)
+  - If developing on arm64: Use QEMU to build and test amd64 (`docker buildx build --platform linux/amd64 ...`)
+  - Ensures multi-architecture compatibility and prevents platform-specific bugs
+  - Command: `docker buildx build --platform linux/amd64,linux/arm64 -t image:tag --push .`
+
+**Testing**:
+- Unit tests: Network isolated, mocked dependencies
+- Integration tests: Component interactions
+- E2E tests: Critical workflows
+- Performance tests: Scalability validation
+- Smoke tests: Build, run, API health, page/tab load verification (mandatory)
+- Mock data: 3-4 items per feature/entity for development
+
+📚 **Complete Testing Guide**: [Testing Documentation](docs/TESTING.md) includes smoke tests, unit tests, integration tests, E2E tests, performance tests, mock data scripts, and cross-architecture testing with QEMU
+
+**Security**:
+- TLS 1.2+ required
+- Input validation mandatory
+- JWT, MFA, mTLS standard
+- SSO as enterprise feature
+
+## Application Architecture
+
+**ALWAYS use microservices architecture** - decompose into specialized, independently deployable containers:
+
+1. **Web UI Container**: ReactJS frontend (separate container, served via nginx)
+2. **Application API Container**: Flask + Flask-Security-Too backend (separate container)
+3. **Connector Container**: External system integration (separate container)
+
+**Default Container Separation**: Web UI and API are ALWAYS separate containers by default. This provides:
+- Independent scaling of frontend and backend
+- Different resource allocation per service
+- Separate deployment lifecycles
+- Technology-specific optimization
+
+**Benefits**:
+- Independent scaling
+- Technology diversity
+- Team autonomy
+- Resilience
+- Continuous deployment
+
+📚 **Detailed Architecture Patterns**: See [Architecture Standards](docs/standards/ARCHITECTURE.md)
+
+## Common Integration Patterns
+
+📚 **Complete code examples and integration patterns**: [Standards Index](docs/STANDARDS.md) | [Authentication](docs/standards/AUTHENTICATION.md) | [Database](docs/standards/DATABASE.md)
+
+Key integration patterns documented:
+- Flask + Flask-Security-Too + PyDAL authentication
+- Database integration with multi-DB support
+- ReactJS frontend with API client
+- License-gated features
+- Prometheus monitoring integration
+
+## Website Integration Requirements
+
+**Required websites**: Marketing/Sales (Node.js) + Documentation (Markdown)
+
+**Design**: Multi-page, modern aesthetic, subtle gradients, responsive, performance-focused
+
+**Repository**: Sparse checkout submodule from `github.com/penguintechinc/website` with `{app_name}/` and `{app_name}-docs/` folders
+
+## Troubleshooting & Support
+
+**Common Issues**: Port conflicts, database connections, license validation, build failures, test failures
+
+**Quick Debug**: `docker-compose logs -f <service>` | `make debug` | `make health`
+
+**Support**: support@penguintech.io | sales@penguintech.io | https://status.penguintech.io
+
+📚 **Detailed troubleshooting**: [Standards Index](docs/STANDARDS.md) | [License Guide](docs/licensing/license-server-integration.md)
+
+## CI/CD & Workflows
+
+**Build Tags**: `beta-<epoch64>` (main) | `alpha-<epoch64>` (other) | `vX.X.X-beta` (version release) | `vX.X.X` (tagged release)
+
+**Version**: `.version` file in root, semver format, monitored by all workflows
+
+**Deployment Hosts**:
+- **Beta/Development**: `https://{repo_name_lowercase}.penguintech.io` (if online)
+  - Example: `project-template` → `https://project-template.penguintech.io`
+  - Deployed from `main` branch with `beta-*` tags
+- **Production**: Either custom domain or PenguinCloud subdomain
+  - **Custom Domain**: Application-specific (e.g., `https://waddlebot.io`)
+  - **PenguinCloud**: `https://{repo_name_lowercase}.penguincloud.io`
+  - Deployed from tagged releases (`vX.X.X`)
+
+### Pre-Commit Checklist
+
+**CRITICAL: You MUST run the pre-commit script before every commit:**
+
+```bash
+./scripts/pre-commit/pre-commit.sh
+```
+
+Results logged to: `/tmp/pre-commit-<project>-<epoch>/summary.log`
+
+Quick reference (see [docs/PRE_COMMIT.md](docs/PRE_COMMIT.md) for full details):
+1. Linters → 2. Security scans → 3. No secrets → 4. Build & Run → 5. Smoke tests → 6. Tests → 7. Version update → 8. Docker debian-slim
+
+**Smoke tests are mandatory in pre-commit checklist:**
+- Build verification for all containers
+- Runtime health checks for all services
+- API health endpoint validation
+- Web UI page and tab load verification
+- Must pass before proceeding to full test suite
+
+**Only commit when asked** — run pre-commit script, verify all checks pass, then wait for approval before `git commit`.
+
+### Applying Code Changes
+
+**After making code changes, rebuild and restart containers to apply changes:**
+
+```bash
+# All services
+docker compose down && docker compose up -d --build
+
+# Single service
+docker compose up -d --build <service-name>
+```
+
+**IMPORTANT:** `docker compose restart` and `docker restart` do NOT apply code changes - they only restart the existing container with old code. Always use `--build` to rebuild images with new code.
+
+**Browser Cache & Hard Reload During Development:**
+- Developers will routinely perform hard reloads (Ctrl+Shift+R / Cmd+Shift+R) and cache clearing during development
+- DO NOT assume the browser cache contains stale assets or that developers haven't already cleared it
+- Implement proper cache headers and asset versioning in your frontend/static assets
+- Use content-based cache busting (e.g., hashing filenames: `app.abc123.js`) for production builds
+- Consider setting `Cache-Control: no-cache, must-revalidate` for development builds when appropriate
+
+📚 **Complete CI/CD documentation**: [Workflows](docs/WORKFLOWS.md) | [Standards Index](docs/STANDARDS.md)
+
+## Template Customization
+
+**Adding Languages/Services**: Create in `services/`, add Dockerfile, update CI/CD, add linting/testing, update docs.
+
+**Enterprise Integration**: License server, multi-tenancy, usage tracking, audit logging, monitoring.
+
+📚 **Detailed customization guides**: [Standards Index](docs/STANDARDS.md)
+
+
+## License & Legal
+
+**License File**: `LICENSE.md` (located at project root)
+
+**License Type**: Limited AGPL-3.0 with commercial use restrictions and Contributor Employer Exception
+
+The `LICENSE.md` file is located at the project root following industry standards. This project uses a modified AGPL-3.0 license with additional exceptions for commercial use and special provisions for companies employing contributors.
+
+
+---
+
+**Template Version**: 1.3.0
+**Last Updated**: 2025-12-03
+**Maintained by**: Penguin Tech Inc
+**License Server**: https://license.penguintech.io
+
+**Key Updates in v1.3.0:**
+- Three-container architecture: Flask backend, Go backend, WebUI shell
+- WebUI shell with Node.js + React, role-based access (Admin, Maintainer, Viewer)
+- Flask backend with PyDAL, JWT auth, user management
+- Go backend with XDP/AF_XDP support, NUMA-aware memory pools
+- GitHub Actions workflows for multi-arch builds (AMD64, ARM64)
+- Gold text theme by default, Elder sidebar pattern, WaddlePerf tabs
+- Docker Compose updated for new architecture
+
+**Key Updates in v1.2.0:**
+- Web UI and API as separate containers by default
+- Mandatory linting for all languages (flake8, ansible-lint, eslint, etc.)
+- CodeQL inspection compliance required
+- Multi-database support by design (all PyDAL databases + MariaDB Galera)
+- DB_TYPE environment variable with input validation
+- Flask as sole web framework (PyDAL for database abstraction)
+
+**Key Updates in v1.1.0:**
+- Flask-Security-Too mandatory for authentication
+- ReactJS as standard frontend framework
+- Python 3.13 vs Go decision criteria
+- XDP/AF_XDP guidance for high-performance networking
+- WaddleAI integration patterns
+- Release-mode license enforcement
+- Performance optimization requirements (dataclasses with slots)
+
+*This template provides a production-ready foundation for enterprise software development with comprehensive tooling, security, operational capabilities, and integrated licensing management.*

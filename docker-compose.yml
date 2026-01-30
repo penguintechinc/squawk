@@ -35,27 +35,52 @@ services:
       timeout: 10s
       retries: 3
 
-  # Web Console
-  web-console:
+  # Flask API Backend (JSON-only, JWT + CORS)
+  flask-api:
     build:
       context: ./dns-server
-      dockerfile: Dockerfile
-    image: squawk-dns-server:latest
-    container_name: squawk-web-console
+      dockerfile: Dockerfile.api
+    image: squawk-flask-api:latest
+    container_name: squawk-flask-api
     restart: unless-stopped
-    command: ["sh", "-c", "cd /app/dns-server && python3 flask_app/app.py"]
     ports:
-      - "8005:8000"  # Web console
+      - "8005:8000"  # Flask API
     environment:
-      - PY4WEB_HOST=0.0.0.0
-      - PY4WEB_PORT=8000
+      - PORT=8000
+      - HOST=0.0.0.0
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-jwt-secret-change-in-production}
+      - JWT_ACCESS_TOKEN_HOURS=1
+      - JWT_REFRESH_TOKEN_DAYS=30
+      - CORS_ORIGINS=http://localhost:3000,http://dns-webui:3000
+      - DATABASE_URI=${DATABASE_URI:-sqlite://storage.db}
       - LOG_LEVEL=INFO
-    # volumes removed for local validation to avoid permission issues
-
     networks:
       - squawk-network
     depends_on:
       - dns-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # React Web Console (Nginx + Vite build)
+  dns-webui:
+    build:
+      context: .
+      dockerfile: services/dns-webui/Dockerfile
+    image: squawk-dns-webui:latest
+    container_name: squawk-dns-webui
+    restart: unless-stopped
+    ports:
+      - "3003:3000"  # Web console UI
+    environment:
+      - VITE_API_URL=http://flask-api:8000
+    networks:
+      - squawk-network
+    depends_on:
+      - flask-api
 
   # DNS Client Forwarder
   dns-client:
@@ -145,7 +170,7 @@ services:
     container_name: squawk-grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
     volumes:

@@ -8,7 +8,12 @@ WORKDIR /app
 # Copy shared react_libs first (dependency)
 COPY shared/react_libs /shared/react_libs
 
-# Copy package files and install dependencies
+# Install react_libs dependencies first
+WORKDIR /shared/react_libs
+RUN npm install
+
+# Now install webui dependencies
+WORKDIR /app
 COPY services/dns-webui/package.json ./
 RUN npm install --legacy-peer-deps
 

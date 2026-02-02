@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/instance: valkey
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: cache
+      app.kubernetes.io/instance: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: cache
+        app.kubernetes.io/instance: valkey
+    spec:
+      containers:
+      - name: valkey
+        image: valkey/valkey:8-bookworm
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: valkey
+          containerPort: 6379
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3

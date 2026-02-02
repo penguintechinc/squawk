@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: squawk
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - squawk.penguintech.io
+    secretName: penguintech-wildcard-tls
+  rules:
+  - host: squawk.penguintech.io
+    http:
+      paths:
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: flask-api
+            port:
+              number: 8000
+      - path: /dns-query
+        pathType: Prefix
+        backend:
+          service:
+            name: dns-server
+            port:
+              number: 8080
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: dns-server
+            port:
+              number: 8080
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webui
+            port:
+              number: 3000

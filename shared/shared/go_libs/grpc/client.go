@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -227,7 +228,9 @@ func isRetryable(err error) bool {
 
 // loadTLSCredentials loads TLS credentials from files.
 func loadTLSCredentials(opts *ClientOptions) (credentials.TransportCredentials, error) {
-	config := &tls.Config{}
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 minimum
+	}
 
 	// Load CA certificate
 	if opts.CACertPath != "" {
@@ -238,7 +241,7 @@ func loadTLSCredentials(opts *ClientOptions) (credentials.TransportCredentials, 
 
 		certPool := x509.NewCertPool()
 		if !certPool.AppendCertsFromPEM(caCert) {
-			return nil, err
+		return nil, err
 		}
 		config.RootCAs = certPool
 	}
@@ -256,8 +259,8 @@ func loadTLSCredentials(opts *ClientOptions) (credentials.TransportCredentials, 
 }
 
 // keepaliveClientParams returns keepalive parameters for the client.
-func keepaliveClientParams(opts *ClientOptions) grpc.KeepaliveParams {
-	return grpc.KeepaliveParams{
+func keepaliveClientParams(opts *ClientOptions) keepalive.ClientParameters {
+	return keepalive.ClientParameters{
 		Time:                opts.KeepaliveTime,
 		Timeout:             opts.KeepaliveTimeout,
 		PermitWithoutStream: true,

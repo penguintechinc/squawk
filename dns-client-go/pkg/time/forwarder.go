@@ -237,9 +237,18 @@ func (f *Forwarder) handleNTPRequest(ctx context.Context, request []byte, remote
 	// Reference ID (use upstream server IP or "LOCL" for local)
 	copy(response[12:16], []byte("SQWK")) // "SQWK" as reference ID
 
-	// Reference timestamp (last sync time)
-	refSec := uint32(serverTime.Unix() + ntpEpochOffset)
-	refFrac := uint32((uint64(serverTime.Nanosecond()) << 32) / 1e9)
+	// Reference timestamp (last sync time) - safe conversion
+	refUnixTime := serverTime.Unix()
+	if refUnixTime < -ntpEpochOffset || refUnixTime > (1<<32-ntpEpochOffset) {
+		refUnixTime = time.Now().Unix()
+	}
+	refSec := uint32(refUnixTime + ntpEpochOffset) // #nosec G115 - validated range
+
+	refNanos := serverTime.Nanosecond()
+	if refNanos < 0 || refNanos >= 1e9 {
+		refNanos = 0
+	}
+	refFrac := uint32((uint64(refNanos) << 32) / 1e9) // #nosec G115 - validated range
 	encodeUint32(response[16:20], refSec)
 	encodeUint32(response[20:24], refFrac)
 
@@ -247,17 +256,35 @@ func (f *Forwarder) handleNTPRequest(ctx context.Context, request []byte, remote
 	encodeUint32(response[24:28], req.OrigTimeSec)
 	encodeUint32(response[28:32], req.OrigTimeFrac)
 
-	// Receive timestamp (current server time)
+	// Receive timestamp (current server time) - safe conversion
 	rxTime := serverTime
-	rxSec := uint32(rxTime.Unix() + ntpEpochOffset)
-	rxFrac := uint32((uint64(rxTime.Nanosecond()) << 32) / 1e9)
+	rxUnixTime := rxTime.Unix()
+	if rxUnixTime < -ntpEpochOffset || rxUnixTime > (1<<32-ntpEpochOffset) {
+		rxUnixTime = time.Now().Unix()
+	}
+	rxSec := uint32(rxUnixTime + ntpEpochOffset) // #nosec G115 - validated range
+
+	rxNanos := rxTime.Nanosecond()
+	if rxNanos < 0 || rxNanos >= 1e9 {
+		rxNanos = 0
+	}
+	rxFrac := uint32((uint64(rxNanos) << 32) / 1e9) // #nosec G115 - validated range
 	encodeUint32(response[32:36], rxSec)
 	encodeUint32(response[36:40], rxFrac)
 
-	// Transmit timestamp (current server time)
+	// Transmit timestamp (current server time) - safe conversion
 	txTime := serverTime
-	txSec := uint32(txTime.Unix() + ntpEpochOffset)
-	txFrac := uint32((uint64(txTime.Nanosecond()) << 32) / 1e9)
+	txUnixTime := txTime.Unix()
+	if txUnixTime < -ntpEpochOffset || txUnixTime > (1<<32-ntpEpochOffset) {
+		txUnixTime = time.Now().Unix()
+	}
+	txSec := uint32(txUnixTime + ntpEpochOffset) // #nosec G115 - validated range
+
+	txNanos := txTime.Nanosecond()
+	if txNanos < 0 || txNanos >= 1e9 {
+		txNanos = 0
+	}
+	txFrac := uint32((uint64(txNanos) << 32) / 1e9) // #nosec G115 - validated range
 	encodeUint32(response[40:44], txSec)
 	encodeUint32(response[44:48], txFrac)
 

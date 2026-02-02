@@ -13,7 +13,7 @@ import logging
 import hashlib
 import time
 import csv
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 import yaml
 import base64
 from datetime import datetime, timedelta

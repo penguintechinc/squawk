@@ -2,11 +2,12 @@ package http
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
 	"math"
-	"math/rand"
 	"net/http"
 	"time"
 )
@@ -170,8 +171,8 @@ func (c *Client) calculateDelay(attempt int) time.Duration {
 	}
 
 	if c.retryConfig.Jitter {
-		// Add jitter: 50-150% of base delay
-		jitterFactor := 0.5 + rand.Float64()
+		// Add jitter: 50-150% of base delay using crypto/rand
+		jitterFactor := 0.5 + secureRandomFloat64()
 		delay = time.Duration(float64(delay) * jitterFactor)
 	}
 
@@ -312,7 +313,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		if resp.StatusCode >= 400 {
 			// Read and close body for error responses
 			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close() // #nosec G104 - error response, best effort close
 
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 			c.logger("HTTP %s %s -> %d", req.Method, req.URL.String(), resp.StatusCode)
@@ -464,4 +465,15 @@ func (c *Client) Head(ctx context.Context, url string, headers ...map[string]str
 	}
 
 	return c.Do(ctx, req)
+}
+
+// secureRandomFloat64 generates a cryptographically secure random float64 in range [0.0, 1.0).
+func secureRandomFloat64() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fallback to timestamp-based value if crypto/rand fails
+		return float64(time.Now().UnixNano()%1000) / 1000.0
+	}
+	// Convert bytes to uint64 and normalize to [0.0, 1.0)
+	return float64(binary.BigEndian.Uint64(b[:])%1000000) / 1000000.0
 }

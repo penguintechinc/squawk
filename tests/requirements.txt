@@ -1,49 +1,55 @@
 # Test Dependencies for Squawk DNS
 
 # Core testing framework
-pytest>=7.4.0
-pytest-cov>=4.1.0
+pytest>=8.3.4
+pytest-cov>=6.0.0
 
 # HTTP client for API testing
-requests>=2.31.0
-urllib3>=2.0.0
+requests>=2.32.3
+urllib3>=2.3.0
 
 # Async testing support
-pytest-asyncio>=0.21.0
+pytest-asyncio>=0.24.0
 
 # Test utilities
-responses>=0.23.0
-pytest-mock>=3.11.0
+responses>=0.25.3
+pytest-mock>=3.14.0
 
 # Load testing
-locust>=2.15.0  # Optional: for advanced load testing
+locust>=2.32.6  # Optional: for advanced load testing
 
 # Performance testing
-pytest-benchmark>=4.0.0  # Optional: for benchmarking
+pytest-benchmark>=5.1.0  # Optional: for benchmarking
 
 # Parallel execution
-pytest-xdist>=3.3.0  # Optional: for parallel tests
+pytest-xdist>=3.6.1  # Optional: for parallel tests
 
 # Timeout handling
-pytest-timeout>=2.1.0
+pytest-timeout>=2.3.1
 
 # HTML reports
-pytest-html>=4.0.0  # Optional: for HTML reports
+pytest-html>=4.1.1  # Optional: for HTML reports
 
 # Code coverage
-coverage>=7.3.0
+coverage>=7.6.10
 
 # Type checking for tests
-mypy>=1.5.0
+mypy>=1.14.1
 
 # Werkzeug for password hashing in tests
-werkzeug>=2.3.0
+werkzeug>=3.1.3
 
 # JSON schema validation
-jsonschema>=4.19.0
+jsonschema>=4.23.0
 
 # Date/time handling
-python-dateutil>=2.8.0
+python-dateutil>=2.9.0
 
 # Environment variable management
-python-dotenv>=1.0.0
+python-dotenv>=1.0.1
+
+# Security
+defusedxml>=0.7.1
+
+# DNS testing
+dnspython>=2.7.0

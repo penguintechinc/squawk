@@ -1,44 +1,46 @@
 # Core dependencies
-Flask>=3.0.0
+Flask>=3.1.0
 Flask-Login>=0.6.3
 Flask-WTF>=1.2.1
 WTForms>=3.1.0
 pydal>=20241215.1
-dnspython>=2.4.2
-requests>=2.31.0
-PyYAML>=6.0.1
-cryptography>=41.0.7
-gunicorn>=21.2.0
-prometheus-client>=0.18.0
-hypercorn>=0.14.4
-quart>=0.19.4
-httpx[http3]>=0.25.0
-aiofiles>=23.2.1
-aiohttp>=3.9.0
+dnspython>=2.7.0
+requests>=2.32.3
+PyYAML>=6.0.2
+cryptography>=44.0.0
+gunicorn>=23.0.0
+prometheus-client>=0.21.1
+hypercorn>=0.17.3
+quart>=0.19.9
+httpx[http3]>=0.28.1
+aiofiles>=24.1.0
+aiohttp>=3.11.11
 asyncio-throttle>=1.0.2
-aiocache>=0.12.2
-uvloop>=0.19.0
-redis>=5.0.0
-valkey>=6.0.0
-pyotp>=2.8.0
-qrcode>=7.4.2
-Pillow>=10.0.0
-python-whois>=0.8.0
+aiocache>=0.12.3
+uvloop>=0.21.0
+redis>=5.2.1
+valkey>=6.0.2
+pyotp>=2.9.0
+qrcode>=8.0
+Pillow>=11.1.0
+python-whois>=0.9.4
 ipwhois>=1.2.0
-PyJWT>=2.8.0
-flask-jwt-extended>=4.6.0
-flask-cors>=4.0.0
-flask-limiter>=3.5.0
-grpcio>=1.68.0
-grpcio-tools>=1.68.0
-protobuf>=5.29.0
+PyJWT>=2.10.1
+flask-jwt-extended>=4.7.1
+flask-cors>=5.0.0
+flask-limiter>=3.8.0
+grpcio>=1.69.0
+grpcio-tools>=1.69.0
+protobuf>=5.29.2
 
+# Security
+defusedxml>=0.7.1
 
 # Enterprise SSO dependencies
 # Note: These require system packages to be installed:
 # apt-get install libxml2-dev libxslt1-dev libldap-dev libsasl2-dev
 # If these fail to install, the server will run without SSO features
-lxml>=4.9.0
+lxml>=5.3.0
 # xmlsec>=1.3.13  # Disabled - complex build dependencies
-python-ldap>=3.4.3
+python-ldap>=3.4.4
 # python3-saml>=1.16.0  # Disabled - requires xmlsec

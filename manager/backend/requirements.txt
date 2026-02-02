@@ -1,23 +1,26 @@
-flask==3.0.0
-flask-cors==4.0.0
-flask-limiter==3.5.0
-python-dotenv==1.0.0
-PyJWT==2.8.0
-bcrypt==4.1.1
-gunicorn==22.0.0
+flask==3.1.0
+flask-cors==5.0.0
+flask-limiter==3.8.0
+python-dotenv==1.0.1
+PyJWT==2.10.1
+bcrypt==4.2.1
+gunicorn==23.0.0
 pydal==20251207.1
-redis==5.0.0
-cryptography==41.0.7
-requests==2.31.0
-prometheus-client==0.18.0
-grpcio>=1.68.0
-grpcio-tools>=1.68.0
-protobuf>=5.29.0
+redis==5.2.1
+cryptography==44.0.0
+requests==2.32.3
+prometheus-client==0.21.1
+grpcio>=1.69.0
+grpcio-tools>=1.69.0
+protobuf>=5.29.2
 
 # Database drivers
-psycopg2-binary==2.9.9
-PyMySQL==1.1.0
+psycopg2-binary==2.9.10
+PyMySQL==1.1.1
+
+# Security
+defusedxml==0.7.1
 
 # Testing
-pytest==7.4.3
+pytest==8.3.4
 pytest-flask==1.3.0

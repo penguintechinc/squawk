@@ -11,12 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@penguintechinc/react-libs": "github:penguintechinc/penguin-libs#main",
+    "axios": "^1.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
-    "axios": "^1.6.0",
-    "zustand": "^4.4.0",
-    "@penguin/react_libs": "file:../../shared/react_libs"
+    "zustand": "^4.4.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

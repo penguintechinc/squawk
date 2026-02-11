@@ -17,7 +17,7 @@
     "@mui/x-data-grid": "^6.18.0",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "axios": "^1.6.0",
+    "axios": "^1.13.5",
     "zustand": "^4.4.0",
     "recharts": "^2.10.0"
   },

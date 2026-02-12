@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LoginPageBuilder } from '@penguin/react_libs';
-import type { LoginResponse } from '@penguin/react_libs';
+import { LoginPageBuilder } from '@penguintechinc/react-libs';
+import type { LoginResponse } from '@penguintechinc/react-libs';
 import { useAuth } from '../hooks/useAuth';
 
 const Login: React.FC = () => {

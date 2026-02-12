@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { zones as zonesApi } from '../services/api';
 import type { Zone } from '../types/api';
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { records as recordsApi } from '../services/api';
 import type { DnsRecord } from '../types/api';
 

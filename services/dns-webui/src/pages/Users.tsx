@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { User } from '../types/api';
 import { users as usersApi } from '../services/api';
 

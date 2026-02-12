@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { ioc, threats } from '../services/api';
 import type { IOCFeed } from '../types/api';
 

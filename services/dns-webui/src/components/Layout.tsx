@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SidebarMenu } from '@penguin/react_libs';
-import type { MenuCategory, MenuItem } from '@penguin/react_libs';
+import { SidebarMenu } from '@penguintechinc/react-libs';
+import type { MenuCategory, MenuItem } from '@penguintechinc/react-libs';
 import { useAuth } from '../hooks/useAuth';
 
 interface LayoutProps {

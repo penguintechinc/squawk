@@ -3,7 +3,7 @@ export default {
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    '../../shared/react_libs/src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@penguintechinc/react-libs/dist/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

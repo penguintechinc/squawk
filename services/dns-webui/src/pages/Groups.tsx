@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { groups as groupsApi } from '../services/api';
 import type { Group } from '../types/api';
 

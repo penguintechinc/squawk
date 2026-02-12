@@ -1,20 +1,11 @@
 # Squawk DNS WebUI - React + Nginx
-# Build context must be project root (for shared/react_libs access)
 # Stage 1: Build
 FROM node:18-bookworm-slim AS build
 
 WORKDIR /app
 
-# Copy shared react_libs first (dependency)
-COPY shared/react_libs /shared/react_libs
-
-# Install react_libs dependencies first
-WORKDIR /shared/react_libs
-RUN npm install
-
-# Now install webui dependencies
-WORKDIR /app
-COPY services/dns-webui/package.json ./
+# Install dependencies (react-libs pulled from GitHub via npm)
+COPY services/dns-webui/package.json services/dns-webui/package-lock.json ./
 RUN npm install --legacy-peer-deps
 
 # Copy source code and build

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FormModalBuilder } from '@penguin/react_libs';
+import { FormModalBuilder } from '@penguintechinc/react-libs';
 import { Domain } from '../types/api';
 import { domains as domainsApi } from '../services/api';
 

@@ -194,3 +194,51 @@ DNS Agent image
 {{- define "squawk.dnsAgent.image" -}}
 {{- printf "%s/%s:%s" (include "squawk.imageRegistry" .) .Values.dnsAgent.image.repository .Values.dnsAgent.image.tag }}
 {{- end }}
+
+{{/*
+Flask API labels
+*/}}
+{{- define "squawk.flaskApi.labels" -}}
+{{ include "squawk.labels" . }}
+app.kubernetes.io/component: flask-api
+{{- end }}
+
+{{/*
+Flask API selector labels
+*/}}
+{{- define "squawk.flaskApi.selectorLabels" -}}
+{{ include "squawk.selectorLabels" . }}
+app.kubernetes.io/component: flask-api
+{{- end }}
+
+{{/*
+DNS WebUI labels
+*/}}
+{{- define "squawk.dnsWebui.labels" -}}
+{{ include "squawk.labels" . }}
+app.kubernetes.io/component: dns-webui
+{{- end }}
+
+{{/*
+DNS WebUI selector labels
+*/}}
+{{- define "squawk.dnsWebui.selectorLabels" -}}
+{{ include "squawk.selectorLabels" . }}
+app.kubernetes.io/component: dns-webui
+{{- end }}
+
+{{/*
+DNS Client labels
+*/}}
+{{- define "squawk.dnsClient.labels" -}}
+{{ include "squawk.labels" . }}
+app.kubernetes.io/component: dns-client
+{{- end }}
+
+{{/*
+DNS Client selector labels
+*/}}
+{{- define "squawk.dnsClient.selectorLabels" -}}
+{{ include "squawk.selectorLabels" . }}
+app.kubernetes.io/component: dns-client
+{{- end }}

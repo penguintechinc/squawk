@@ -21,7 +21,7 @@ readonly NAMESPACE="squawk-beta"
 readonly CHART_PATH="./k8s/helm/squawk"
 readonly IMAGE_REGISTRY="registry-dal2.penguintech.io"
 readonly KUBE_CONTEXT="dal2-beta"
-readonly APP_HOST="squawk.penguintech.io"
+readonly APP_HOST="squawk.penguintech.cloud"
 readonly DEFAULT_TAG="beta-$(date +%s)"
 
 # Service definitions (docker build contexts)

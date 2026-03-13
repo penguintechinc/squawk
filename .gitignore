@@ -100,3 +100,6 @@ out/
 ehthumbs.db
 Thumbs.db
 
+# Git worktrees
+.claude/worktrees/
+

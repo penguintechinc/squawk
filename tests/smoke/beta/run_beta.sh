@@ -1,5 +1,5 @@
 #!/bin/bash
-# Beta (dal2.penguintech.io K8s) Smoke Test Runner
+# Beta (penguintech.cloud K8s) Smoke Test Runner
 # Runs post-deployment verification against K8s cluster
 # Catches issues like: hardcoded localhost URLs, missing env vars, K8s networking issues
 
@@ -18,15 +18,15 @@ NC='\033[0m'
 
 echo -e "${CYAN}=========================================="
 echo "Squawk DNS - Beta Smoke Tests"
-echo "Environment: dal2.penguintech.io K8s Cluster"
+echo "Environment: penguintech.cloud K8s Cluster"
 echo -e "==========================================${NC}"
 echo ""
 
 # Default configuration for K8s cluster
-export BETA_BASE_DOMAIN="${BETA_BASE_DOMAIN:-squawk.dal2.penguintech.io}"
-export BETA_DNS_SERVER_URL="${BETA_DNS_SERVER_URL:-https://dns.squawk.dal2.penguintech.io}"
-export BETA_WEB_CONSOLE_URL="${BETA_WEB_CONSOLE_URL:-https://console.squawk.dal2.penguintech.io}"
-export BETA_MANAGER_URL="${BETA_MANAGER_URL:-https://api.squawk.dal2.penguintech.io}"
+export BETA_BASE_DOMAIN="${BETA_BASE_DOMAIN:-squawk.penguintech.cloud}"
+export BETA_DNS_SERVER_URL="${BETA_DNS_SERVER_URL:-https://dns.squawk.penguintech.cloud}"
+export BETA_WEB_CONSOLE_URL="${BETA_WEB_CONSOLE_URL:-https://console.squawk.penguintech.cloud}"
+export BETA_MANAGER_URL="${BETA_MANAGER_URL:-https://api.squawk.penguintech.cloud}"
 export BETA_ADMIN_EMAIL="${BETA_ADMIN_EMAIL:-admin@penguintech.io}"
 export BETA_VERIFY_SSL="${BETA_VERIFY_SSL:-true}"
 

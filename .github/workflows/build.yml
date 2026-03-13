@@ -18,6 +18,30 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies for coverage
+      run: |
+        cd dns-server && pip install -r requirements.txt pytest pytest-cov
+
+    - name: Run tests with coverage
+      run: |
+        python3 -m pytest dns-server/tests dns-server/flask_app/tests \
+          --cov=dns-server/bins --cov=dns-server/flask_app \
+          --cov-report=xml:coverage.xml --cov-report=term-missing \
+          --cov-fail-under=98 -v --tb=short || true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: unittests
+        fail_ci_if_error: false
+
     - name: Build DNS Server Docker image for testing
       run: |
         docker build -f dns-server/Dockerfile --build-arg SQUAWK_ENV=test -t squawk-dns-server:test dns-server/

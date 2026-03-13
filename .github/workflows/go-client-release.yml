@@ -125,7 +125,7 @@ jobs:
             echo "DOCKER_TAG_LATEST=true" >> $GITHUB_OUTPUT
             echo "RELEASE_TAG=v$VERSION-go-client" >> $GITHUB_OUTPUT
           else
-            echo "BINARY_NAME=squawk-beta" >> $GITHUB_OUTPUT
+            echo "BINARY_NAME=squawk-gamma" >> $GITHUB_OUTPUT
             echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
             echo "VERSION=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
             echo "DOCKER_TAG=$BRANCH_NAME" >> $GITHUB_OUTPUT

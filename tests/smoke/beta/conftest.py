@@ -1,5 +1,5 @@
 """
-Beta (dal2.penguintech.io K8s Cluster) Smoke Test Configuration
+Beta (penguintech.cloud K8s Cluster) Smoke Test Configuration
 Post-deployment verification against internal Kubernetes cluster
 """
 
@@ -13,23 +13,23 @@ from dataclasses import dataclass
 
 @dataclass
 class BetaConfig:
-    """Beta environment configuration - dal2.penguintech.io K8s cluster"""
+    """Beta environment configuration - penguintech.cloud K8s cluster"""
 
     # Service URLs - K8s cluster endpoints
-    # Format: https://<service>.squawk.dal2.penguintech.io
-    base_domain: str = os.getenv("BETA_BASE_DOMAIN", "squawk.dal2.penguintech.io")
+    # Format: https://<service>.squawk.penguintech.cloud
+    base_domain: str = os.getenv("BETA_BASE_DOMAIN", "squawk.penguintech.cloud")
 
     dns_server_url: str = os.getenv(
         "BETA_DNS_SERVER_URL",
-        "https://dns.squawk.dal2.penguintech.io"
+        "https://dns.squawk.penguintech.cloud"
     )
     web_console_url: str = os.getenv(
         "BETA_WEB_CONSOLE_URL",
-        "https://console.squawk.dal2.penguintech.io"
+        "https://console.squawk.penguintech.cloud"
     )
     manager_backend_url: str = os.getenv(
         "BETA_MANAGER_URL",
-        "https://api.squawk.dal2.penguintech.io"
+        "https://api.squawk.penguintech.cloud"
     )
 
     # Test credentials - Beta environment
@@ -52,7 +52,7 @@ class BetaConfig:
 
     # Environment identifier
     environment: str = "beta"
-    environment_name: str = "dal2.penguintech.io K8s Cluster"
+    environment_name: str = "penguintech.cloud K8s Cluster"
 
 
 @pytest.fixture(scope="session")

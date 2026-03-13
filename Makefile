@@ -90,7 +90,10 @@ test-performance:
 
 test-coverage:
 	@echo "Running tests with coverage..."
-	cd dns-server && $(PYTHON) -m pytest tests/ --cov=bins --cov-report=html --cov-report=term-missing
+	$(PYTHON) -m pytest dns-server/tests dns-client/tests dns-server/flask_app/tests \
+		--cov=dns-server/bins --cov=dns-client/bins --cov=dns-server/flask_app \
+		--cov-report=html:htmlcov --cov-report=term-missing --cov-report=xml:coverage.xml \
+		--cov-fail-under=98
 
 # Code quality targets
 lint:

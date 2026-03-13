@@ -1,0 +1,21 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 98%
+        threshold: 1%
+    patch:
+      default:
+        target: 98%
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+
+flags:
+  unittests:
+    paths:
+      - dns-server/bins/
+      - dns-server/flask_app/
+      - dns-client/bins/

@@ -1,4 +1,4 @@
-[![Publish Docker image](https://github.com/PenguinCloud/project-template/actions/workflows/docker-image.yml/badge.svg)](https://github.com/PenguinCloud/core/actions/workflows/docker-image.yml) [![version](https://img.shields.io/badge/version-5.1.1-blue.svg)](https://semver.org) 
+[![Build](https://github.com/penguintechinc/squawk/actions/workflows/build.yml/badge.svg)](https://github.com/penguintechinc/squawk/actions/workflows/build.yml) [![Server Release](https://github.com/penguintechinc/squawk/actions/workflows/server-release.yml/badge.svg)](https://github.com/penguintechinc/squawk/actions/workflows/server-release.yml) [![codecov](https://codecov.io/gh/penguintechinc/squawk/branch/main/graph/badge.svg)](https://codecov.io/gh/penguintechinc/squawk) [![version](https://img.shields.io/badge/version-2.1.1-blue.svg)](https://semver.org)
 
 ```
                     ____

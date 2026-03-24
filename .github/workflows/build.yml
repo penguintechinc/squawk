@@ -106,7 +106,7 @@ jobs:
       continue-on-error: true
 
     - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@v0.35.0
       with:
         scan-type: 'fs'
         scan-ref: '.'

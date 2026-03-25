@@ -1,3 +1,4 @@
+# TODO: migrate to pip-compile --generate-hashes
 dnspython>=2.7.0
 requests>=2.32.3
 PyYAML>=6.0.2

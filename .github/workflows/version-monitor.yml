@@ -120,7 +120,7 @@ jobs:
       continue-on-error: true
 
     - name: Run gosec
-      uses: securego/gosec@master
+      uses: securego/gosec@5e5517beec77b8228ba43ec8d7cc22d82ed31924  # v2.25.0
       with:
         args: '-no-fail -fmt json -out gosec-results.json ./...'
       continue-on-error: true

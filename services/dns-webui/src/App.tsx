@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AppConsoleVersion as ConsoleVersionComponent } from '@penguintechinc/react-libs';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -168,7 +169,10 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      {React.createElement(ConsoleVersionComponent as React.FC<any>,
+        { appName: 'Squawk DNS WebUI', webuiVersion: '2.1.0' },
+        React.createElement(AppRoutes)
+      )}
     </BrowserRouter>
   );
 };

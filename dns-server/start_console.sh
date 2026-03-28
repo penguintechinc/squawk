@@ -35,7 +35,7 @@ sleep 2
 # Start DNS server with new auth system
 echo "Starting DNS server on port 8080 with new authentication system..."
 cd "$SCRIPT_DIR"
-python bins/server.py -p 8080 -n &
+python3 bins/server.py -p 8080 -n &
 DNS_PID=$!
 
 echo ""

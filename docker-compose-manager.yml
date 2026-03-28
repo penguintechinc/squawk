@@ -15,7 +15,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-bookworm@sha256:7858a1a43bb2e3decc07650c8989ba526e0a8164f212c9bb88b622cdbd71c4be@sha256:7858a1a43bb2e3decc07650c8989ba526e0a8164f212c9bb88b622cdbd71c4be
     environment:
       POSTGRES_DB: squawk_manager
       POSTGRES_USER: squawk
@@ -33,7 +33,7 @@ services:
       - squawk-network
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:7-bookworm@sha256:a5995dfdf108997f8a7c9587f54fad5e94ed5848de5236a6b28119e99efd67e0
     ports:
       - "6379:6379"
     volumes:

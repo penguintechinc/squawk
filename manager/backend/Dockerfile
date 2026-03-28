@@ -1,9 +1,7 @@
-FROM ubuntu:24.04 AS base
+FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb AS base
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y software-properties-common curl && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     python3.13 python3.13-venv python3.13-dev \
     build-essential libpq-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*

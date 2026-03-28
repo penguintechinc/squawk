@@ -1,0 +1,12 @@
+dnspython>=2.7.0
+requests>=2.32.3
+PyYAML>=6.0.2
+cryptography>=44.0.0
+pystray>=0.19.5
+Pillow>=11.1.0
+grpcio>=1.69.0
+grpcio-tools>=1.69.0
+protobuf>=5.29.2
+
+# Security
+defusedxml>=0.7.1

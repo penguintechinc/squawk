@@ -1,7 +1,7 @@
 # Multi-stage build for Squawk DNS Client (Go)
 # 
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-bookworm@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make
@@ -30,14 +30,16 @@ RUN BUILD_TIME=$(date -u +%Y-%m-%d_%H:%M:%S) && \
     ./cmd/squawk-dns-client
 
 # Runtime stage
-FROM alpine:3.18
+FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1001 squawk && \
-    adduser -D -u 1001 -G squawk squawk
+RUN groupadd -g 1001 squawk && \
+    useradd -D -u 1001 -G squawk squawk
 
 # Create directories
 RUN mkdir -p /etc/squawk /var/log/squawk && \

@@ -1,5 +1,5 @@
 # DNS Server Dockerfile with Python 3.13
-FROM ubuntu:24.04
+FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.io"
@@ -15,17 +15,8 @@ ENV PYTHONUNBUFFERED=1 \
     TZ=UTC \
     SQUAWK_ENV=${SQUAWK_ENV:-production}
 
-# Install Python 3.13 from deadsnakes PPA and basic build dependencies
+# Install Python 3.13 and basic build dependencies
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
-    wget \
-    ca-certificates \
-    git \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update 
-
-RUN apt-get install -y \
     python3.13 \
     python3.13-dev \
     python3.13-venv \
@@ -34,9 +25,12 @@ RUN apt-get install -y \
     g++ \
     libffi-dev \
     libssl-dev \
-    pkg-config 
-
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 
+    pkg-config \
+    curl \
+    wget \
+    ca-certificates \
+    git && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 
 
 # Install LDAP, XML and enterprise dependencies
 RUN apt-get update && apt-get install -y \
@@ -105,8 +99,8 @@ EXPOSE 8080 8000
 # Smart command selection based on environment
 CMD if [ "$SQUAWK_ENV" = "test" ]; then \
     echo "Running tests..." && \
-    python -m pytest tests/ -v; \
+    python3 -m pytest tests/ -v; \
     else \
     echo "Starting DNS server..." && \
-    python /app/dns-server/bins/server_premium_integrated.py -p ${PORT:-8080} -n; \
+    python3 /app/dns-server/bins/server_premium_integrated.py -p ${PORT:-8080} -n; \
     fi

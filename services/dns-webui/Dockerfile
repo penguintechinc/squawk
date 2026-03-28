@@ -1,6 +1,6 @@
 # Squawk DNS WebUI - React + Nginx
 # Stage 1: Build
-FROM node:18-bookworm-slim@sha256:f9ab18e354e6855ae56ef2b290dd225c1e51a564f87584b9bd21dd651838830e AS build
+FROM node:18-bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb AS build
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY services/dns-webui/ .
 RUN npm run build
 
 # Stage 2: Serve with nginx
-FROM nginx:1.27-bookworm
+FROM nginx:stable-bookworm@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.io"

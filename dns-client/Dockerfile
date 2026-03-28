@@ -1,5 +1,5 @@
 # DNS Client Dockerfile with Python 3.13
-FROM ubuntu:24.04
+FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.group"
@@ -14,14 +14,8 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     TZ=UTC
 
-# Install Python 3.13 from deadsnakes PPA and basic build dependencies
+# Install Python 3.13 and basic build dependencies
 RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
-    wget \
-    ca-certificates \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update && apt-get install -y \
     python3.13 \
     python3.13-dev \
     python3.13-venv \
@@ -29,8 +23,10 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libffi-dev \
     libssl-dev \
+    curl \
+    wget \
+    ca-certificates \
     && ln -sf /usr/bin/python3.13 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.13 /usr/bin/python \
     && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 \
     && rm -rf /var/lib/apt/lists/*
 

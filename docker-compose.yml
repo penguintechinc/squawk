@@ -124,7 +124,7 @@ services:
 
   # Valkey/Redis Cache
   valkey:
-    image: valkey/valkey:latest
+    image: valkey/valkey:latest@sha256:3eeb09785cd61ec8e3be35f8804c8892080f3ca21934d628abc24ee4ed1698f6
     container_name: squawk-valkey
     restart: unless-stopped
     expose:
@@ -137,7 +137,7 @@ services:
 
   # PostgreSQL Database (optional - for enterprise deployments)
   postgres:
-    image: postgres:15
+    image: postgres:16-bookworm@sha256:7858a1a43bb2e3decc07650c8989ba526e0a8164f212c9bb88b622cdbd71c4be
     container_name: squawk-postgres
     restart: unless-stopped
     environment:
@@ -161,7 +161,7 @@ services:
 
   # Prometheus Monitoring (optional)
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
     container_name: squawk-prometheus
     restart: unless-stopped
     ports:
@@ -179,7 +179,7 @@ services:
 
   # Grafana Dashboard (optional)
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
     container_name: squawk-grafana
     restart: unless-stopped
     ports:

@@ -9,6 +9,10 @@ import sys
 import tempfile
 from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
+from collections.abc import Generator
+from typing import Any
+from sqlalchemy.engine import Engine
+from penguin_dal import DB
 
 # Add bins directory to Python path
 bins_path = os.path.join(os.path.dirname(__file__), "..", "bins")
@@ -21,7 +25,8 @@ if flask_app_path not in sys.path:
     sys.path.insert(0, flask_app_path)
 
 # Create a temp SQLite file for this test session
-_test_db_tmp = tempfile.mktemp(suffix=".db", prefix="squawk_test_")
+_fd, _test_db_tmp = tempfile.mkstemp(suffix=".db", prefix="squawk_test_")
+os.close(_fd)
 os.environ["DATABASE_URI"] = f"sqlite:///{_test_db_tmp}"
 
 # Create schema so penguin-dal can reflect tables
@@ -32,7 +37,7 @@ _engine.dispose()
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> Generator[Any, None, None]:
     """Create an instance of the default event loop for the test session."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
@@ -40,7 +45,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def db_engine():
+def db_engine() -> Generator[Engine, None, None]:
     """SQLAlchemy engine for test database (session-scoped)."""
     engine = create_engine(os.environ["DATABASE_URI"])
     yield engine
@@ -48,18 +53,19 @@ def db_engine():
 
 
 @pytest.fixture(scope="session")
-def db(db_engine):
+def db(db_engine: Engine) -> Generator[DB, None, None]:
     """penguin-dal DB instance connected to test SQLite database."""
-    from penguin_dal import DB
     test_db = DB(os.environ["DATABASE_URI"])
     yield test_db
     test_db.close()
 
 
 @pytest.fixture(autouse=True)
-def clean_db_tables(db):
+def clean_db_tables(db: DB) -> Generator[None, None, None]:
     """Truncate all tables before each test for isolation."""
     yield
+    # Note: test_flask_database.py tests import database.db directly (not this fixture's db).
+    # Both use the same SQLite file via DATABASE_URI, so teardown here still clears their rows.
     from schema import metadata
     from sqlalchemy import text
 
@@ -72,7 +78,7 @@ def clean_db_tables(db):
 
 
 @pytest.fixture
-def mock_dns_resolver():
+def mock_dns_resolver() -> Generator[Any, None, None]:
     """Mock DNS resolver for testing"""
     with patch("dns.resolver.Resolver") as mock_resolver:
         mock_answer = Mock()
@@ -86,7 +92,7 @@ def mock_dns_resolver():
 
 
 @pytest.fixture
-def invalid_domains():
+def invalid_domains() -> list[str]:
     """List of invalid domain names for testing"""
     return [
         "",  # Empty domain
@@ -102,7 +108,7 @@ def invalid_domains():
 
 
 @pytest.fixture
-def valid_domains():
+def valid_domains() -> list[str]:
     """List of valid domain names for testing"""
     return [
         "example.com",
@@ -115,7 +121,7 @@ def valid_domains():
     ]
 
 
-def pytest_unconfigure(config):
+def pytest_unconfigure(config: Any) -> None:
     """Clean up test database."""
     global _test_db_tmp
     if _test_db_tmp and os.path.exists(_test_db_tmp):

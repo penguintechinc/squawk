@@ -55,4 +55,4 @@ defusedxml>=0.7.1
 dnspython>=2.7.0
 
 # Penguin shared libraries
-penguin-pytest==0.1.0
+penguin-pytest>=0.1.0

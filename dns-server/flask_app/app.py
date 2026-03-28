@@ -37,7 +37,7 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(
 )
 
 # Import shared database instance
-from database import db
+from database import db  # noqa: E402
 
 # Initialize extensions
 jwt = JWTManager(app)
@@ -62,9 +62,9 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 # Import and register blueprints
-from blueprints.auth import auth_bp, User
-from blueprints.dashboard import dashboard_bp
-from blueprints.api import api_bp
+from blueprints.auth import auth_bp, User  # noqa: E402
+from blueprints.dashboard import dashboard_bp  # noqa: E402
+from blueprints.api import api_bp  # noqa: E402
 
 app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
 app.register_blueprint(dashboard_bp, url_prefix='/api/v1')

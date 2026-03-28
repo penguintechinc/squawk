@@ -1,0 +1,23 @@
+"""Tests for manager/backend schema.py."""
+from sqlalchemy import create_engine, inspect
+
+
+def test_schema_creates_all_tables():
+    """Schema must define 17 tables and create them in SQLite."""
+    from app.schema import metadata
+
+    engine = create_engine("sqlite:///:memory:")
+    metadata.create_all(engine)
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+
+    expected = {
+        "auth_user", "team", "team_member",
+        "dns_server", "dns_server_metrics",
+        "dns_zone", "dns_record",
+        "ioc_feed", "token",
+        "dhcp_pool", "dhcp_reservation", "dhcp_lease", "dhcp_server",
+        "time_server", "time_sync_log", "time_client", "time_config",
+    }
+    assert expected == tables
+    engine.dispose()

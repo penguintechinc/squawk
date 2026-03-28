@@ -13,7 +13,6 @@ penguin-utils==0.2.0
 penguin-aaa==0.1.0
 penguin-licensing==0.1.0
 penguin-limiter==0.1.0
-penguin-pytest==0.1.0
 alembic>=1.13.0
 redis==5.2.1
 cryptography==44.0.0

@@ -39,6 +39,38 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(scope="session")
+def db_engine():
+    """SQLAlchemy engine for test database (session-scoped)."""
+    engine = create_engine(os.environ["DATABASE_URI"])
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def db(db_engine):
+    """penguin-dal DB instance connected to test SQLite database."""
+    from penguin_dal import DB
+    test_db = DB(os.environ["DATABASE_URI"])
+    yield test_db
+    test_db.close()
+
+
+@pytest.fixture(autouse=True)
+def clean_db_tables(db):
+    """Truncate all tables before each test for isolation."""
+    yield
+    from schema import metadata
+    from sqlalchemy import text
+
+    with db.engine.connect() as conn:
+        conn.execute(text("PRAGMA foreign_keys = OFF"))
+        for table in reversed(metadata.sorted_tables):
+            conn.execute(table.delete())
+        conn.execute(text("PRAGMA foreign_keys = ON"))
+        conn.commit()
+
+
 @pytest.fixture
 def mock_dns_resolver():
     """Mock DNS resolver for testing"""

@@ -15,7 +15,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/components/Layout/ProtectedRoute.tsx'],
+      include: [
+        'src/pages/Login.tsx',
+        'src/components/Layout/Sidebar.tsx',
+        'src/components/Layout/ProtectedRoute.tsx',
+      ],
       threshold: {
         lines: 90,
         branches: 90,

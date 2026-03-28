@@ -3,12 +3,17 @@
 Revision ID: 001_initial
 Revises: None
 """
-from __future__ import annotations
-
 import os
 import sys
 
 from alembic import op
+
+# Add project root to path for imports
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(__file__), "..", "..", "..")
+)
+from app.schema import metadata  # noqa: E402
 
 revision = "001_initial"
 down_revision = None
@@ -17,20 +22,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    sys.path.insert(
-        0,
-        os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    )
-    from app.schema import metadata  # noqa: E402
-
     metadata.create_all(op.get_bind())
 
 
 def downgrade() -> None:
-    sys.path.insert(
-        0,
-        os.path.join(os.path.dirname(__file__), "..", "..", "..")
-    )
-    from app.schema import metadata  # noqa: E402
-
     metadata.drop_all(op.get_bind())

@@ -1,5 +1,4 @@
 """Tests for schema.py — SQLAlchemy table definitions."""
-import pytest
 from sqlalchemy import create_engine, inspect
 
 

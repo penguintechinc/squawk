@@ -7,7 +7,7 @@ Single source of truth for database schema. Used by:
 """
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, ForeignKey, Index,
+    Boolean, Column, DateTime, Float, ForeignKey,
     Integer, JSON, MetaData, String, Table, Text,
 )
 from sqlalchemy.sql import func

@@ -20,6 +20,14 @@ if config.config_file_name is not None:
 target_metadata = metadata
 
 
+def run_migrations_offline() -> None:
+    """Run migrations without a live DB connection (generates SQL scripts)."""
+    url = os.environ.get("DATABASE_URI", "sqlite:///storage.db")
+    context.configure(url=url, target_metadata=target_metadata, literal_binds=True)
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
     """Run migrations with an active database connection."""
     url = os.environ.get("DATABASE_URI", "sqlite:///storage.db")
@@ -30,4 +38,7 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
-run_migrations_online()
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()

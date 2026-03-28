@@ -21,7 +21,7 @@ def upgrade() -> None:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from schema import metadata  # noqa: E402
 
-    metadata.create_all(bind=op.get_bind())
+    metadata.create_all(op.get_bind())
 
 
 def downgrade() -> None:
@@ -29,4 +29,4 @@ def downgrade() -> None:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from schema import metadata  # noqa: E402
 
-    metadata.drop_all(bind=op.get_bind())
+    metadata.drop_all(op.get_bind())

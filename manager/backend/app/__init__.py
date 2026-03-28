@@ -2,11 +2,10 @@
 Flask application factory for Squawk DNS Manager.
 """
 
+import logging
+
 from flask import Flask
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-import logging
 
 from app.config import Config
 from app.db import init_db
@@ -18,16 +17,27 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Initialize extensions
+    # CORS
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-    # Rate limiting
-    limiter = Limiter(
-        app=app,
-        key_func=get_remote_address,
-        storage_uri=app.config.get('RATELIMIT_STORAGE_URL'),
-        default_limits=["100/hour"]
+    # Rate limiting via penguin-limiter
+    from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
+
+    _limit_str = app.config.get("RATELIMIT_DEFAULT", "100/hour")
+    _storage_url = app.config.get("RATELIMIT_STORAGE_URL")
+
+    if _storage_url:
+        from penguin_limiter.storage.redis_store import RedisStorage
+        _storage = RedisStorage(url=_storage_url)
+    else:
+        _storage = MemoryStorage()
+
+    limiter = FlaskRateLimiter(
+        config=RateLimitConfig.from_string(_limit_str),
+        storage=_storage,
     )
+    limiter.init_app(app)
+    app.limiter = limiter
 
     # Initialize database
     db = init_db(app)

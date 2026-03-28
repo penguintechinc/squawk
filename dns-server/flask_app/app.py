@@ -8,12 +8,11 @@ import os
 import sys
 from datetime import timedelta
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from flask_login import LoginManager, current_user
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from flask_login import LoginManager
+from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
 from werkzeug.security import generate_password_hash
 
 # Add current directory to path
@@ -52,12 +51,11 @@ CORS(app, resources={
     }
 })
 
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per minute"],
-    storage_uri=os.environ.get('RATELIMIT_STORAGE_URI', 'memory://'),
+limiter = FlaskRateLimiter(
+    config=RateLimitConfig.from_string("200/minute"),
+    storage=MemoryStorage(),
 )
+limiter.init_app(app)
 
 # Initialize Flask-Login (backward compatibility)
 login_manager = LoginManager()
@@ -132,7 +130,7 @@ def method_not_allowed(e):
 def ratelimit_handler(e):
     return jsonify({
         'error': 'Rate limit exceeded',
-        'message': str(e.description),
+        'message': 'Too many requests',
     }), 429
 
 

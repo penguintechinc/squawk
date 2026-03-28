@@ -969,5 +969,5 @@ class TestLogsClear:
 
         c.post('/api/v1/logs/clear',
                headers={'Authorization': f'Bearer {token}'})
-        count = db(db.dns_query_log).count()
+        count = db(db.dns_query_log.id > 0).count()
         assert count == 0

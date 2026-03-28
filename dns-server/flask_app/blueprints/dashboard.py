@@ -124,7 +124,7 @@ def get_domains():
         elif filter_type == 'groups':
             query = db.internal_domain.access_type == 'groups'
         else:
-            query = db.internal_domain
+            query = db.internal_domain.id > 0
 
         domains_list = db(query).select(orderby=~db.internal_domain.modified_on)
 
@@ -540,15 +540,6 @@ def create_group():
         if not group_name or not group_type:
             return jsonify({'error': 'name and group_type are required'}), 400
 
-        # Create group table if it doesn't exist
-        if 'dns_group' not in db.tables:
-            db.define_table('dns_group',
-                db.Field('name', 'string', notnull=True, unique=True),
-                db.Field('group_type', 'string'),
-                db.Field('description', 'text'),
-                db.Field('created_on', 'datetime', default=datetime.utcnow)
-            )
-
         # Check if group already exists
         existing = db(db.dns_group.name == group_name).select().first()
         if existing:
@@ -594,17 +585,6 @@ def create_zone():
         if not zone_name:
             return jsonify({'error': 'zone_name is required'}), 400
 
-        # Create zone table if it doesn't exist
-        if 'dns_zone' not in db.tables:
-            db.define_table('dns_zone',
-                db.Field('name', 'string', notnull=True, unique=True),
-                db.Field('visibility', 'string', default='PUBLIC'),
-                db.Field('primary_ns', 'string'),
-                db.Field('admin_email', 'string'),
-                db.Field('ttl', 'integer', default=3600),
-                db.Field('created_on', 'datetime', default=datetime.utcnow)
-            )
-
         zone_id = db.dns_zone.insert(
             name=zone_name,
             visibility=visibility,
@@ -647,17 +627,6 @@ def create_record():
         if not zone or not record_name or not record_type or not record_value:
             return jsonify({'error': 'zone, record_name, record_type, and record_value are required'}), 400
 
-        # Create record table if it doesn't exist
-        if 'dns_record' not in db.tables:
-            db.define_table('dns_record',
-                db.Field('zone', 'string', notnull=True),
-                db.Field('name', 'string', notnull=True),
-                db.Field('record_type', 'string', notnull=True),
-                db.Field('value', 'string', notnull=True),
-                db.Field('ttl', 'integer', default=3600),
-                db.Field('created_on', 'datetime', default=datetime.utcnow)
-            )
-
         record_id = db.dns_record.insert(
             zone=zone,
             name=record_name,
@@ -699,17 +668,6 @@ def create_permission():
         # Validate required fields
         if not group or not zone_pattern:
             return jsonify({'error': 'group and zone_pattern are required'}), 400
-
-        # Create permission table if it doesn't exist
-        if 'dns_permission' not in db.tables:
-            db.define_table('dns_permission',
-                db.Field('group_name', 'string', notnull=True),
-                db.Field('zone_pattern', 'string', notnull=True),
-                db.Field('access_level', 'string', default='READ'),
-                db.Field('can_query', 'boolean', default=True),
-                db.Field('can_modify', 'boolean', default=False),
-                db.Field('created_on', 'datetime', default=datetime.utcnow)
-            )
 
         permission_id = db.dns_permission.insert(
             group_name=group,
@@ -771,17 +729,6 @@ def clear_blocked():
         return jsonify({'error': 'Authentication required'}), 401
 
     try:
-        # Create blocked_query table if it doesn't exist
-        if 'blocked_query' not in db.tables:
-            db.define_table('blocked_query',
-                db.Field('domain', 'string'),
-                db.Field('client_ip', 'string'),
-                db.Field('reason', 'string'),
-                db.Field('threat_level', 'string'),
-                db.Field('feed_source', 'string'),
-                db.Field('blocked_at', 'datetime', default=datetime.utcnow)
-            )
-
         # Delete all blocked query records
         deleted_count = db(db.blocked_query.id > 0).delete()
         db.commit()
@@ -839,12 +786,12 @@ def search_groups():
 
         # From dns_group table if it exists
         if 'dns_group' in db.tables:
-            groups = db(db.dns_group.name.contains(query)).select(db.dns_group.name, distinct=True)
+            groups = db(db.dns_group.name.contains(query)).select(db.dns_group.name)
             group_names.update([g.name for g in groups])
 
         # From internal_domain_group table
         domain_groups = db(db.internal_domain_group.group_name.contains(query)).select(
-            db.internal_domain_group.group_name, distinct=True, limitby=(0, 20)
+            db.internal_domain_group.group_name, limitby=(0, 20)
         )
         group_names.update([g.group_name for g in domain_groups])
 

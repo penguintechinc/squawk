@@ -597,7 +597,7 @@ class TestStatsSummaryEndpoint:
     def test_cache_hit_rate_is_zero_when_no_queries(self, admin_client):
         """Cache hit rate is 0 when there are no queries."""
         c, token = admin_client
-        db(db.dns_query_log).delete()
+        db(db.dns_query_log.id > 0).delete()
         db.commit()
 
         response = c.get('/api/v1/stats/summary',
@@ -608,7 +608,7 @@ class TestStatsSummaryEndpoint:
     def test_stats_reflect_inserted_data(self, admin_client):
         """Stats reflect actual data in the database."""
         c, token = admin_client
-        db(db.dns_query_log).delete()
+        db(db.dns_query_log.id > 0).delete()
         db.commit()
 
         now = datetime.utcnow()
@@ -626,5 +626,5 @@ class TestStatsSummaryEndpoint:
         assert data['total_queries_24h'] == 4
         assert data['cache_hits_24h'] == 2
 
-        db(db.dns_query_log).delete()
+        db(db.dns_query_log.id > 0).delete()
         db.commit()

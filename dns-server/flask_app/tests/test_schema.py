@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, inspect
 
 
 def test_schema_creates_all_tables():
-    """Schema must define all 9 tables and create them in SQLite."""
+    """Schema must define all 14 tables and create them in SQLite."""
     from flask_app.schema import metadata
 
     engine = create_engine("sqlite:///:memory:")
@@ -20,5 +20,10 @@ def test_schema_creates_all_tables():
     assert "internal_domain" in tables
     assert "internal_domain_group" in tables
     assert "internal_domain_user" in tables
-    assert len(tables) == 9
+    assert "dns_group" in tables
+    assert "dns_zone" in tables
+    assert "dns_record" in tables
+    assert "dns_permission" in tables
+    assert "blocked_query" in tables
+    assert len(tables) == 14
     engine.dispose()

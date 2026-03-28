@@ -119,3 +119,61 @@ internal_domain_user = Table(
     Column("user_id", Integer, ForeignKey("auth_user.id"), nullable=False),
     Column("created_on", DateTime, server_default=func.now()),
 )
+
+dns_group = Table(
+    "dns_group",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(255), unique=True, nullable=False),
+    Column("group_type", String(50)),
+    Column("description", Text),
+    Column("created_on", DateTime, server_default=func.now()),
+)
+
+dns_zone = Table(
+    "dns_zone",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(255), unique=True, nullable=False),
+    Column("visibility", String(20), server_default="PUBLIC"),
+    Column("primary_ns", String(255)),
+    Column("admin_email", String(255)),
+    Column("ttl", Integer, server_default="3600"),
+    Column("created_on", DateTime, server_default=func.now()),
+)
+
+dns_record = Table(
+    "dns_record",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("zone", String(255), nullable=False),
+    Column("name", String(255), nullable=False),
+    Column("record_type", String(20), nullable=False),
+    Column("value", String(512), nullable=False),
+    Column("ttl", Integer, server_default="3600"),
+    Column("created_on", DateTime, server_default=func.now()),
+)
+
+dns_permission = Table(
+    "dns_permission",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_name", String(255), nullable=False),
+    Column("zone_pattern", String(255), nullable=False),
+    Column("access_level", String(20), server_default="READ"),
+    Column("can_query", Boolean, server_default="1"),
+    Column("can_modify", Boolean, server_default="0"),
+    Column("created_on", DateTime, server_default=func.now()),
+)
+
+blocked_query = Table(
+    "blocked_query",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("domain", String(255)),
+    Column("client_ip", String(45)),
+    Column("reason", String(255)),
+    Column("threat_level", String(20)),
+    Column("feed_source", String(255)),
+    Column("blocked_at", DateTime, server_default=func.now()),
+)

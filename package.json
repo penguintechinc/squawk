@@ -1,5 +1,14 @@
 {
+  "name": "squawk",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:cleanup": "rm -rf /tmp/playwright-squawk"
+  },
   "dependencies": {
     "puppeteer": "24.32.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.40.0"
   }
 }

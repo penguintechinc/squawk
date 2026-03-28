@@ -1,20 +1,16 @@
 """
-Shared PyDAL Database Instance
-Centralized database connection for the Flask application
+Squawk DNS Server — database connection via penguin-dal.
+
+penguin-dal auto-reflects existing tables from the database.
+Schema is defined in schema.py. Alembic creates/migrates tables.
 """
 
 import os
-from pydal import DAL
+from penguin_dal import DB
 
-# Initialize PyDAL database instance
-# This will be shared across all modules
-db = DAL(
-    os.environ.get('DATABASE_URI', 'sqlite://storage.db'),
-    folder=os.path.join(os.path.dirname(__file__), 'databases'),
-    migrate=True,
-    fake_migrate_all=False
+# penguin-dal connects and reflects all tables defined by Alembic migrations.
+# For tests, the test conftest creates the schema before this module is imported.
+db = DB(
+    os.environ.get("DATABASE_URI", "sqlite:///storage.db"),
+    pool_size=10,
 )
-
-# Define tables
-from models import define_tables
-define_tables(db)

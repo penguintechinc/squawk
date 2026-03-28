@@ -6,12 +6,29 @@ import pytest
 import asyncio
 import os
 import sys
+import tempfile
 from unittest.mock import Mock, patch
+from sqlalchemy import create_engine
 
 # Add bins directory to Python path
 bins_path = os.path.join(os.path.dirname(__file__), "..", "bins")
 if bins_path not in sys.path:
     sys.path.insert(0, bins_path)
+
+# Set up test database before any flask_app imports
+flask_app_path = os.path.join(os.path.dirname(__file__), "..", "flask_app")
+if flask_app_path not in sys.path:
+    sys.path.insert(0, flask_app_path)
+
+# Create a temp SQLite file for this test session
+_test_db_tmp = tempfile.mktemp(suffix=".db", prefix="squawk_test_")
+os.environ["DATABASE_URI"] = f"sqlite:///{_test_db_tmp}"
+
+# Create schema so penguin-dal can reflect tables
+from schema import metadata
+_engine = create_engine(f"sqlite:///{_test_db_tmp}")
+metadata.create_all(_engine)
+_engine.dispose()
 
 
 @pytest.fixture(scope="session")
@@ -64,3 +81,10 @@ def valid_domains():
         "localhost",
         "*.example.com",  # Wildcard
     ]
+
+
+def pytest_unconfigure(config):
+    """Clean up test database."""
+    global _test_db_tmp
+    if _test_db_tmp and os.path.exists(_test_db_tmp):
+        os.unlink(_test_db_tmp)

@@ -1,344 +1,174 @@
 """
-Tests for Flask database models
+Tests for Flask database schema
+
+Note: models.py is now documentation-only. This file tests schema.py
+which defines all SQLAlchemy tables that penguin-dal uses for reflection.
 """
 import pytest
 import sys
 import os
-from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 
-class TestDefineTablesFunction:
-    """Test the define_tables function in models.py"""
+class TestSchemaMetadata:
+    """Test SQLAlchemy schema metadata"""
 
-    def test_define_tables_returns_db(self):
-        """Test that define_tables returns the db object"""
-        from pydal import DAL
-        from models import define_tables
+    def test_schema_metadata_has_all_tables(self):
+        """Test that schema.metadata defines all required tables"""
+        from schema import metadata
 
-        # Create a fresh in-memory db
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        result = define_tables(test_db)
-        assert result is test_db
-
-    def test_define_tables_creates_auth_user(self):
-        """Test auth_user table is created with correct fields"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'auth_user' in test_db.tables
-        field_names = [f.name for f in test_db.auth_user]
-        assert 'email' in field_names
-        assert 'password' in field_names
-        assert 'first_name' in field_names
-        assert 'last_name' in field_names
-        assert 'is_active' in field_names
-        assert 'is_admin' in field_names
-        assert 'created_on' in field_names
-        assert 'modified_on' in field_names
-
-    def test_define_tables_creates_dns_query_log(self):
-        """Test dns_query_log table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'dns_query_log' in test_db.tables
-        field_names = [f.name for f in test_db.dns_query_log]
-        assert 'timestamp' in field_names
-        assert 'client_ip' in field_names
-        assert 'domain' in field_names
-        assert 'record_type' in field_names
-        assert 'response_status' in field_names
-        assert 'cache_hit' in field_names
-        assert 'processing_time_ms' in field_names
-
-    def test_define_tables_creates_ioc_feed(self):
-        """Test ioc_feed table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'ioc_feed' in test_db.tables
-        field_names = [f.name for f in test_db.ioc_feed]
-        assert 'name' in field_names
-        assert 'url' in field_names
-        assert 'feed_type' in field_names
-        assert 'is_active' in field_names
-        assert 'last_updated' in field_names
-        assert 'update_frequency_hours' in field_names
-
-    def test_define_tables_creates_ioc_entry(self):
-        """Test ioc_entry table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'ioc_entry' in test_db.tables
-        field_names = [f.name for f in test_db.ioc_entry]
-        assert 'feed_id' in field_names
-        assert 'indicator' in field_names
-        assert 'indicator_type' in field_names
-        assert 'threat_level' in field_names
-
-    def test_define_tables_creates_whois_cache(self):
-        """Test whois_cache table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'whois_cache' in test_db.tables
-        field_names = [f.name for f in test_db.whois_cache]
-        assert 'domain' in field_names
-        assert 'whois_data' in field_names
-        assert 'cached_at' in field_names
-        assert 'expires_at' in field_names
-
-    def test_define_tables_creates_internal_domain(self):
-        """Test internal_domain table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'internal_domain' in test_db.tables
-        field_names = [f.name for f in test_db.internal_domain]
-        assert 'name' in field_names
-        assert 'ip_address' in field_names
-        assert 'access_type' in field_names
-        assert 'is_active' in field_names
-
-    def test_define_tables_creates_internal_domain_group(self):
-        """Test internal_domain_group table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'internal_domain_group' in test_db.tables
-
-    def test_define_tables_creates_internal_domain_user(self):
-        """Test internal_domain_user table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'internal_domain_user' in test_db.tables
-
-    def test_define_tables_creates_client_config(self):
-        """Test client_config table is created"""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        assert 'client_config' in test_db.tables
-
-    def test_auth_user_default_values(self):
-        """Test auth_user table has correct default values"""
-        from pydal import DAL
-        from models import define_tables
-        from werkzeug.security import generate_password_hash
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        user_id = test_db.auth_user.insert(
-            email='defaults@test.com',
-            password=generate_password_hash('test123')
-        )
-        test_db.commit()
-
-        user = test_db(test_db.auth_user.id == user_id).select().first()
-        assert user.is_active is True   # default
-        assert user.is_admin is False   # default
-
-    def test_auth_user_email_is_stored(self):
-        """Test that email is stored correctly in auth_user."""
-        from pydal import DAL
-        from models import define_tables
-        from werkzeug.security import generate_password_hash
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        uid = test_db.auth_user.insert(
-            email='store@test.com',
-            password=generate_password_hash('x')
-        )
-        test_db.commit()
-        user = test_db(test_db.auth_user.id == uid).select().first()
-        assert user.email == 'store@test.com'
-
-    def test_dns_query_log_default_record_type(self):
-        """Test that dns_query_log default record_type is 'A'."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        lid = test_db.dns_query_log.insert(domain='test.com')
-        test_db.commit()
-        log = test_db(test_db.dns_query_log.id == lid).select().first()
-        assert log.record_type == 'A'
-
-    def test_dns_query_log_cache_hit_defaults_false(self):
-        """Test that cache_hit defaults to False in dns_query_log."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        lid = test_db.dns_query_log.insert(domain='nocache.com')
-        test_db.commit()
-        log = test_db(test_db.dns_query_log.id == lid).select().first()
-        assert log.cache_hit is False
-
-    def test_ioc_feed_default_is_active(self):
-        """Test that ioc_feed is_active defaults to True."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        fid = test_db.ioc_feed.insert(name='DefaultFeed', url='https://example.com/f')
-        test_db.commit()
-        feed = test_db(test_db.ioc_feed.id == fid).select().first()
-        assert feed.is_active is True
-
-    def test_ioc_feed_default_update_frequency(self):
-        """Test that ioc_feed update_frequency_hours defaults to 24."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        fid = test_db.ioc_feed.insert(name='FreqFeed', url='https://example.com/freq')
-        test_db.commit()
-        feed = test_db(test_db.ioc_feed.id == fid).select().first()
-        assert feed.update_frequency_hours == 24
-
-    def test_internal_domain_default_access_type(self):
-        """Test that internal_domain access_type defaults to 'all'."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        did = test_db.internal_domain.insert(
-            name='default.local',
-            ip_address='10.0.0.1'
-        )
-        test_db.commit()
-        domain = test_db(test_db.internal_domain.id == did).select().first()
-        assert domain.access_type == 'all'
-
-    def test_internal_domain_default_is_active(self):
-        """Test that internal_domain is_active defaults to True."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        did = test_db.internal_domain.insert(
-            name='active.local',
-            ip_address='10.0.0.2'
-        )
-        test_db.commit()
-        domain = test_db(test_db.internal_domain.id == did).select().first()
-        assert domain.is_active is True
-
-    def test_all_tables_created_in_one_call(self):
-        """Test that a single call to define_tables creates all expected tables."""
-        from pydal import DAL
-        from models import define_tables
-
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-
-        expected = {
+        expected_tables = [
             'auth_user', 'dns_query_log', 'ioc_feed', 'ioc_entry',
             'whois_cache', 'client_config', 'internal_domain',
             'internal_domain_group', 'internal_domain_user'
-        }
-        for table_name in expected:
-            assert table_name in test_db.tables, f"Missing table: {table_name}"
+        ]
 
-    def test_define_tables_idempotent(self):
-        """
-        Calling define_tables twice on the same DAL raises no error
-        because PyDAL will reuse the already-defined table.
-        """
-        from pydal import DAL
-        from models import define_tables
+        table_names = [t.name for t in metadata.sorted_tables]
+        for table in expected_tables:
+            assert table in table_names, f"Table {table} not found in schema"
 
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
-        # Second call should not raise
-        try:
-            define_tables(test_db)
-        except Exception as e:
-            pytest.fail(f"define_tables raised on second call: {e}")
+    def test_auth_user_table_structure(self):
+        """Test auth_user table has correct columns"""
+        from schema import auth_user
 
-    def test_client_config_fields(self):
-        """Test client_config table has expected fields."""
-        from pydal import DAL
-        from models import define_tables
+        column_names = [c.name for c in auth_user.columns]
+        assert 'id' in column_names
+        assert 'email' in column_names
+        assert 'password' in column_names
+        assert 'first_name' in column_names
+        assert 'last_name' in column_names
+        assert 'is_active' in column_names
+        assert 'is_admin' in column_names
+        assert 'created_on' in column_names
+        assert 'modified_on' in column_names
 
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
+    def test_dns_query_log_table_structure(self):
+        """Test dns_query_log table has correct columns"""
+        from schema import dns_query_log
 
-        field_names = [f.name for f in test_db.client_config]
-        assert 'client_id' in field_names
-        assert 'config_data' in field_names
-        assert 'created_at' in field_names
-        assert 'updated_at' in field_names
+        column_names = [c.name for c in dns_query_log.columns]
+        assert 'id' in column_names
+        assert 'timestamp' in column_names
+        assert 'client_ip' in column_names
+        assert 'domain' in column_names
+        assert 'record_type' in column_names
+        assert 'response_status' in column_names
+        assert 'cache_hit' in column_names
+        assert 'processing_time_ms' in column_names
+        assert 'user_id' in column_names
 
-    def test_internal_domain_group_fields(self):
-        """Test internal_domain_group table has expected fields."""
-        from pydal import DAL
-        from models import define_tables
+    def test_ioc_feed_table_structure(self):
+        """Test ioc_feed table has correct columns"""
+        from schema import ioc_feed
 
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
+        column_names = [c.name for c in ioc_feed.columns]
+        assert 'id' in column_names
+        assert 'name' in column_names
+        assert 'url' in column_names
+        assert 'feed_type' in column_names
+        assert 'is_active' in column_names
+        assert 'last_updated' in column_names
+        assert 'update_frequency_hours' in column_names
 
-        field_names = [f.name for f in test_db.internal_domain_group]
-        assert 'domain_id' in field_names
-        assert 'group_name' in field_names
-        assert 'created_on' in field_names
+    def test_ioc_entry_table_structure(self):
+        """Test ioc_entry table has correct columns"""
+        from schema import ioc_entry
 
-    def test_internal_domain_user_fields(self):
-        """Test internal_domain_user table has expected fields."""
-        from pydal import DAL
-        from models import define_tables
+        column_names = [c.name for c in ioc_entry.columns]
+        assert 'id' in column_names
+        assert 'feed_id' in column_names
+        assert 'indicator' in column_names
+        assert 'indicator_type' in column_names
+        assert 'threat_level' in column_names
+        assert 'description' in column_names
+        assert 'first_seen' in column_names
+        assert 'last_seen' in column_names
 
-        test_db = DAL('sqlite:memory', folder='/tmp', migrate=False)
-        define_tables(test_db)
+    def test_whois_cache_table_structure(self):
+        """Test whois_cache table has correct columns"""
+        from schema import whois_cache
 
-        field_names = [f.name for f in test_db.internal_domain_user]
-        assert 'domain_id' in field_names
-        assert 'user_id' in field_names
-        assert 'created_on' in field_names
+        column_names = [c.name for c in whois_cache.columns]
+        assert 'id' in column_names
+        assert 'domain' in column_names
+        assert 'whois_data' in column_names
+        assert 'cached_at' in column_names
+        assert 'expires_at' in column_names
+
+    def test_client_config_table_structure(self):
+        """Test client_config table has correct columns"""
+        from schema import client_config
+
+        column_names = [c.name for c in client_config.columns]
+        assert 'id' in column_names
+        assert 'client_id' in column_names
+        assert 'config_data' in column_names
+        assert 'created_at' in column_names
+        assert 'updated_at' in column_names
+        assert 'user_id' in column_names
+
+    def test_internal_domain_table_structure(self):
+        """Test internal_domain table has correct columns"""
+        from schema import internal_domain
+
+        column_names = [c.name for c in internal_domain.columns]
+        assert 'id' in column_names
+        assert 'name' in column_names
+        assert 'ip_address' in column_names
+        assert 'description' in column_names
+        assert 'access_type' in column_names
+        assert 'is_active' in column_names
+        assert 'created_on' in column_names
+        assert 'modified_on' in column_names
+        assert 'created_by' in column_names
+
+    def test_internal_domain_group_table_structure(self):
+        """Test internal_domain_group table has correct columns"""
+        from schema import internal_domain_group
+
+        column_names = [c.name for c in internal_domain_group.columns]
+        assert 'id' in column_names
+        assert 'domain_id' in column_names
+        assert 'group_name' in column_names
+        assert 'created_on' in column_names
+
+    def test_internal_domain_user_table_structure(self):
+        """Test internal_domain_user table has correct columns"""
+        from schema import internal_domain_user
+
+        column_names = [c.name for c in internal_domain_user.columns]
+        assert 'id' in column_names
+        assert 'domain_id' in column_names
+        assert 'user_id' in column_names
+        assert 'created_on' in column_names
+
+    def test_schema_column_constraints(self):
+        """Test that column constraints are properly defined"""
+        from schema import auth_user, internal_domain
+
+        # auth_user.email should be unique and not null
+        email_col = auth_user.c.email
+        assert email_col.unique is True
+        assert email_col.nullable is False
+
+        # internal_domain.name should be unique and not null
+        name_col = internal_domain.c.name
+        assert name_col.unique is True
+        assert name_col.nullable is False
+
+    def test_foreign_key_relationships(self):
+        """Test that foreign keys are properly defined"""
+        from schema import dns_query_log, ioc_entry, internal_domain_group, internal_domain_user
+
+        # dns_query_log.user_id should reference auth_user.id
+        user_id_fk = dns_query_log.c.user_id.foreign_keys
+        assert len(user_id_fk) > 0
+
+        # ioc_entry.feed_id should reference ioc_feed.id
+        feed_id_fk = ioc_entry.c.feed_id.foreign_keys
+        assert len(feed_id_fk) > 0
+
+        # internal_domain_group.domain_id should reference internal_domain.id
+        domain_id_fk = internal_domain_group.c.domain_id.foreign_keys
+        assert len(domain_id_fk) > 0

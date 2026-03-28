@@ -12,10 +12,10 @@ class TestDatabaseInit:
     """Test database initialization and connection"""
 
     def test_db_is_dal_instance(self):
-        """Test that db is a PyDAL DAL instance"""
-        from pydal import DAL
+        """Test that db is a penguin-dal DB instance"""
+        from penguin_dal import DB
         from database import db
-        assert isinstance(db, DAL)
+        assert isinstance(db, DB)
 
     def test_db_has_required_tables(self):
         """Test that required tables are defined"""
@@ -32,14 +32,14 @@ class TestDatabaseInit:
         """Test that the db connection can be used for queries"""
         from database import db
         # Should be able to execute a simple query
-        count = db(db.auth_user).count()
+        count = db(db.auth_user.id > 0).count()
         assert isinstance(count, int)
 
     def test_db_auth_user_fields(self):
         """Test auth_user table has required fields"""
         from database import db
         table = db.auth_user
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'email' in field_names
         assert 'password' in field_names
         assert 'is_admin' in field_names
@@ -49,7 +49,7 @@ class TestDatabaseInit:
         """Test dns_query_log table has required fields"""
         from database import db
         table = db.dns_query_log
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'domain' in field_names
         assert 'timestamp' in field_names
         assert 'cache_hit' in field_names
@@ -58,7 +58,7 @@ class TestDatabaseInit:
         """Test ioc_feed table has required fields"""
         from database import db
         table = db.ioc_feed
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'name' in field_names
         assert 'url' in field_names
         assert 'is_active' in field_names
@@ -77,7 +77,6 @@ class TestDatabaseInit:
             is_active=True,
             is_admin=False
         )
-        db.commit()
         assert user_id is not None
 
         # Query it back
@@ -87,7 +86,6 @@ class TestDatabaseInit:
 
         # Cleanup
         db(db.auth_user.id == user_id).delete()
-        db.commit()
 
     def test_db_update_record(self):
         """Test that db can update records"""
@@ -102,16 +100,13 @@ class TestDatabaseInit:
             is_active=True,
             is_admin=False
         )
-        db.commit()
 
         db(db.auth_user.id == user_id).update(first_name='Updated')
-        db.commit()
 
         user = db(db.auth_user.id == user_id).select().first()
         assert user.first_name == 'Updated'
 
         db(db.auth_user.id == user_id).delete()
-        db.commit()
 
     def test_db_delete_record(self):
         """Test that db can delete records"""
@@ -123,10 +118,8 @@ class TestDatabaseInit:
             password=generate_password_hash('test123'),
             is_active=True, is_admin=False
         )
-        db.commit()
 
         db(db.auth_user.id == user_id).delete()
-        db.commit()
 
         user = db(db.auth_user.id == user_id).select().first()
         assert user is None
@@ -134,14 +127,14 @@ class TestDatabaseInit:
     def test_db_count_returns_integer(self):
         """Test that count() returns an integer."""
         from database import db
-        result = db(db.dns_query_log).count()
+        result = db(db.dns_query_log.id > 0).count()
         assert isinstance(result, int)
         assert result >= 0
 
     def test_db_select_returns_rows_object(self):
         """Test that select() returns an iterable Rows object."""
         from database import db
-        rows = db(db.ioc_feed).select()
+        rows = db(db.ioc_feed.id > 0).select()
         # Should be iterable
         count = 0
         for _ in rows:
@@ -155,24 +148,23 @@ class TestDatabaseInit:
         assert result is None
 
     def test_db_rollback_on_error(self):
-        """Test that rollback leaves db in consistent state."""
+        """Test that after a failed operation, db is still usable."""
         from database import db
         try:
             # Attempt to insert without required field to force an error path
             db.auth_user.insert(email=None, password='x')
-            db.commit()
         except Exception:
-            db.rollback()
+            pass  # penguin-dal auto-commits; no rollback needed
 
-        # DB should still be queryable after rollback
-        count = db(db.auth_user).count()
+        # DB should still be queryable after error
+        count = db(db.auth_user.id > 0).count()
         assert isinstance(count, int)
 
     def test_db_ioc_entry_fields(self):
         """Test ioc_entry table has required fields"""
         from database import db
         table = db.ioc_entry
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'feed_id' in field_names
         assert 'indicator' in field_names
         assert 'indicator_type' in field_names
@@ -182,7 +174,7 @@ class TestDatabaseInit:
         """Test whois_cache table has required fields"""
         from database import db
         table = db.whois_cache
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'domain' in field_names
         assert 'whois_data' in field_names
         assert 'cached_at' in field_names
@@ -192,7 +184,7 @@ class TestDatabaseInit:
         """Test internal_domain table has required fields"""
         from database import db
         table = db.internal_domain
-        field_names = [f.name for f in table]
+        field_names = [c.name for c in table.table.columns]
         assert 'name' in field_names
         assert 'ip_address' in field_names
         assert 'access_type' in field_names

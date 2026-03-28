@@ -82,14 +82,14 @@ def get_queries():
     limit = int(request.args.get('limit', 100))
     offset = int(request.args.get('offset', 0))
 
-    queries = db(db.dns_query_log).select(
+    queries = db(db.dns_query_log.id > 0).select(
         orderby=~db.dns_query_log.timestamp,
         limitby=(offset, offset+limit)
     )
 
     return jsonify({
         'queries': serialize_rows(queries),
-        'total': db(db.dns_query_log).count()
+        'total': db(db.dns_query_log.id > 0).count()
     })
 
 
@@ -118,7 +118,7 @@ def ioc_feeds():
         return jsonify({'id': feed_id, 'status': 'created'}), 201
 
     # GET
-    feeds = db(db.ioc_feed).select()
+    feeds = db(db.ioc_feed.id > 0).select()
     return jsonify({'feeds': serialize_rows(feeds)})
 
 
@@ -199,5 +199,5 @@ def stats_summary():
         'cache_hits_24h': cache_hits,
         'cache_hit_rate': (cache_hits / total_queries * 100) if total_queries > 0 else 0,
         'active_feeds': db(db.ioc_feed.is_active == True).count(),
-        'total_ioc_entries': db(db.ioc_entry).count()
+        'total_ioc_entries': db(db.ioc_entry.id > 0).count()
     })

@@ -84,7 +84,7 @@ def get_dashboard_stats():
                         (db.dns_query_log.cache_hit == True)).count()
 
         # Get recent queries for display
-        recent_query_list = db(db.dns_query_log).select(
+        recent_query_list = db(db.dns_query_log.id > 0).select(
             orderby=~db.dns_query_log.timestamp,
             limitby=(0, 10)
         )
@@ -93,7 +93,7 @@ def get_dashboard_stats():
             'total_queries_24h': recent_queries,
             'cache_hit_rate': (cache_hits / recent_queries * 100) if recent_queries > 0 else 0,
             'active_ioc_feeds': db(db.ioc_feed.is_active == True).count(),
-            'total_ioc_entries': db(db.ioc_entry).count(),
+            'total_ioc_entries': db(db.ioc_entry.id > 0).count(),
             'internal_domains': db(db.internal_domain.is_active == True).count(),
             'ioc_blocks_24h': 0,  # Will be tracked when IOC blocking is integrated
             'recent_queries': serialize_rows(recent_query_list)
@@ -152,7 +152,7 @@ def get_users():
         return jsonify({'error': 'Authentication required'}), 401
 
     try:
-        users = db(db.auth_user).select(orderby=db.auth_user.email)
+        users = db(db.auth_user.id > 0).select(orderby=db.auth_user.email)
         users_data = serialize_rows(users)
 
         # Remove password hashes from response
@@ -177,7 +177,7 @@ def get_groups():
     try:
         groups_list = []
         if 'dns_group' in db.tables:
-            groups = db(db.dns_group).select(orderby=db.dns_group.name)
+            groups = db(db.dns_group.id > 0).select(orderby=db.dns_group.name)
             groups_list = serialize_rows(groups)
 
         return jsonify({'groups': groups_list}), 200
@@ -197,7 +197,7 @@ def get_zones():
     try:
         zones_list = []
         if 'dns_zone' in db.tables:
-            zones = db(db.dns_zone).select(orderby=db.dns_zone.name)
+            zones = db(db.dns_zone.id > 0).select(orderby=db.dns_zone.name)
             zones_list = serialize_rows(zones)
 
         return jsonify({'zones': zones_list}), 200
@@ -219,11 +219,11 @@ def get_records():
         zones_list = []
 
         if 'dns_record' in db.tables:
-            records = db(db.dns_record).select(orderby=db.dns_record.zone)
+            records = db(db.dns_record.id > 0).select(orderby=db.dns_record.zone)
             records_list = serialize_rows(records)
 
         if 'dns_zone' in db.tables:
-            zones = db(db.dns_zone).select(orderby=db.dns_zone.name)
+            zones = db(db.dns_zone.id > 0).select(orderby=db.dns_zone.name)
             zones_list = serialize_rows(zones)
 
         return jsonify({
@@ -248,11 +248,11 @@ def get_permissions():
         groups_list = []
 
         if 'dns_permission' in db.tables:
-            permissions = db(db.dns_permission).select(orderby=db.dns_permission.group_name)
+            permissions = db(db.dns_permission.id > 0).select(orderby=db.dns_permission.group_name)
             permissions_list = serialize_rows(permissions)
 
         if 'dns_group' in db.tables:
-            groups = db(db.dns_group).select(orderby=db.dns_group.name)
+            groups = db(db.dns_group.id > 0).select(orderby=db.dns_group.name)
             groups_list = serialize_rows(groups)
 
         return jsonify({
@@ -275,7 +275,7 @@ def get_blocked():
     try:
         blocked_list = []
         if 'blocked_query' in db.tables:
-            blocked = db(db.blocked_query).select(
+            blocked = db(db.blocked_query.id > 0).select(
                 orderby=~db.blocked_query.blocked_at,
                 limitby=(0, 100)
             )
@@ -296,8 +296,8 @@ def get_threats():
         return jsonify({'error': 'Authentication required'}), 401
 
     try:
-        feeds = db(db.ioc_feed).select(orderby=db.ioc_feed.name)
-        recent_entries = db(db.ioc_entry).select(
+        feeds = db(db.ioc_feed.id > 0).select(orderby=db.ioc_feed.name)
+        recent_entries = db(db.ioc_entry.id > 0).select(
             orderby=~db.ioc_entry.last_seen,
             limitby=(0, 50)
         )
@@ -323,12 +323,12 @@ def get_logs():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 100))
 
-        logs_list = db(db.dns_query_log).select(
+        logs_list = db(db.dns_query_log.id > 0).select(
             orderby=~db.dns_query_log.timestamp,
             limitby=((page-1)*per_page, page*per_page)
         )
 
-        total = db(db.dns_query_log).count()
+        total = db(db.dns_query_log.id > 0).count()
 
         return jsonify({
             'logs': serialize_rows(logs_list),
@@ -783,7 +783,7 @@ def clear_blocked():
             )
 
         # Delete all blocked query records
-        deleted_count = db(db.blocked_query).delete()
+        deleted_count = db(db.blocked_query.id > 0).delete()
         db.commit()
 
         return jsonify({
@@ -806,7 +806,7 @@ def clear_logs():
 
     try:
         # Clear DNS query logs
-        deleted_count = db(db.dns_query_log).delete()
+        deleted_count = db(db.dns_query_log.id > 0).delete()
         db.commit()
 
         return jsonify({

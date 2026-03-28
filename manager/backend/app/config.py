@@ -61,6 +61,7 @@ class TestingConfig(Config):
     """Testing configuration."""
     TESTING = True
     DB_URL = 'sqlite:///:memory:'
+    RATELIMIT_STORAGE_URL = None  # Use MemoryStorage for tests
 
 
 # Config dictionary

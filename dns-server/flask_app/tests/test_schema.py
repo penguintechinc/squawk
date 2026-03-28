@@ -1,10 +1,14 @@
 """Tests for schema.py — SQLAlchemy table definitions."""
+import os
+import sys
 from sqlalchemy import create_engine, inspect
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 
 def test_schema_creates_all_tables():
     """Schema must define all 14 tables and create them in SQLite."""
-    from flask_app.schema import metadata
+    from schema import metadata
 
     engine = create_engine("sqlite:///:memory:")
     metadata.create_all(engine)

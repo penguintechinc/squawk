@@ -1,0 +1,749 @@
+﻿2026-04-01T16:58:29.0095802Z Current runner version: '2.333.1'
+2026-04-01T16:58:29.0121225Z ##[group]Runner Image Provisioner
+2026-04-01T16:58:29.0122102Z Hosted Compute Agent
+2026-04-01T16:58:29.0122639Z Version: 20260213.493
+2026-04-01T16:58:29.0123273Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+2026-04-01T16:58:29.0123985Z Build Date: 2026-02-13T00:28:41Z
+2026-04-01T16:58:29.0124634Z Worker ID: {ba77d59d-b53d-47a6-a75d-52067805964d}
+2026-04-01T16:58:29.0125332Z Azure Region: eastus2
+2026-04-01T16:58:29.0125850Z ##[endgroup]
+2026-04-01T16:58:29.0127268Z ##[group]Operating System
+2026-04-01T16:58:29.0127814Z Ubuntu
+2026-04-01T16:58:29.0128365Z 24.04.4
+2026-04-01T16:58:29.0128849Z LTS
+2026-04-01T16:58:29.0129577Z ##[endgroup]
+2026-04-01T16:58:29.0130157Z ##[group]Runner Image
+2026-04-01T16:58:29.0130676Z Image: ubuntu-24.04
+2026-04-01T16:58:29.0131242Z Version: 20260323.65.1
+2026-04-01T16:58:29.0132428Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260323.65/images/ubuntu/Ubuntu2404-Readme.md
+2026-04-01T16:58:29.0133891Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260323.65
+2026-04-01T16:58:29.0134754Z ##[endgroup]
+2026-04-01T16:58:29.0135783Z ##[group]GITHUB_TOKEN Permissions
+2026-04-01T16:58:29.0137898Z Contents: read
+2026-04-01T16:58:29.0138458Z Metadata: read
+2026-04-01T16:58:29.0138957Z Packages: read
+2026-04-01T16:58:29.0139912Z ##[endgroup]
+2026-04-01T16:58:29.0142017Z Secret source: Actions
+2026-04-01T16:58:29.0142714Z Prepare workflow directory
+2026-04-01T16:58:29.0537629Z Prepare all required actions
+2026-04-01T16:58:29.0575936Z Getting action download info
+2026-04-01T16:58:29.3834467Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-04-01T16:58:29.5323818Z Download action repository 'actions/setup-go@v4' (SHA:7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4)
+2026-04-01T16:58:29.8143679Z Download action repository 'actions/cache@v3' (SHA:6f8efc29b200d32929f49075959781ed54ec270c)
+2026-04-01T16:58:30.1605826Z Complete job name: Test Go Client
+2026-04-01T16:58:30.2345434Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-04-01T16:58:30.2346438Z with:
+2026-04-01T16:58:30.2346858Z   repository: penguintechinc/squawk
+2026-04-01T16:58:30.2347598Z   token: ***
+2026-04-01T16:58:30.2347971Z   ssh-strict: true
+2026-04-01T16:58:30.2348356Z   ssh-user: git
+2026-04-01T16:58:30.2348747Z   persist-credentials: true
+2026-04-01T16:58:30.2349412Z   clean: true
+2026-04-01T16:58:30.2349809Z   sparse-checkout-cone-mode: true
+2026-04-01T16:58:30.2350284Z   fetch-depth: 1
+2026-04-01T16:58:30.2350673Z   fetch-tags: false
+2026-04-01T16:58:30.2351072Z   show-progress: true
+2026-04-01T16:58:30.2351462Z   lfs: false
+2026-04-01T16:58:30.2351825Z   submodules: false
+2026-04-01T16:58:30.2352217Z   set-safe-directory: true
+2026-04-01T16:58:30.2352903Z env:
+2026-04-01T16:58:30.2353258Z   GO_VERSION: 1.24.2
+2026-04-01T16:58:30.2353967Z   APP_NAME: squawk-dns-client
+2026-04-01T16:58:30.2354742Z ##[endgroup]
+2026-04-01T16:58:30.3485295Z Syncing repository: penguintechinc/squawk
+2026-04-01T16:58:30.3487608Z ##[group]Getting Git version info
+2026-04-01T16:58:30.3488319Z Working directory is '/home/runner/work/squawk/squawk'
+2026-04-01T16:58:30.3489635Z [command]/usr/bin/git version
+2026-04-01T16:58:30.3535536Z git version 2.53.0
+2026-04-01T16:58:30.3562621Z ##[endgroup]
+2026-04-01T16:58:30.3586737Z Temporarily overriding HOME='/home/runner/work/_temp/f7b523ad-e955-48fc-8d9b-506a2c55eba4' before making global git config changes
+2026-04-01T16:58:30.3588146Z Adding repository directory to the temporary git global config as a safe directory
+2026-04-01T16:58:30.3594087Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/squawk/squawk
+2026-04-01T16:58:30.3629283Z Deleting the contents of '/home/runner/work/squawk/squawk'
+2026-04-01T16:58:30.3633264Z ##[group]Initializing the repository
+2026-04-01T16:58:30.3637369Z [command]/usr/bin/git init /home/runner/work/squawk/squawk
+2026-04-01T16:58:30.3727977Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-04-01T16:58:30.3729741Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-04-01T16:58:30.3730706Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-04-01T16:58:30.3731575Z hint: call:
+2026-04-01T16:58:30.3732123Z hint:
+2026-04-01T16:58:30.3732664Z hint: 	git config --global init.defaultBranch <name>
+2026-04-01T16:58:30.3733217Z hint:
+2026-04-01T16:58:30.3733746Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-04-01T16:58:30.3734586Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-04-01T16:58:30.3735390Z hint:
+2026-04-01T16:58:30.3735760Z hint: 	git branch -m <name>
+2026-04-01T16:58:30.3736183Z hint:
+2026-04-01T16:58:30.3736748Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-04-01T16:58:30.3737666Z Initialized empty Git repository in /home/runner/work/squawk/squawk/.git/
+2026-04-01T16:58:30.3742406Z [command]/usr/bin/git remote add origin https://github.com/penguintechinc/squawk
+2026-04-01T16:58:30.3778224Z ##[endgroup]
+2026-04-01T16:58:30.3779604Z ##[group]Disabling automatic garbage collection
+2026-04-01T16:58:30.3782898Z [command]/usr/bin/git config --local gc.auto 0
+2026-04-01T16:58:30.3813949Z ##[endgroup]
+2026-04-01T16:58:30.3814610Z ##[group]Setting up auth
+2026-04-01T16:58:30.3823278Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-04-01T16:58:30.3857369Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-04-01T16:58:30.4155915Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-04-01T16:58:30.4189722Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-04-01T16:58:30.4417944Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-04-01T16:58:30.4453190Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-04-01T16:58:30.4682771Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-04-01T16:58:30.4719833Z ##[endgroup]
+2026-04-01T16:58:30.4721112Z ##[group]Fetching the repository
+2026-04-01T16:58:30.4730229Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +136ab5f9fa34f504cb391edf9c1037c167c78323:refs/remotes/origin/v2.1.x
+2026-04-01T16:58:39.4917381Z From https://github.com/penguintechinc/squawk
+2026-04-01T16:58:39.4918868Z  * [new ref]         136ab5f9fa34f504cb391edf9c1037c167c78323 -> origin/v2.1.x
+2026-04-01T16:58:39.4951409Z ##[endgroup]
+2026-04-01T16:58:39.4953180Z ##[group]Determining the checkout info
+2026-04-01T16:58:39.4954997Z ##[endgroup]
+2026-04-01T16:58:39.4956780Z [command]/usr/bin/git sparse-checkout disable
+2026-04-01T16:58:39.4994164Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-04-01T16:58:39.5019892Z ##[group]Checking out the ref
+2026-04-01T16:58:39.5023813Z [command]/usr/bin/git checkout --progress --force -B v2.1.x refs/remotes/origin/v2.1.x
+2026-04-01T16:58:40.5665658Z Updating files:  16% (2586/15570)
+2026-04-01T16:58:40.5784322Z Updating files:  17% (2647/15570)
+2026-04-01T16:58:40.5946567Z Updating files:  18% (2803/15570)
+2026-04-01T16:58:40.6070809Z Updating files:  19% (2959/15570)
+2026-04-01T16:58:40.6206638Z Updating files:  20% (3114/15570)
+2026-04-01T16:58:40.6359019Z Updating files:  21% (3270/15570)
+2026-04-01T16:58:40.6485909Z Updating files:  22% (3426/15570)
+2026-04-01T16:58:40.6591291Z Updating files:  23% (3582/15570)
+2026-04-01T16:58:40.6680219Z Updating files:  24% (3737/15570)
+2026-04-01T16:58:40.6781354Z Updating files:  25% (3893/15570)
+2026-04-01T16:58:40.6883347Z Updating files:  26% (4049/15570)
+2026-04-01T16:58:40.7094392Z Updating files:  27% (4204/15570)
+2026-04-01T16:58:40.8520382Z Updating files:  28% (4360/15570)
+2026-04-01T16:58:40.8704035Z Updating files:  29% (4516/15570)
+2026-04-01T16:58:40.8825254Z Updating files:  30% (4671/15570)
+2026-04-01T16:58:40.9145044Z Updating files:  31% (4827/15570)
+2026-04-01T16:58:40.9524618Z Updating files:  32% (4983/15570)
+2026-04-01T16:58:40.9607692Z Updating files:  33% (5139/15570)
+2026-04-01T16:58:40.9698399Z Updating files:  34% (5294/15570)
+2026-04-01T16:58:40.9796785Z Updating files:  35% (5450/15570)
+2026-04-01T16:58:40.9928778Z Updating files:  36% (5606/15570)
+2026-04-01T16:58:41.0544240Z Updating files:  37% (5761/15570)
+2026-04-01T16:58:41.0661812Z Updating files:  38% (5917/15570)
+2026-04-01T16:58:41.0763070Z Updating files:  39% (6073/15570)
+2026-04-01T16:58:41.1836374Z Updating files:  40% (6228/15570)
+2026-04-01T16:58:41.1941763Z Updating files:  41% (6384/15570)
+2026-04-01T16:58:41.2097872Z Updating files:  42% (6540/15570)
+2026-04-01T16:58:41.2193128Z Updating files:  43% (6696/15570)
+2026-04-01T16:58:41.2286459Z Updating files:  44% (6851/15570)
+2026-04-01T16:58:41.2460974Z Updating files:  45% (7007/15570)
+2026-04-01T16:58:41.2587711Z Updating files:  46% (7163/15570)
+2026-04-01T16:58:41.2684184Z Updating files:  47% (7318/15570)
+2026-04-01T16:58:41.2751521Z Updating files:  48% (7474/15570)
+2026-04-01T16:58:41.2816758Z Updating files:  49% (7630/15570)
+2026-04-01T16:58:41.2895117Z Updating files:  50% (7785/15570)
+2026-04-01T16:58:41.2990436Z Updating files:  51% (7941/15570)
+2026-04-01T16:58:41.3095630Z Updating files:  52% (8097/15570)
+2026-04-01T16:58:41.3185861Z Updating files:  53% (8253/15570)
+2026-04-01T16:58:41.3318146Z Updating files:  54% (8408/15570)
+2026-04-01T16:58:41.3444316Z Updating files:  55% (8564/15570)
+2026-04-01T16:58:41.3546797Z Updating files:  56% (8720/15570)
+2026-04-01T16:58:41.4167853Z Updating files:  57% (8875/15570)
+2026-04-01T16:58:41.4278546Z Updating files:  58% (9031/15570)
+2026-04-01T16:58:41.4374469Z Updating files:  59% (9187/15570)
+2026-04-01T16:58:41.4467221Z Updating files:  60% (9342/15570)
+2026-04-01T16:58:41.4574907Z Updating files:  61% (9498/15570)
+2026-04-01T16:58:41.4855740Z Updating files:  62% (9654/15570)
+2026-04-01T16:58:41.5000449Z Updating files:  63% (9810/15570)
+2026-04-01T16:58:41.5226478Z Updating files:  64% (9965/15570)
+2026-04-01T16:58:41.5412759Z Updating files:  64% (9970/15570)
+2026-04-01T16:58:41.5557047Z Updating files:  65% (10121/15570)
+2026-04-01T16:58:41.5630656Z Updating files:  66% (10277/15570)
+2026-04-01T16:58:41.5744569Z Updating files:  67% (10432/15570)
+2026-04-01T16:58:41.5934647Z Updating files:  68% (10588/15570)
+2026-04-01T16:58:41.6035483Z Updating files:  69% (10744/15570)
+2026-04-01T16:58:41.6143593Z Updating files:  70% (10899/15570)
+2026-04-01T16:58:41.6240263Z Updating files:  71% (11055/15570)
+2026-04-01T16:58:41.6323037Z Updating files:  72% (11211/15570)
+2026-04-01T16:58:41.6424206Z Updating files:  73% (11367/15570)
+2026-04-01T16:58:41.6500606Z Updating files:  74% (11522/15570)
+2026-04-01T16:58:41.6628038Z Updating files:  75% (11678/15570)
+2026-04-01T16:58:41.7228826Z Updating files:  76% (11834/15570)
+2026-04-01T16:58:41.7599362Z Updating files:  77% (11989/15570)
+2026-04-01T16:58:41.7714821Z Updating files:  78% (12145/15570)
+2026-04-01T16:58:41.8014397Z Updating files:  79% (12301/15570)
+2026-04-01T16:58:41.8137243Z Updating files:  80% (12456/15570)
+2026-04-01T16:58:41.8363613Z Updating files:  81% (12612/15570)
+2026-04-01T16:58:41.8928571Z Updating files:  82% (12768/15570)
+2026-04-01T16:58:41.9709749Z Updating files:  83% (12924/15570)
+2026-04-01T16:58:42.0095147Z Updating files:  84% (13079/15570)
+2026-04-01T16:58:42.0177309Z Updating files:  85% (13235/15570)
+2026-04-01T16:58:42.0274004Z Updating files:  86% (13391/15570)
+2026-04-01T16:58:42.0385864Z Updating files:  87% (13546/15570)
+2026-04-01T16:58:42.0476459Z Updating files:  88% (13702/15570)
+2026-04-01T16:58:42.0587789Z Updating files:  89% (13858/15570)
+2026-04-01T16:58:42.0995999Z Updating files:  90% (14013/15570)
+2026-04-01T16:58:42.1140997Z Updating files:  91% (14169/15570)
+2026-04-01T16:58:42.1257409Z Updating files:  92% (14325/15570)
+2026-04-01T16:58:42.1339645Z Updating files:  93% (14481/15570)
+2026-04-01T16:58:42.1425829Z Updating files:  94% (14636/15570)
+2026-04-01T16:58:42.1515456Z Updating files:  95% (14792/15570)
+2026-04-01T16:58:42.1597898Z Updating files:  96% (14948/15570)
+2026-04-01T16:58:42.1702328Z Updating files:  97% (15103/15570)
+2026-04-01T16:58:42.1820928Z Updating files:  98% (15259/15570)
+2026-04-01T16:58:42.1939777Z Updating files:  99% (15415/15570)
+2026-04-01T16:58:42.1940499Z Updating files: 100% (15570/15570)
+2026-04-01T16:58:42.1940921Z Updating files: 100% (15570/15570), done.
+2026-04-01T16:58:42.2113724Z Switched to a new branch 'v2.1.x'
+2026-04-01T16:58:42.2115608Z branch 'v2.1.x' set up to track 'origin/v2.1.x'.
+2026-04-01T16:58:42.2184875Z ##[endgroup]
+2026-04-01T16:58:42.2232189Z [command]/usr/bin/git log -1 --format=%H
+2026-04-01T16:58:42.2256940Z 136ab5f9fa34f504cb391edf9c1037c167c78323
+2026-04-01T16:58:42.2501985Z ##[group]Run actions/setup-go@v4
+2026-04-01T16:58:42.2502462Z with:
+2026-04-01T16:58:42.2502659Z   go-version: 1.24.2
+2026-04-01T16:58:42.2502849Z   check-latest: false
+2026-04-01T16:58:42.2503182Z   token: ***
+2026-04-01T16:58:42.2503356Z   cache: true
+2026-04-01T16:58:42.2503512Z env:
+2026-04-01T16:58:42.2503669Z   GO_VERSION: 1.24.2
+2026-04-01T16:58:42.2503863Z   APP_NAME: squawk-dns-client
+2026-04-01T16:58:42.2504083Z ##[endgroup]
+2026-04-01T16:58:42.4117920Z Setup go version spec 1.24.2
+2026-04-01T16:58:42.4132369Z Attempting to download 1.24.2...
+2026-04-01T16:58:42.7789184Z matching 1.24.2...
+2026-04-01T16:58:42.7848761Z Acquiring 1.24.2 from https://github.com/actions/go-versions/releases/download/1.24.2-14210955142/go-1.24.2-linux-x64.tar.gz
+2026-04-01T16:58:43.3778965Z Extracting Go...
+2026-04-01T16:58:43.3887569Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/67002e80-8e8b-4aeb-8e4b-34950b11734a -f /home/runner/work/_temp/8c6b07f1-9e18-4b24-8305-e2850d130301
+2026-04-01T16:58:45.1847913Z Successfully extracted go to /home/runner/work/_temp/67002e80-8e8b-4aeb-8e4b-34950b11734a
+2026-04-01T16:58:45.1848709Z Adding to the cache ...
+2026-04-01T16:58:50.5618670Z Successfully cached go to /opt/hostedtoolcache/go/1.24.2/x64
+2026-04-01T16:58:50.5621087Z Added go to the path
+2026-04-01T16:58:50.5622802Z Successfully set up Go version 1.24.2
+2026-04-01T16:58:50.5808637Z [command]/opt/hostedtoolcache/go/1.24.2/x64/bin/go env GOMODCACHE
+2026-04-01T16:58:50.5840574Z [command]/opt/hostedtoolcache/go/1.24.2/x64/bin/go env GOCACHE
+2026-04-01T16:58:50.5873489Z /home/runner/go/pkg/mod
+2026-04-01T16:58:50.5885139Z /home/runner/.cache/go-build
+2026-04-01T16:58:50.5918240Z ##[warning]Restore cache failed: Dependencies file is not found in /home/runner/work/squawk/squawk. Supported file pattern: go.sum
+2026-04-01T16:58:50.5944852Z go version go1.24.2 linux/amd64
+2026-04-01T16:58:50.5945225Z 
+2026-04-01T16:58:50.5945559Z ##[group]go env
+2026-04-01T16:58:50.7266147Z AR='ar'
+2026-04-01T16:58:50.7266468Z CC='gcc'
+2026-04-01T16:58:50.7266776Z CGO_CFLAGS='-O2 -g'
+2026-04-01T16:58:50.7267100Z CGO_CPPFLAGS=''
+2026-04-01T16:58:50.7267409Z CGO_CXXFLAGS='-O2 -g'
+2026-04-01T16:58:50.7267722Z CGO_ENABLED='1'
+2026-04-01T16:58:50.7268011Z CGO_FFLAGS='-O2 -g'
+2026-04-01T16:58:50.7268302Z CGO_LDFLAGS='-O2 -g'
+2026-04-01T16:58:50.7268594Z CXX='g++'
+2026-04-01T16:58:50.7268849Z GCCGO='gccgo'
+2026-04-01T16:58:50.7269434Z GO111MODULE=''
+2026-04-01T16:58:50.7269717Z GOAMD64='v1'
+2026-04-01T16:58:50.7269992Z GOARCH='amd64'
+2026-04-01T16:58:50.7270266Z GOAUTH='netrc'
+2026-04-01T16:58:50.7270520Z GOBIN=''
+2026-04-01T16:58:50.7270823Z GOCACHE='/home/runner/.cache/go-build'
+2026-04-01T16:58:50.7271284Z GOCACHEPROG=''
+2026-04-01T16:58:50.7271563Z GODEBUG=''
+2026-04-01T16:58:50.7271862Z GOENV='/home/runner/.config/go/env'
+2026-04-01T16:58:50.7272544Z GOEXE=''
+2026-04-01T16:58:50.7272860Z GOEXPERIMENT=''
+2026-04-01T16:58:50.7273193Z GOFIPS140='off'
+2026-04-01T16:58:50.7273471Z GOFLAGS=''
+2026-04-01T16:58:50.7274537Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build881274130=/tmp/go-build -gno-record-gcc-switches'
+2026-04-01T16:58:50.7275554Z GOHOSTARCH='amd64'
+2026-04-01T16:58:50.7275845Z GOHOSTOS='linux'
+2026-04-01T16:58:50.7276126Z GOINSECURE=''
+2026-04-01T16:58:50.7276395Z GOMOD='/dev/null'
+2026-04-01T16:58:50.7276711Z GOMODCACHE='/home/runner/go/pkg/mod'
+2026-04-01T16:58:50.7277077Z GONOPROXY=''
+2026-04-01T16:58:50.7277340Z GONOSUMDB=''
+2026-04-01T16:58:50.7277589Z GOOS='linux'
+2026-04-01T16:58:50.7277863Z GOPATH='/home/runner/go'
+2026-04-01T16:58:50.7278160Z GOPRIVATE=''
+2026-04-01T16:58:50.7278519Z GOPROXY='https://proxy.golang.org,direct'
+2026-04-01T16:58:50.7278982Z GOROOT='/opt/hostedtoolcache/go/1.24.2/x64'
+2026-04-01T16:58:50.7279655Z GOSUMDB='sum.golang.org'
+2026-04-01T16:58:50.7280004Z GOTELEMETRY='local'
+2026-04-01T16:58:50.7280363Z GOTELEMETRYDIR='/home/runner/.config/go/telemetry'
+2026-04-01T16:58:50.7281055Z GOTMPDIR=''
+2026-04-01T16:58:50.7281317Z GOTOOLCHAIN='auto'
+2026-04-01T16:58:50.7281769Z GOTOOLDIR='/opt/hostedtoolcache/go/1.24.2/x64/pkg/tool/linux_amd64'
+2026-04-01T16:58:50.7282264Z GOVCS=''
+2026-04-01T16:58:50.7282518Z GOVERSION='go1.24.2'
+2026-04-01T16:58:50.7282796Z GOWORK=''
+2026-04-01T16:58:50.7283076Z PKG_CONFIG='pkg-config'
+2026-04-01T16:58:50.7283278Z 
+2026-04-01T16:58:50.7283736Z ##[endgroup]
+2026-04-01T16:58:50.8103116Z ##[group]Run actions/cache@v3
+2026-04-01T16:58:50.8103374Z with:
+2026-04-01T16:58:50.8103576Z   path: ~/.cache/go-build
+~/go/pkg/mod
+
+2026-04-01T16:58:50.8103989Z   key: Linux-go-e7e1c422b38cb7ff07088fa1c0155716c9c9f12fa8fd253bc41aa5e057617004
+2026-04-01T16:58:50.8104397Z   restore-keys: Linux-go-
+
+2026-04-01T16:58:50.8104620Z   enableCrossOsArchive: false
+2026-04-01T16:58:50.8104849Z   fail-on-cache-miss: false
+2026-04-01T16:58:50.8105067Z   lookup-only: false
+2026-04-01T16:58:50.8105256Z env:
+2026-04-01T16:58:50.8105419Z   GO_VERSION: 1.24.2
+2026-04-01T16:58:50.8105607Z   APP_NAME: squawk-dns-client
+2026-04-01T16:58:50.8105822Z ##[endgroup]
+2026-04-01T16:58:51.0410474Z Cache not found for input keys: Linux-go-e7e1c422b38cb7ff07088fa1c0155716c9c9f12fa8fd253bc41aa5e057617004, Linux-go-
+2026-04-01T16:58:51.0528301Z ##[group]Run go mod download
+2026-04-01T16:58:51.0528755Z [36;1mgo mod download[0m
+2026-04-01T16:58:51.0570583Z shell: /usr/bin/bash -e {0}
+2026-04-01T16:58:51.0570968Z env:
+2026-04-01T16:58:51.0571235Z   GO_VERSION: 1.24.2
+2026-04-01T16:58:51.0571578Z   APP_NAME: squawk-dns-client
+2026-04-01T16:58:51.0571947Z ##[endgroup]
+2026-04-01T16:58:52.5396030Z ##[group]Run make test
+2026-04-01T16:58:52.5396410Z [36;1mmake test[0m
+2026-04-01T16:58:52.5433809Z shell: /usr/bin/bash -e {0}
+2026-04-01T16:58:52.5434176Z env:
+2026-04-01T16:58:52.5434443Z   GO_VERSION: 1.24.2
+2026-04-01T16:58:52.5434799Z   APP_NAME: squawk-dns-client
+2026-04-01T16:58:52.5435156Z ##[endgroup]
+2026-04-01T16:58:52.5526174Z Running tests...
+2026-04-01T16:58:52.5527408Z go test -v ./...
+2026-04-01T16:59:13.0190067Z ?   	github.com/penguintechinc/squawk/dns-client-go/cmd/squawk-dns-client	[no test files]
+2026-04-01T16:59:13.0329635Z ?   	github.com/penguintechinc/squawk/dns-client-go/examples/query	[no test files]
+2026-04-01T16:59:13.0330410Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/client	[no test files]
+2026-04-01T16:59:13.0331405Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/config	[no test files]
+2026-04-01T16:59:13.0332336Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/forwarder	[no test files]
+2026-04-01T16:59:13.0333370Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/grpc	[no test files]
+2026-04-01T16:59:13.0348047Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/license	[no test files]
+2026-04-01T16:59:13.0348835Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/logger	[no test files]
+2026-04-01T16:59:13.0359721Z ?   	github.com/penguintechinc/squawk/dns-client-go/pkg/performance	[no test files]
+2026-04-01T16:59:44.3246721Z === RUN   TestNewForwarder
+2026-04-01T16:59:44.3247258Z === RUN   TestNewForwarder/nil_config_uses_defaults
+2026-04-01T16:59:44.3247785Z === RUN   TestNewForwarder/custom_config
+2026-04-01T16:59:44.3248349Z === RUN   TestNewForwarder/empty_listen_address_uses_default
+2026-04-01T16:59:44.3248944Z === RUN   TestNewForwarder/zero_cache_TTL_uses_default
+2026-04-01T16:59:44.3249686Z --- PASS: TestNewForwarder (0.00s)
+2026-04-01T16:59:44.3250342Z     --- PASS: TestNewForwarder/nil_config_uses_defaults (0.00s)
+2026-04-01T16:59:44.3251079Z     --- PASS: TestNewForwarder/custom_config (0.00s)
+2026-04-01T16:59:44.3251876Z     --- PASS: TestNewForwarder/empty_listen_address_uses_default (0.00s)
+2026-04-01T16:59:44.3252743Z     --- PASS: TestNewForwarder/zero_cache_TTL_uses_default (0.00s)
+2026-04-01T16:59:44.3253333Z === RUN   TestForwarder_IsRunning
+2026-04-01T16:59:44.3253786Z --- PASS: TestForwarder_IsRunning (0.00s)
+2026-04-01T16:59:44.3254247Z === RUN   TestForwarder_GetStatus
+2026-04-01T16:59:44.3254681Z --- PASS: TestForwarder_GetStatus (0.00s)
+2026-04-01T16:59:44.3255164Z === RUN   TestForwarder_StopNotRunning
+2026-04-01T16:59:44.3255655Z --- PASS: TestForwarder_StopNotRunning (0.00s)
+2026-04-01T16:59:44.3256181Z === RUN   TestForwarder_StartStop_Integration
+2026-04-01T16:59:44.3256761Z 2026/04/01 16:59:14 Starting NTP forwarder on 127.0.0.1:11237
+2026-04-01T16:59:44.3257312Z 2026/04/01 16:59:14 Shutting down NTP forwarder...
+2026-04-01T16:59:44.3257787Z 2026/04/01 16:59:14 NTP forwarder stopped
+2026-04-01T16:59:44.3258285Z --- PASS: TestForwarder_StartStop_Integration (0.15s)
+2026-04-01T16:59:44.3258787Z === RUN   TestNewNTPClient
+2026-04-01T16:59:44.3259378Z === RUN   TestNewNTPClient/nil_config
+2026-04-01T16:59:44.3259902Z === RUN   TestNewNTPClient/empty_server_URLs_uses_defaults
+2026-04-01T16:59:44.3260436Z === RUN   TestNewNTPClient/valid_config
+2026-04-01T16:59:44.3260998Z === RUN   TestNewNTPClient/server_without_port_gets_default_port
+2026-04-01T16:59:44.3261561Z --- PASS: TestNewNTPClient (0.00s)
+2026-04-01T16:59:44.3262100Z     --- PASS: TestNewNTPClient/nil_config (0.00s)
+2026-04-01T16:59:44.3262839Z     --- PASS: TestNewNTPClient/empty_server_URLs_uses_defaults (0.00s)
+2026-04-01T16:59:44.3263554Z     --- PASS: TestNewNTPClient/valid_config (0.00s)
+2026-04-01T16:59:44.3264344Z     --- PASS: TestNewNTPClient/server_without_port_gets_default_port (0.00s)
+2026-04-01T16:59:44.3264975Z === RUN   TestNTPClient_GetServerURLs
+2026-04-01T16:59:44.3265447Z --- PASS: TestNTPClient_GetServerURLs (0.00s)
+2026-04-01T16:59:44.3265953Z === RUN   TestNTPClient_GetStatus
+2026-04-01T16:59:44.3266702Z --- PASS: TestNTPClient_GetStatus (0.00s)
+2026-04-01T16:59:44.3267189Z === RUN   TestNTPTimeConversion
+2026-04-01T16:59:44.3267603Z --- PASS: TestNTPTimeConversion (0.00s)
+2026-04-01T16:59:44.3268059Z === RUN   TestEncodeDecodeUint32
+2026-04-01T16:59:44.3268485Z --- PASS: TestEncodeDecodeUint32 (0.00s)
+2026-04-01T16:59:44.3268957Z === RUN   TestNTPClient_Query_Integration
+2026-04-01T16:59:44.3270600Z     ntp_client_test.go:209: Query successful: server=pool.ntp.org:123, offset=1.927171ms, roundtrip=29.579866ms, stratum=3
+2026-04-01T16:59:44.3271550Z --- PASS: TestNTPClient_Query_Integration (0.03s)
+2026-04-01T16:59:44.3272107Z === RUN   TestNTPClient_Query_ContextCancellation
+2026-04-01T16:59:44.3272706Z --- PASS: TestNTPClient_Query_ContextCancellation (30.03s)
+2026-04-01T16:59:44.3273200Z PASS
+2026-04-01T16:59:44.3273681Z ok  	github.com/penguintechinc/squawk/dns-client-go/pkg/time	30.216s
+2026-04-01T16:59:44.4160300Z ##[group]Run go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+2026-04-01T16:59:44.4160929Z [36;1mgo install github.com/golangci/golangci-lint/cmd/golangci-lint@latest[0m
+2026-04-01T16:59:44.4161298Z [36;1mmake lint[0m
+2026-04-01T16:59:44.4188465Z shell: /usr/bin/bash -e {0}
+2026-04-01T16:59:44.4188700Z env:
+2026-04-01T16:59:44.4189298Z   GO_VERSION: 1.24.2
+2026-04-01T16:59:44.4189578Z   APP_NAME: squawk-dns-client
+2026-04-01T16:59:44.4189802Z ##[endgroup]
+2026-04-01T16:59:44.7292760Z go: downloading github.com/golangci/golangci-lint v1.64.8
+2026-04-01T16:59:45.0394937Z go: downloading github.com/fatih/color v1.18.0
+2026-04-01T16:59:45.0406675Z go: downloading github.com/gofrs/flock v0.12.1
+2026-04-01T16:59:45.0408489Z go: downloading github.com/hashicorp/go-version v1.7.0
+2026-04-01T16:59:45.1645264Z go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
+2026-04-01T16:59:45.1716300Z go: downloading github.com/spf13/cobra v1.9.1
+2026-04-01T16:59:45.1721561Z go: downloading github.com/pelletier/go-toml v1.9.5
+2026-04-01T16:59:45.2136768Z go: downloading github.com/spf13/viper v1.12.0
+2026-04-01T16:59:45.2250413Z go: downloading go.uber.org/automaxprocs v1.6.0
+2026-04-01T16:59:45.2538152Z go: downloading golang.org/x/tools v0.31.0
+2026-04-01T16:59:45.2569620Z go: downloading github.com/go-viper/mapstructure/v2 v2.2.1
+2026-04-01T16:59:45.2769739Z go: downloading github.com/ldez/grignotin v0.9.0
+2026-04-01T16:59:45.3010844Z go: downloading github.com/mitchellh/go-homedir v1.1.0
+2026-04-01T16:59:45.3285377Z go: downloading github.com/mattn/go-colorable v0.1.14
+2026-04-01T16:59:45.3329270Z go: downloading github.com/sirupsen/logrus v1.9.3
+2026-04-01T16:59:45.3448617Z go: downloading github.com/stretchr/testify v1.10.0
+2026-04-01T16:59:45.3794551Z go: downloading github.com/go-xmlfmt/xmlfmt v1.1.3
+2026-04-01T16:59:45.3966167Z go: downloading github.com/golangci/revgrep v0.8.0
+2026-04-01T16:59:45.4229672Z go: downloading github.com/golangci/plugin-module-register v0.1.1
+2026-04-01T16:59:45.4620744Z go: downloading github.com/mattn/go-isatty v0.0.20
+2026-04-01T16:59:45.4623159Z go: downloading golang.org/x/sys v0.31.0
+2026-04-01T16:59:45.5021367Z go: downloading golang.org/x/text v0.22.0
+2026-04-01T16:59:45.7047629Z go: downloading github.com/rogpeppe/go-internal v1.14.1
+2026-04-01T16:59:45.7055816Z go: downloading github.com/fsnotify/fsnotify v1.5.4
+2026-04-01T16:59:45.7414817Z go: downloading github.com/mitchellh/mapstructure v1.5.0
+2026-04-01T16:59:45.7806013Z go: downloading github.com/spf13/cast v1.5.0
+2026-04-01T16:59:45.7917516Z go: downloading github.com/spf13/jwalterweatherman v1.1.0
+2026-04-01T16:59:45.8298015Z go: downloading github.com/alingse/asasalint v0.0.11
+2026-04-01T16:59:45.8335044Z go: downloading github.com/tdakkota/asciicheck v0.4.1
+2026-04-01T16:59:45.8678431Z go: downloading github.com/breml/bidichk v0.3.2
+2026-04-01T16:59:45.8683491Z go: downloading github.com/timakin/bodyclose v0.0.0-20241017074812-ed6a65f985e3
+2026-04-01T16:59:45.9025054Z go: downloading github.com/lasiar/canonicalheader v1.1.2
+2026-04-01T16:59:45.9171325Z go: downloading github.com/sivchari/containedctx v1.0.3
+2026-04-01T16:59:45.9433346Z go: downloading github.com/kkHAIKE/contextcheck v1.1.6
+2026-04-01T16:59:45.9521622Z go: downloading github.com/karamaru-alpha/copyloopvar v1.2.1
+2026-04-01T16:59:45.9778951Z go: downloading github.com/bkielbasa/cyclop v1.2.3
+2026-04-01T16:59:45.9870159Z go: downloading gitlab.com/bosi/decorder v0.4.2
+2026-04-01T16:59:46.0202847Z go: downloading github.com/OpenPeeDeeP/depguard/v2 v2.2.1
+2026-04-01T16:59:46.0257628Z go: downloading github.com/golangci/dupl v0.0.0-20250308024227-f665c8d69b32
+2026-04-01T16:59:46.0564668Z go: downloading github.com/Abirdcfly/dupword v0.1.3
+2026-04-01T16:59:46.0687731Z go: downloading github.com/charithe/durationcheck v0.0.10
+2026-04-01T16:59:46.0967422Z go: downloading github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24
+2026-04-01T16:59:46.1107335Z go: downloading github.com/kisielk/errcheck v1.9.0
+2026-04-01T16:59:46.1254786Z go: downloading github.com/breml/errchkjson v0.4.0
+2026-04-01T16:59:46.1271543Z go: downloading github.com/Antonboom/errname v1.0.0
+2026-04-01T16:59:46.1314371Z go: downloading github.com/polyfloyd/go-errorlint v1.7.1
+2026-04-01T16:59:46.1541312Z go: downloading github.com/nishanths/exhaustive v0.12.0
+2026-04-01T16:59:46.1686857Z go: downloading github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.1
+2026-04-01T16:59:46.1756053Z go: downloading github.com/ldez/exptostd v0.4.2
+2026-04-01T16:59:46.1801741Z go: downloading github.com/Crocmagnon/fatcontext v0.7.1
+2026-04-01T16:59:46.2130215Z go: downloading github.com/ashanbrown/forbidigo v1.6.0
+2026-04-01T16:59:46.2200306Z go: downloading github.com/gostaticanalysis/forcetypeassert v0.2.0
+2026-04-01T16:59:46.2202400Z go: downloading github.com/ultraware/funlen v0.2.0
+2026-04-01T16:59:46.2213243Z go: downloading github.com/nunnatsa/ginkgolinter v0.19.1
+2026-04-01T16:59:46.2584376Z go: downloading 4d63.com/gocheckcompilerdirectives v1.3.0
+2026-04-01T16:59:46.2681633Z go: downloading 4d63.com/gochecknoglobals v0.2.2
+2026-04-01T16:59:46.2683449Z go: downloading github.com/alecthomas/go-check-sumtype v0.3.1
+2026-04-01T16:59:46.2737537Z go: downloading github.com/uudashr/gocognit v1.2.0
+2026-04-01T16:59:46.2972954Z go: downloading github.com/jgautheron/goconst v1.7.1
+2026-04-01T16:59:46.3297686Z go: downloading github.com/go-critic/go-critic v0.12.0
+2026-04-01T16:59:46.3316774Z go: downloading github.com/quasilyte/go-ruleguard/dsl v0.3.22
+2026-04-01T16:59:46.3409620Z go: downloading github.com/fzipp/gocyclo v0.6.0
+2026-04-01T16:59:46.3778285Z go: downloading github.com/quasilyte/go-ruleguard v0.4.3-0.20240823090925-0fe6f58b47b1
+2026-04-01T16:59:46.3975816Z go: downloading github.com/tetafro/godot v1.5.0
+2026-04-01T16:59:46.4332245Z go: downloading github.com/matoous/godox v1.1.0
+2026-04-01T16:59:46.4334700Z go: downloading github.com/denis-tingaikin/go-header v0.5.0
+2026-04-01T16:59:46.4406861Z go: downloading github.com/ldez/gomoddirectives v0.6.1
+2026-04-01T16:59:46.4521883Z go: downloading github.com/davecgh/go-spew v1.1.1
+2026-04-01T16:59:46.4769397Z go: downloading github.com/pmezard/go-difflib v1.0.0
+2026-04-01T16:59:46.4789627Z go: downloading github.com/stretchr/objx v0.5.2
+2026-04-01T16:59:46.4832308Z go: downloading github.com/ryancurrah/gomodguard v1.3.5
+2026-04-01T16:59:46.4937454Z go: downloading github.com/golangci/go-printf-func-name v0.1.0
+2026-04-01T16:59:46.5104997Z go: downloading github.com/securego/gosec/v2 v2.22.2
+2026-04-01T16:59:46.5703620Z go: downloading honnef.co/go/tools v0.6.1
+2026-04-01T16:59:46.5704453Z go: downloading github.com/xen0n/gosmopolitan v1.2.2
+2026-04-01T16:59:46.5710983Z go: downloading github.com/leonklingele/grouper v1.1.2
+2026-04-01T16:59:46.5711905Z go: downloading github.com/uudashr/iface v1.3.1
+2026-04-01T16:59:46.6284973Z go: downloading github.com/julz/importas v0.2.0
+2026-04-01T16:59:46.6288273Z go: downloading github.com/macabu/inamedparam v0.1.3
+2026-04-01T16:59:46.6288948Z go: downloading github.com/gordonklaus/ineffassign v0.1.0
+2026-04-01T16:59:46.6644872Z go: downloading github.com/sashamelentyev/interfacebloat v1.1.0
+2026-04-01T16:59:46.6648663Z go: downloading github.com/ckaznocha/intrange v0.3.0
+2026-04-01T16:59:46.6664962Z go: downloading github.com/butuzov/ireturn v0.3.1
+2026-04-01T16:59:46.7064970Z go: downloading github.com/timonwong/loggercheck v0.10.1
+2026-04-01T16:59:46.7067835Z go: downloading github.com/yagipy/maintidx v1.0.0
+2026-04-01T16:59:46.7142956Z go: downloading github.com/ashanbrown/makezero v1.2.0
+2026-04-01T16:59:46.7514335Z go: downloading github.com/butuzov/mirror v1.3.0
+2026-04-01T16:59:46.7549674Z go: downloading github.com/golangci/misspell v0.6.0
+2026-04-01T16:59:46.7558922Z go: downloading github.com/tommy-muehle/go-mnd/v2 v2.5.1
+2026-04-01T16:59:46.7890929Z go: downloading go-simpler.org/musttag v0.13.0
+2026-04-01T16:59:46.8096693Z go: downloading github.com/alexkohler/nakedret/v2 v2.0.5
+2026-04-01T16:59:46.8215099Z go: downloading github.com/nakabonne/nestif v0.3.1
+2026-04-01T16:59:46.8252170Z go: downloading github.com/gostaticanalysis/nilerr v0.1.1
+2026-04-01T16:59:46.8415062Z go: downloading github.com/alingse/nilnesserr v0.1.2
+2026-04-01T16:59:46.8472735Z go: downloading github.com/Antonboom/nilnil v1.0.1
+2026-04-01T16:59:46.8527693Z go: downloading github.com/daixiang0/gci v0.13.5
+2026-04-01T16:59:46.8815247Z go: downloading github.com/ssgreg/nlreturn/v2 v2.2.1
+2026-04-01T16:59:46.8926294Z go: downloading github.com/sonatard/noctx v0.1.0
+2026-04-01T16:59:46.8929829Z go: downloading github.com/golangci/gofmt v0.0.0-20250106114630-d62b90e6713d
+2026-04-01T16:59:46.8930815Z go: downloading github.com/firefart/nonamedreturns v1.0.5
+2026-04-01T16:59:46.9167502Z go: downloading mvdan.cc/gofumpt v0.7.0
+2026-04-01T16:59:46.9248881Z go: downloading github.com/stbenjam/no-sprintf-host-port v0.2.0
+2026-04-01T16:59:46.9262036Z go: downloading github.com/kunwardeep/paralleltest v1.0.10
+2026-04-01T16:59:46.9442898Z go: downloading github.com/catenacyber/perfsprint v0.8.2
+2026-04-01T16:59:46.9639683Z go: downloading github.com/alexkohler/prealloc v1.0.0
+2026-04-01T16:59:46.9658021Z go: downloading github.com/nishanths/predeclared v0.2.2
+2026-04-01T16:59:46.9666778Z go: downloading github.com/yeya24/promlinter v0.3.0
+2026-04-01T16:59:46.9873652Z go: downloading github.com/ghostiam/protogetter v0.3.9
+2026-04-01T16:59:46.9955760Z go: downloading github.com/curioswitch/go-reassign v0.3.0
+2026-04-01T16:59:47.0003328Z go: downloading github.com/raeperd/recvcheck v0.2.0
+2026-04-01T16:59:47.0194078Z go: downloading github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c
+2026-04-01T16:59:47.0298295Z go: downloading github.com/mgechev/revive v1.7.0
+2026-04-01T16:59:47.1289134Z go: downloading github.com/jingyugao/rowserrcheck v1.1.1
+2026-04-01T16:59:47.1294239Z go: downloading go-simpler.org/sloglint v0.9.0
+2026-04-01T16:59:47.1294871Z go: downloading github.com/jjti/go-spancheck v0.6.4
+2026-04-01T16:59:47.1332030Z go: downloading github.com/ryanrolds/sqlclosecheck v0.5.1
+2026-04-01T16:59:47.1611585Z go: downloading github.com/4meepo/tagalign v1.4.2
+2026-04-01T16:59:47.1640577Z go: downloading github.com/ldez/tagliatelle v0.7.1
+2026-04-01T16:59:47.1683164Z go: downloading github.com/sivchari/tenv v1.12.1
+2026-04-01T16:59:47.1693979Z go: downloading github.com/maratori/testableexamples v1.0.0
+2026-04-01T16:59:47.1970582Z go: downloading github.com/Antonboom/testifylint v1.5.2
+2026-04-01T16:59:47.1971233Z go: downloading github.com/maratori/testpackage v1.1.1
+2026-04-01T16:59:47.2029226Z go: downloading github.com/kulti/thelper v0.6.3
+2026-04-01T16:59:47.2073514Z go: downloading github.com/moricho/tparallel v0.3.2
+2026-04-01T16:59:47.2367226Z go: downloading github.com/golangci/unconvert v0.0.0-20240309020433-c5143eacb3ed
+2026-04-01T16:59:47.2473157Z go: downloading mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f
+2026-04-01T16:59:47.2485903Z go: downloading github.com/sashamelentyev/usestdlibvars v1.28.0
+2026-04-01T16:59:47.2541892Z go: downloading github.com/ldez/usetesting v0.4.2
+2026-04-01T16:59:47.2678522Z go: downloading github.com/blizzy78/varnamelen v0.8.0
+2026-04-01T16:59:47.2905872Z go: downloading github.com/sanposhiho/wastedassign/v2 v2.1.0
+2026-04-01T16:59:47.2950680Z go: downloading github.com/ultraware/whitespace v0.2.0
+2026-04-01T16:59:47.3008299Z go: downloading github.com/tomarrell/wrapcheck/v2 v2.10.0
+2026-04-01T16:59:47.3093419Z go: downloading github.com/bombsimon/wsl/v4 v4.5.0
+2026-04-01T16:59:47.3229887Z go: downloading github.com/ykadowak/zerologlint v0.1.5
+2026-04-01T16:59:47.3288958Z go: downloading golang.org/x/sync v0.12.0
+2026-04-01T16:59:47.3523377Z go: downloading github.com/subosito/gotenv v1.4.1
+2026-04-01T16:59:47.3527387Z go: downloading github.com/hashicorp/hcl v1.0.0
+2026-04-01T16:59:47.3571687Z go: downloading gopkg.in/ini.v1 v1.67.0
+2026-04-01T16:59:47.3894593Z go: downloading github.com/magiconair/properties v1.8.6
+2026-04-01T16:59:47.4065303Z go: downloading github.com/sourcegraph/go-diff v0.7.0
+2026-04-01T16:59:47.4124007Z go: downloading github.com/gostaticanalysis/analysisutil v0.7.1
+2026-04-01T16:59:47.4127905Z go: downloading github.com/go-toolsmith/astcast v1.1.0
+2026-04-01T16:59:47.4456776Z go: downloading github.com/gobwas/glob v0.2.3
+2026-04-01T16:59:47.4462003Z go: downloading github.com/google/go-cmp v0.7.0
+2026-04-01T16:59:47.4503354Z go: downloading gopkg.in/yaml.v2 v2.4.0
+2026-04-01T16:59:47.4858806Z go: downloading github.com/go-toolsmith/astcopy v1.1.0
+2026-04-01T16:59:47.4923590Z go: downloading github.com/go-toolsmith/astequal v1.2.0
+2026-04-01T16:59:47.4926082Z go: downloading github.com/go-toolsmith/astfmt v1.1.0
+2026-04-01T16:59:47.5025446Z go: downloading github.com/go-toolsmith/astp v1.1.0
+2026-04-01T16:59:47.5161554Z go: downloading github.com/go-toolsmith/strparse v1.1.0
+2026-04-01T16:59:47.5173761Z go: downloading github.com/go-toolsmith/typep v1.1.0
+2026-04-01T16:59:47.5265889Z go: downloading github.com/quasilyte/regex/syntax v0.0.0-20210819130434-b3f0c404a727
+2026-04-01T16:59:47.5327755Z go: downloading github.com/Masterminds/semver/v3 v3.3.0
+2026-04-01T16:59:47.5488577Z go: downloading github.com/ccojocar/zxcvbn-go v1.0.2
+2026-04-01T16:59:47.5504393Z go: downloading github.com/gostaticanalysis/comment v1.5.0
+2026-04-01T16:59:47.5710198Z go: downloading github.com/hexops/gotextdiff v1.0.3
+2026-04-01T16:59:47.6056209Z go: downloading go.uber.org/zap v1.24.0
+2026-04-01T16:59:47.6059325Z go: downloading github.com/prometheus/client_golang v1.12.1
+2026-04-01T16:59:47.6833918Z go: downloading github.com/prometheus/client_model v0.2.0
+2026-04-01T16:59:47.6848245Z go: downloading github.com/fatih/structtag v1.2.0
+2026-04-01T16:59:47.6867257Z go: downloading github.com/hashicorp/go-immutable-radix/v2 v2.1.0
+2026-04-01T16:59:47.6870420Z go: downloading github.com/ettle/strcase v0.2.0
+2026-04-01T16:59:47.7188770Z go: downloading golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac
+2026-04-01T16:59:47.7190133Z go: downloading github.com/quasilyte/gogrep v0.5.0
+2026-04-01T16:59:47.7241999Z go: downloading github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567
+2026-04-01T16:59:47.7491989Z go: downloading golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
+2026-04-01T16:59:47.7643814Z go: downloading github.com/beorn7/perks v1.0.1
+2026-04-01T16:59:47.7657742Z go: downloading github.com/cespare/xxhash/v2 v2.3.0
+2026-04-01T16:59:47.7659441Z go: downloading github.com/golang/protobuf v1.5.3
+2026-04-01T16:59:47.7964679Z go: downloading github.com/prometheus/common v0.32.1
+2026-04-01T16:59:47.8188320Z go: downloading github.com/prometheus/procfs v0.7.3
+2026-04-01T16:59:47.8512677Z go: downloading google.golang.org/protobuf v1.36.5
+2026-04-01T16:59:47.8520523Z go: downloading github.com/chavacava/garif v0.1.0
+2026-04-01T16:59:47.8701242Z go: downloading github.com/olekukonko/tablewriter v0.0.5
+2026-04-01T16:59:47.8925065Z go: downloading go.uber.org/atomic v1.7.0
+2026-04-01T16:59:47.8934974Z go: downloading go.uber.org/multierr v1.6.0
+2026-04-01T16:59:47.9060699Z go: downloading github.com/hashicorp/golang-lru/v2 v2.0.7
+2026-04-01T16:59:48.0797843Z go: downloading github.com/matttproud/golang_protobuf_extensions v1.0.1
+2026-04-01T16:59:48.0804860Z go: downloading github.com/mattn/go-runewidth v0.0.16
+2026-04-01T16:59:48.1132259Z go: downloading github.com/rivo/uniseg v0.4.7
+2026-04-01T17:00:19.7333242Z Running linter...
+2026-04-01T17:00:19.7333671Z golangci-lint run
+2026-04-01T17:00:25.8369803Z ##[group]Run go install github.com/securego/gosec/v2/cmd/gosec@latest
+2026-04-01T17:00:25.8370325Z [36;1mgo install github.com/securego/gosec/v2/cmd/gosec@latest[0m
+2026-04-01T17:00:25.8370652Z [36;1mmake security[0m
+2026-04-01T17:00:25.8397623Z shell: /usr/bin/bash -e {0}
+2026-04-01T17:00:25.8416213Z env:
+2026-04-01T17:00:25.8416503Z   GO_VERSION: 1.24.2
+2026-04-01T17:00:25.8416843Z   APP_NAME: squawk-dns-client
+2026-04-01T17:00:25.8417200Z ##[endgroup]
+2026-04-01T17:00:25.9470378Z go: downloading github.com/securego/gosec/v2 v2.25.0
+2026-04-01T17:00:26.1621816Z go: downloading github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989
+2026-04-01T17:00:26.2246262Z go: github.com/securego/gosec/v2@v2.25.0 requires go >= 1.25.0; switching to go1.25.8
+2026-04-01T17:00:26.2247490Z go: downloading go1.25.8 (linux/amd64)
+2026-04-01T17:00:31.0242367Z go: downloading golang.org/x/sync v0.20.0
+2026-04-01T17:00:31.0243188Z go: downloading golang.org/x/tools v0.43.0
+2026-04-01T17:00:31.4357551Z go: downloading github.com/anthropics/anthropic-sdk-go v1.26.0
+2026-04-01T17:00:31.4366127Z go: downloading github.com/openai/openai-go/v3 v3.28.0
+2026-04-01T17:00:31.6801734Z go: downloading google.golang.org/genai v1.50.0
+2026-04-01T17:00:31.6828720Z go: downloading github.com/ccojocar/zxcvbn-go v1.0.4
+2026-04-01T17:00:31.7872488Z go: downloading github.com/tidwall/sjson v1.2.5
+2026-04-01T17:00:31.8241494Z go: downloading github.com/tidwall/gjson v1.18.0
+2026-04-01T17:00:31.8706689Z go: downloading github.com/google/uuid v1.6.0
+2026-04-01T17:00:31.9132131Z go: downloading github.com/gookit/color v1.6.0
+2026-04-01T17:00:31.9438722Z go: downloading go.yaml.in/yaml/v3 v3.0.4
+2026-04-01T17:00:31.9462813Z go: downloading golang.org/x/mod v0.34.0
+2026-04-01T17:00:31.9652630Z go: downloading github.com/tidwall/match v1.1.1
+2026-04-01T17:00:31.9915150Z go: downloading github.com/tidwall/pretty v1.2.1
+2026-04-01T17:00:32.0116136Z go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+2026-04-01T17:00:32.1029959Z go: downloading cloud.google.com/go v0.121.2
+2026-04-01T17:00:32.1031347Z go: downloading cloud.google.com/go/auth v0.16.5
+2026-04-01T17:00:32.1722855Z go: downloading github.com/gorilla/websocket v1.5.3
+2026-04-01T17:00:32.1762085Z go: downloading github.com/googleapis/gax-go/v2 v2.15.0
+2026-04-01T17:00:32.1770288Z go: downloading cloud.google.com/go/compute/metadata v0.9.0
+2026-04-01T17:00:32.1771296Z go: downloading go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
+2026-04-01T17:00:32.2286934Z go: downloading golang.org/x/net v0.52.0
+2026-04-01T17:00:32.2315360Z go: downloading github.com/google/s2a-go v0.1.9
+2026-04-01T17:00:32.2356623Z go: downloading google.golang.org/grpc v1.79.3
+2026-04-01T17:00:32.2367883Z go: downloading github.com/googleapis/enterprise-certificate-proxy v0.3.6
+2026-04-01T17:00:32.2915438Z go: downloading github.com/felixge/httpsnoop v1.0.4
+2026-04-01T17:00:32.3255574Z go: downloading go.opentelemetry.io/otel v1.39.0
+2026-04-01T17:00:32.6465570Z go: downloading go.opentelemetry.io/otel/metric v1.39.0
+2026-04-01T17:00:32.6468335Z go: downloading go.opentelemetry.io/otel/trace v1.39.0
+2026-04-01T17:00:32.6483450Z go: downloading google.golang.org/protobuf v1.36.10
+2026-04-01T17:00:32.6860946Z go: downloading github.com/go-logr/logr v1.4.3
+2026-04-01T17:00:32.7345314Z go: downloading golang.org/x/text v0.35.0
+2026-04-01T17:00:32.8846032Z go: downloading github.com/go-logr/stdr v1.2.2
+2026-04-01T17:00:32.9225784Z go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+2026-04-01T17:00:32.9697524Z go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
+2026-04-01T17:00:33.0097229Z go: downloading golang.org/x/crypto v0.49.0
+2026-04-01T17:00:33.1619496Z go: downloading golang.org/x/sys v0.42.0
+2026-04-01T17:01:12.0942533Z Running security scan...
+2026-04-01T17:01:12.0944112Z gosec ./...
+2026-04-01T17:01:12.1398788Z [gosec] 2026/04/01 17:01:12 Including rules: default
+2026-04-01T17:01:12.1400243Z [gosec] 2026/04/01 17:01:12 Excluding rules: default
+2026-04-01T17:01:12.1400895Z [gosec] 2026/04/01 17:01:12 Including analyzers: default
+2026-04-01T17:01:12.1401485Z [gosec] 2026/04/01 17:01:12 Excluding analyzers: default
+2026-04-01T17:01:12.1406702Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/examples/query
+2026-04-01T17:01:12.1412514Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/grpc
+2026-04-01T17:01:12.1413651Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/forwarder
+2026-04-01T17:01:12.1414740Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/config
+2026-04-01T17:01:12.5477459Z [gosec] 2026/04/01 17:01:12 Checking package: forwarder
+2026-04-01T17:01:12.5480719Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/forwarder/forwarder.go
+2026-04-01T17:01:12.5624008Z [gosec] 2026/04/01 17:01:12 Checking package: main
+2026-04-01T17:01:12.5647990Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/examples/query/main.go
+2026-04-01T17:01:12.5674387Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/license
+2026-04-01T17:01:12.5678242Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/logger
+2026-04-01T17:01:12.5696024Z [gosec] 2026/04/01 17:01:12 Checking package: config
+2026-04-01T17:01:12.5696958Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/config/config.go
+2026-04-01T17:01:12.5867651Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/performance
+2026-04-01T17:01:12.6565326Z [gosec] 2026/04/01 17:01:12 Checking package: grpc
+2026-04-01T17:01:12.6573521Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/grpc/client.go
+2026-04-01T17:01:12.6592761Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/grpc/dns_query_service.pb.go
+2026-04-01T17:01:12.6631361Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/grpc/dns_query_service_grpc.pb.go
+2026-04-01T17:01:12.7309888Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/time
+2026-04-01T17:01:12.7610377Z [gosec] 2026/04/01 17:01:12 Checking package: logger
+2026-04-01T17:01:12.7615378Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/logger/logger.go
+2026-04-01T17:01:12.7675457Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/cmd/squawk-dns-client
+2026-04-01T17:01:12.9621801Z [gosec] 2026/04/01 17:01:12 Checking package: license
+2026-04-01T17:01:12.9648374Z [gosec] 2026/04/01 17:01:12 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/license/validator.go
+2026-04-01T17:01:12.9945522Z [gosec] 2026/04/01 17:01:12 Import directory: /home/runner/work/squawk/squawk/dns-client-go/pkg/client
+2026-04-01T17:01:13.0433050Z [gosec] 2026/04/01 17:01:13 Checking package: time
+2026-04-01T17:01:13.0436184Z [gosec] 2026/04/01 17:01:13 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/time/forwarder.go
+2026-04-01T17:01:13.0495078Z [gosec] 2026/04/01 17:01:13 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go
+2026-04-01T17:01:13.0637930Z [gosec] 2026/04/01 17:01:13 Checking package: performance
+2026-04-01T17:01:13.0684007Z [gosec] 2026/04/01 17:01:13 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/performance/dns_performance.go
+2026-04-01T17:01:13.2107375Z [gosec] 2026/04/01 17:01:13 Checking package: client
+2026-04-01T17:01:13.2109523Z [gosec] 2026/04/01 17:01:13 Checking file: /home/runner/work/squawk/squawk/dns-client-go/pkg/client/doh_client.go
+2026-04-01T17:01:13.2231969Z [gosec] 2026/04/01 17:01:13 Checking package: main
+2026-04-01T17:01:13.2235826Z [gosec] 2026/04/01 17:01:13 Checking file: /home/runner/work/squawk/squawk/dns-client-go/cmd/squawk-dns-client/main.go
+2026-04-01T17:01:13.2415003Z Results:
+2026-04-01T17:01:13.2415217Z 
+2026-04-01T17:01:13.2415223Z 
+2026-04-01T17:01:13.2416634Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:364] - G115 (CWE-190): integer overflow conversion uint32 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2418075Z     363: 	buf[2] = byte(v >> 8)
+2026-04-01T17:01:13.2418511Z   > 364: 	buf[3] = byte(v)
+2026-04-01T17:01:13.2418883Z     365: }
+2026-04-01T17:01:13.2419260Z 
+2026-04-01T17:01:13.2419404Z Autofix: 
+2026-04-01T17:01:13.2419586Z 
+2026-04-01T17:01:13.2420614Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:363] - G115 (CWE-190): integer overflow conversion uint32 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2421914Z     362: 	buf[1] = byte(v >> 16)
+2026-04-01T17:01:13.2423216Z   > 363: 	buf[2] = byte(v >> 8)
+2026-04-01T17:01:13.2423647Z     364: 	buf[3] = byte(v)
+2026-04-01T17:01:13.2424209Z 
+2026-04-01T17:01:13.2424327Z Autofix: 
+2026-04-01T17:01:13.2424486Z 
+2026-04-01T17:01:13.2425415Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:362] - G115 (CWE-190): integer overflow conversion uint32 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2426593Z     361: 	buf[0] = byte(v >> 24)
+2026-04-01T17:01:13.2426981Z   > 362: 	buf[1] = byte(v >> 16)
+2026-04-01T17:01:13.2427367Z     363: 	buf[2] = byte(v >> 8)
+2026-04-01T17:01:13.2427597Z 
+2026-04-01T17:01:13.2427715Z Autofix: 
+2026-04-01T17:01:13.2427859Z 
+2026-04-01T17:01:13.2428789Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:315] - G115 (CWE-190): integer overflow conversion int8 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2430306Z     314: 	buf[2] = byte(pkt.Poll)
+2026-04-01T17:01:13.2430754Z   > 315: 	buf[3] = byte(pkt.Precision)
+2026-04-01T17:01:13.2431146Z     316: 
+2026-04-01T17:01:13.2431311Z 
+2026-04-01T17:01:13.2431458Z Autofix: 
+2026-04-01T17:01:13.2431600Z 
+2026-04-01T17:01:13.2432475Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:314] - G115 (CWE-190): integer overflow conversion int8 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2433567Z     313: 	buf[1] = pkt.Stratum
+2026-04-01T17:01:13.2433943Z   > 314: 	buf[2] = byte(pkt.Poll)
+2026-04-01T17:01:13.2434363Z     315: 	buf[3] = byte(pkt.Precision)
+2026-04-01T17:01:13.2434619Z 
+2026-04-01T17:01:13.2434724Z Autofix: 
+2026-04-01T17:01:13.2434861Z 
+2026-04-01T17:01:13.2435719Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/forwarder.go:230] - G115 (CWE-190): integer overflow conversion int8 -> byte (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2436811Z     229: 	response[1] = stratum
+2026-04-01T17:01:13.2437200Z   > 230: 	response[2] = byte(req.Poll)
+2026-04-01T17:01:13.2437862Z     231: 	response[3] = 0xEC // Precision (-20, approximately 1 microsecond)
+2026-04-01T17:01:13.2438289Z 
+2026-04-01T17:01:13.2438402Z Autofix: 
+2026-04-01T17:01:13.2438541Z 
+2026-04-01T17:01:13.2439584Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:343] - G115 (CWE-190): integer overflow conversion byte -> int8 (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2440699Z     342: 	pkt.Poll = int8(buf[2])
+2026-04-01T17:01:13.2441115Z   > 343: 	pkt.Precision = int8(buf[3])
+2026-04-01T17:01:13.2441645Z     344: 	pkt.RootDelay = decodeUint32(buf[4:8])
+2026-04-01T17:01:13.2441954Z 
+2026-04-01T17:01:13.2442066Z Autofix: 
+2026-04-01T17:01:13.2442208Z 
+2026-04-01T17:01:13.2443124Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/ntp_client.go:342] - G115 (CWE-190): integer overflow conversion byte -> int8 (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2444338Z     341: 	pkt.Stratum = buf[1]
+2026-04-01T17:01:13.2444753Z   > 342: 	pkt.Poll = int8(buf[2])
+2026-04-01T17:01:13.2445191Z     343: 	pkt.Precision = int8(buf[3])
+2026-04-01T17:01:13.2445455Z 
+2026-04-01T17:01:13.2445806Z Autofix: 
+2026-04-01T17:01:13.2445971Z 
+2026-04-01T17:01:13.2446910Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/forwarder.go:190] - G115 (CWE-190): integer overflow conversion byte -> int8 (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2448109Z     189: 	req.Poll = int8(request[2])
+2026-04-01T17:01:13.2448533Z   > 190: 	req.Precision = int8(request[3])
+2026-04-01T17:01:13.2449235Z     191: 	req.OrigTimeSec = decodeUint32(request[24:28])
+2026-04-01T17:01:13.2449605Z 
+2026-04-01T17:01:13.2449720Z Autofix: 
+2026-04-01T17:01:13.2449871Z 
+2026-04-01T17:01:13.2450797Z [/home/runner/work/squawk/squawk/dns-client-go/pkg/time/forwarder.go:189] - G115 (CWE-190): integer overflow conversion byte -> int8 (Confidence: MEDIUM, Severity: HIGH)
+2026-04-01T17:01:13.2451991Z     188: 	req.Stratum = request[1]
+2026-04-01T17:01:13.2452425Z   > 189: 	req.Poll = int8(request[2])
+2026-04-01T17:01:13.2452915Z     190: 	req.Precision = int8(request[3])
+2026-04-01T17:01:13.2453231Z 
+2026-04-01T17:01:13.2453349Z Autofix: 
+2026-04-01T17:01:13.2453670Z 
+2026-04-01T17:01:13.2454471Z [/home/runner/work/squawk/squawk/dns-client-go/cmd/squawk-dns-client/main.go:815] - G104 (CWE-703): Errors unhandled (Confidence: HIGH, Severity: LOW)
+2026-04-01T17:01:13.2455500Z     814: 			resp, err := ntpClient.Query(ctx)
+2026-04-01T17:01:13.2455934Z   > 815: 			ntpClient.Close()
+2026-04-01T17:01:13.2456269Z     816: 
+2026-04-01T17:01:13.2456411Z 
+2026-04-01T17:01:13.2456516Z Autofix: 
+2026-04-01T17:01:13.2456665Z 
+2026-04-01T17:01:13.2457483Z [/home/runner/work/squawk/squawk/dns-client-go/cmd/squawk-dns-client/main.go:768] - G104 (CWE-703): Errors unhandled (Confidence: HIGH, Severity: LOW)
+2026-04-01T17:01:13.2458590Z     767: 		time.Sleep(1 * time.Second)
+2026-04-01T17:01:13.2459022Z   > 768: 		ntpClient.Close()
+2026-04-01T17:01:13.2459529Z     769: 	},
+2026-04-01T17:01:13.2459679Z 
+2026-04-01T17:01:13.2459785Z Autofix: 
+2026-04-01T17:01:13.2459945Z 
+2026-04-01T17:01:13.2460056Z Summary:
+2026-04-01T17:01:13.2460235Z   Gosec  : dev
+2026-04-01T17:01:13.2460421Z   Files  : 13
+2026-04-01T17:01:13.2460592Z   Lines  : 5063
+2026-04-01T17:01:13.2461044Z   Nosec  : 15
+2026-04-01T17:01:13.2461372Z   Issues : 12
+2026-04-01T17:01:13.2461539Z 
+2026-04-01T17:01:13.2461730Z make: *** [Makefile:165: security] Error 1
+2026-04-01T17:01:13.2470438Z ##[error]Process completed with exit code 2.
+2026-04-01T17:01:13.2545638Z Post job cleanup.
+2026-04-01T17:01:13.3537748Z [command]/usr/bin/git version
+2026-04-01T17:01:13.3575641Z git version 2.53.0
+2026-04-01T17:01:13.3620876Z Temporarily overriding HOME='/home/runner/work/_temp/139e07b0-213b-49bf-bd0b-09223eef2708' before making global git config changes
+2026-04-01T17:01:13.3622169Z Adding repository directory to the temporary git global config as a safe directory
+2026-04-01T17:01:13.3635125Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/squawk/squawk
+2026-04-01T17:01:13.3673665Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-04-01T17:01:13.3707971Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-04-01T17:01:13.3955144Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-04-01T17:01:13.3980086Z http.https://github.com/.extraheader
+2026-04-01T17:01:13.3994661Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-04-01T17:01:13.4029627Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-04-01T17:01:13.4280028Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-04-01T17:01:13.4323952Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-04-01T17:01:13.4699836Z Cleaning up orphan processes
+2026-04-01T17:01:13.4989876Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/cache@v3, actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-go@v4. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

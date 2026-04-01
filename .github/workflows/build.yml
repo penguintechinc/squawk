@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.13'
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24.2'
   NODE_VERSION: '18'
 
 jobs:

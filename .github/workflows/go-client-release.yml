@@ -2,12 +2,12 @@ name: Go Client Build and Release
 
 on:
   push:
-    branches: ['*']
+    branches: ['main', 'v*.*.x']
     paths:
       - 'dns-client-go/**'
       - '.github/workflows/go-client-release.yml'
   pull_request:
-    branches: ['main']
+    branches: ['main', 'v*.*.x']
     paths:
       - 'dns-client-go/**'
       - '.github/workflows/go-client-release.yml'
@@ -17,55 +17,21 @@ env:
   APP_NAME: 'squawk-dns-client'
 
 jobs:
-  # Check if .version changed to determine if we should build
-  check-version:
-    name: Check Version Change
-    runs-on: ubuntu-latest
-    outputs:
-      version_changed: ${{ steps.check.outputs.version_changed }}
-      version: ${{ steps.check.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-        with:
-          fetch-depth: 2
-
-      - name: Check if .version changed
-        id: check
-        run: |
-          VERSION_FILE="dns-client-go/.version"
-          if [ -f "$VERSION_FILE" ]; then
-            VERSION=$(cat "$VERSION_FILE" | tr -d '\n' | sed 's/^v//')
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-          else
-            echo "version=0.0.0" >> $GITHUB_OUTPUT
-          fi
-
-          # Check if .version was modified in this push
-          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q "^dns-client-go/\.version$"; then
-            echo "version_changed=true" >> $GITHUB_OUTPUT
-            echo "dns-client-go/.version file changed - will trigger full build"
-          else
-            echo "version_changed=false" >> $GITHUB_OUTPUT
-            echo "dns-client-go/.version file not changed - skipping full build"
-          fi
-
   # Test job runs on PRs and pushes
   test:
     name: Test Go Client
     runs-on: ubuntu-latest
-    needs: check-version
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
@@ -94,12 +60,12 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           make security
 
-  # Build and release job - only when .version changes
+  # Build and release job - triggered by version tags
   build-and-release:
     name: Build and Release Go Client
     runs-on: ubuntu-latest
-    needs: [check-version, test]
-    if: github.event_name == 'push' && needs.check-version.outputs.version_changed == 'true'
+    needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
       packages: write
@@ -109,55 +75,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine binary name and Docker tags
-        id: naming
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
         run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          VERSION_FILE="dns-client-go/.version"
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
 
-          if [ -f "$VERSION_FILE" ]; then
-            VERSION=$(cat "$VERSION_FILE" | tr -d '\n' | sed 's/^v//')
-            echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
-            echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG=$VERSION" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG_LATEST=true" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=v$VERSION-go-client" >> $GITHUB_OUTPUT
-          else
-            echo "BINARY_NAME=squawk-gamma" >> $GITHUB_OUTPUT
-            echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
-            echo "VERSION=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG=$BRANCH_NAME" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG_LATEST=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Check if release tag exists
-        if: steps.naming.outputs.IS_RELEASE == 'true'
-        id: tag_check
-        run: |
-          if git rev-parse "${{ steps.naming.outputs.RELEASE_TAG }}" >/dev/null 2>&1; then
-            echo "EXISTS=true" >> $GITHUB_OUTPUT
-            echo "Release tag ${{ steps.naming.outputs.RELEASE_TAG }} already exists, skipping GitHub release creation"
-          else
-            echo "EXISTS=false" >> $GITHUB_OUTPUT
-            echo "Release tag ${{ steps.naming.outputs.RELEASE_TAG }} does not exist, proceeding with GitHub release"
-          fi
-
-      # Build for all platforms using containerized approach
+      # Build for all platforms using containerized approach (Debian)
       - name: Build All Platforms (Containerized)
         working-directory: dns-client-go
         run: |
-          # Use Docker for consistent cross-compilation environment
           docker run --rm -v $(pwd):/workspace -w /workspace \
-            golang:${{ env.GO_VERSION }}-alpine \
+            golang:${{ env.GO_VERSION }}-bookworm \
             sh -c '
-              apk add --no-cache git
+              apt-get update && apt-get install -y --no-install-recommends git
               
-              echo "Building ${{ steps.naming.outputs.BINARY_NAME }} for all platforms..."
+              echo "Building ${{ steps.version.outputs.BINARY_NAME }} for all platforms..."
               
-              VERSION="${{ steps.naming.outputs.VERSION }}"
-              BINARY_NAME="${{ steps.naming.outputs.BINARY_NAME }}"
+              VERSION="${{ steps.version.outputs.VERSION }}"
+              BINARY_NAME="${{ steps.version.outputs.BINARY_NAME }}"
               
               # Linux AMD64
               mkdir -p build/linux-amd64
@@ -205,14 +149,13 @@ jobs:
               find build -name "*$BINARY_NAME*" -type f -exec ls -la {} \;
             '
 
-      # Create release packages (only for releases)
+      # Create release packages
       - name: Create Release Packages
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
         working-directory: dns-client-go
         run: |
           mkdir -p build/packages
-          BINARY_NAME="${{ steps.naming.outputs.BINARY_NAME }}"
-          VERSION="${{ steps.naming.outputs.VERSION }}"
+          BINARY_NAME="${{ steps.version.outputs.BINARY_NAME }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
           
           # Create release archives
           cd build/linux-amd64 && tar -czf ../packages/squawk-$VERSION-linux-amd64.tar.gz $BINARY_NAME
@@ -226,15 +169,9 @@ jobs:
           cd ../packages
           sha256sum * > SHA256SUMS
 
-      # Docker build and push for all pushes
+      # Docker build and push for releases
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
@@ -251,47 +188,43 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            VERSION=${{ steps.naming.outputs.VERSION }}
+            VERSION=${{ steps.version.outputs.VERSION }}
             BUILD_TIME=$(date -u +%Y-%m-%d_%H:%M:%S)
             GIT_COMMIT=${{ github.sha }}
-            BINARY_NAME=${{ steps.naming.outputs.BINARY_NAME }}
+            BINARY_NAME=${{ steps.version.outputs.BINARY_NAME }}
           tags: |
-            penguincloud/${{ env.APP_NAME }}:${{ steps.naming.outputs.DOCKER_TAG }}
-            ghcr.io/${{ github.repository }}-go:${{ steps.naming.outputs.DOCKER_TAG }}
-            ${{ steps.naming.outputs.DOCKER_TAG_LATEST == 'true' && format('penguincloud/{0}:latest', env.APP_NAME) || '' }}
-            ${{ steps.naming.outputs.DOCKER_TAG_LATEST == 'true' && format('ghcr.io/{0}-go:latest', github.repository) || '' }}
+            ghcr.io/penguintechinc/${{ env.APP_NAME }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/penguintechinc/${{ env.APP_NAME }}:latest
           labels: |
             org.opencontainers.image.title=Squawk DNS Client (Go)
             org.opencontainers.image.description=High-performance DNS-over-HTTPS client
-            org.opencontainers.image.version=${{ steps.naming.outputs.VERSION }}
+            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
-      # Create GitHub Release (only for main branch releases)
+      # Create GitHub Release
       - name: Extract Release Notes
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
         run: |
           chmod +x .github/scripts/extract-release-notes.sh
           GITHUB_REPOSITORY="${{ github.repository }}" \
           GITHUB_SHA="${{ github.sha }}" \
-          .github/scripts/extract-release-notes.sh client "${{ steps.naming.outputs.VERSION }}" release_body.md
+          .github/scripts/extract-release-notes.sh client "${{ steps.version.outputs.VERSION }}" release_body.md
       
       - name: Create Release
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
         uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e  # v1
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.naming.outputs.RELEASE_TAG }}
-          release_name: Squawk DNS Client (Go) v${{ steps.naming.outputs.VERSION }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          release_name: Squawk DNS Client (Go) v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
           body_path: release_body.md
 
       # Upload release assets
       - name: Upload Release Assets
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '') && steps.create_release.outputs.upload_url
+        if: steps.create_release.outputs.upload_url
         working-directory: dns-client-go/build/packages
         run: |
           for file in *.tar.gz *.zip SHA256SUMS; do
@@ -308,14 +241,13 @@ jobs:
   notify:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [check-version, build-and-release]
-    if: github.event_name == 'push' && needs.check-version.outputs.version_changed == 'true'
+    needs: [test, build-and-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Build Summary
         run: |
           echo "✅ Squawk DNS Client (Go) Build Complete!"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Version: ${{ needs.check-version.outputs.version }}"
-          echo "Binary: ${{ needs.build-and-release.outputs.binary-name || 'squawk' }}"
+          echo "Version: ${{ github.ref }}"
           echo "Platforms: Linux (amd64, arm64), macOS (amd64, arm64), Windows (amd64, arm64)"
-          echo "Docker: penguincloud/squawk-dns-client:${{ needs.check-version.outputs.version }} and ghcr.io"
+          echo "Docker: ghcr.io/penguintechinc/squawk-dns-client:${{ github.ref }}"
+          echo "Registry: ghcr.io/penguintechinc"

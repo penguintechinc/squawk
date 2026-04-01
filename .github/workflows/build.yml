@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'v*.*.x' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, 'v*.*.x' ]
 
 env:
   PYTHON_VERSION: '3.13'
@@ -107,9 +107,8 @@ jobs:
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
-        with:
-          trivy-version: 'v0.69.3'
       with:
+        trivy-version: 'v0.69.3'
         scan-type: 'fs'
         scan-ref: '.'
         format: 'sarif'

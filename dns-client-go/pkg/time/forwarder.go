@@ -186,8 +186,8 @@ func (f *Forwarder) handleNTPRequest(ctx context.Context, request []byte, remote
 	req := &ntpPacket{}
 	req.Settings = request[0]
 	req.Stratum = request[1]
-	req.Poll = int8(request[2])
-	req.Precision = int8(request[3])
+	req.Poll = int8(request[2])      // #nosec G115
+	req.Precision = int8(request[3]) // #nosec G115
 	req.OrigTimeSec = decodeUint32(request[24:28])
 	req.OrigTimeFrac = decodeUint32(request[28:32])
 
@@ -227,8 +227,8 @@ func (f *Forwarder) handleNTPRequest(ctx context.Context, request []byte, remote
 	// Mode: server response (4), version 4, no leap indicator
 	response[0] = (ntpVersion << 3) | 4 // Server mode
 	response[1] = stratum
-	response[2] = byte(req.Poll)
-	response[3] = 0xEC // Precision (-20, approximately 1 microsecond)
+	response[2] = byte(req.Poll) // #nosec G115
+	response[3] = 0xEC           // Precision (-20, approximately 1 microsecond)
 
 	// Root delay and dispersion (placeholder values)
 	encodeUint32(response[4:8], 0)  // Root delay

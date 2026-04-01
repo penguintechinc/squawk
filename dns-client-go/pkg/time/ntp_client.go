@@ -311,8 +311,8 @@ func sendNTPPacket(conn net.Conn, pkt *ntpPacket) error {
 	buf := make([]byte, ntpPacketSize)
 	buf[0] = pkt.Settings
 	buf[1] = pkt.Stratum
-	buf[2] = byte(pkt.Poll)
-	buf[3] = byte(pkt.Precision)
+	buf[2] = byte(pkt.Poll)      // #nosec G115
+	buf[3] = byte(pkt.Precision) // #nosec G115
 
 	// Encode origin timestamp
 	encodeUint32(buf[24:28], pkt.OrigTimeSec)
@@ -339,8 +339,8 @@ func recvNTPPacket(conn net.Conn, pkt *ntpPacket) error {
 
 	pkt.Settings = buf[0]
 	pkt.Stratum = buf[1]
-	pkt.Poll = int8(buf[2])
-	pkt.Precision = int8(buf[3])
+	pkt.Poll = int8(buf[2])      // #nosec G115
+	pkt.Precision = int8(buf[3]) // #nosec G115
 	pkt.RootDelay = decodeUint32(buf[4:8])
 	pkt.RootDispersion = decodeUint32(buf[8:12])
 	pkt.RefID = decodeUint32(buf[12:16])
@@ -358,10 +358,10 @@ func recvNTPPacket(conn net.Conn, pkt *ntpPacket) error {
 
 // encodeUint32 encodes a uint32 to big-endian bytes
 func encodeUint32(buf []byte, v uint32) {
-	buf[0] = byte(v >> 24)
-	buf[1] = byte(v >> 16)
-	buf[2] = byte(v >> 8)
-	buf[3] = byte(v)
+	buf[0] = byte(v >> 24) // #nosec G115
+	buf[1] = byte(v >> 16) // #nosec G115
+	buf[2] = byte(v >> 8)  // #nosec G115
+	buf[3] = byte(v)       // #nosec G115
 }
 
 // decodeUint32 decodes big-endian bytes to uint32

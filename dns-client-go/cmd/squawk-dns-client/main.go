@@ -765,7 +765,9 @@ NOTE: Port 123 typically requires root/administrator privileges.`,
 
 		// Give some time for graceful shutdown
 		time.Sleep(1 * time.Second)
-		ntpClient.Close()
+		if err := ntpClient.Close(); err != nil {
+			log.Printf("Error closing NTP client: %v", err)
+		}
 	},
 }
 
@@ -812,7 +814,10 @@ var timeStatusCmd = &cobra.Command{
 			}
 
 			resp, err := ntpClient.Query(ctx)
-			ntpClient.Close()
+			if closeErr := ntpClient.Close(); closeErr != nil {
+				// Log but don't fail the command for close errors
+				log.Printf("Warning: failed to close NTP client for %s: %v", serverURL, closeErr)
+			}
 
 			if err != nil {
 				fmt.Printf("  %s: UNREACHABLE (%v)\n", serverURL, err)

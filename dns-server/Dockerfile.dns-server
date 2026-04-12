@@ -28,8 +28,15 @@ COPY protos/ /app/protos/
 # Create cache directory
 RUN mkdir -p /app/cache
 
+# Create non-root user and set ownership
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
 # Expose ports
 EXPOSE 8080 50052 53/udp 53/tcp
 
-# Run the application
+# NOTE: K8s securityContext requires: capabilities.add: [NET_BIND_SERVICE]
+# This allows non-root binding to port 53
 CMD ["python", "-m", "app.main"]

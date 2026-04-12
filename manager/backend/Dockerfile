@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb AS base
+FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -25,6 +25,12 @@ COPY . /app/
 
 # Create databases directory for PyDAL
 RUN mkdir -p /app/databases
+
+# Create non-root user and set ownership
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
 
 # Expose ports
 EXPOSE 5000 50051

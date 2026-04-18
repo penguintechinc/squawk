@@ -1,6 +1,6 @@
 # Unified Multi-stage Dockerfile for Squawk DNS System
 # Ubuntu 24.04 LTS with Python 3.13 - Standardized Build Environment
-FROM debian:bookworm-slim@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb AS base
+FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a AS base
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.group"

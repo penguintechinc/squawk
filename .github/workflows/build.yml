@@ -79,6 +79,9 @@ jobs:
 
   security-scanning:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
 
     steps:
     - uses: actions/checkout@v4
@@ -108,7 +111,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
       with:
-        trivy-version: 'v0.69.3'
+        version: 'v0.69.3'
         scan-type: 'fs'
         scan-ref: '.'
         format: 'sarif'

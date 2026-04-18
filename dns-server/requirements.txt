@@ -7,12 +7,12 @@ Flask>=3.1.0
 Flask-Login>=0.6.3
 Flask-WTF>=1.2.1
 WTForms>=3.1.0
-penguin-dal==0.2.0
-penguin-utils==0.2.0
+penguin-dal==0.3.0
+penguin-utils==0.1.0
 penguin-licensing==0.1.0
 penguin-sal==0.1.0
 penguin-aaa==0.1.0
-penguin-limiter==0.1.0
+penguin-limiter @ git+https://github.com/penguintechinc/penguin-libs.git#subdirectory=packages/python-limiter
 alembic>=1.13.0
 dnspython>=2.7.0
 requests>=2.32.3

@@ -1,5 +1,5 @@
 # DNS Server Dockerfile with Python 3.13
-FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
+FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.io"
@@ -15,11 +15,8 @@ ENV PYTHONUNBUFFERED=1 \
     TZ=UTC \
     SQUAWK_ENV=${SQUAWK_ENV:-production}
 
-# Install Python 3.13 and basic build dependencies
-RUN apt-get update && apt-get install -y \
-    python3.13 \
-    python3.13-dev \
-    python3.13-venv \
+# Install build dependencies and LDAP/XML enterprise libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
@@ -29,11 +26,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     ca-certificates \
-    git && \
-    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 
-
-# Install LDAP, XML and enterprise dependencies
-RUN apt-get update && apt-get install -y \
+    git \
     libxml2-dev \
     libxslt1-dev \
     libldap-dev \
@@ -75,7 +68,6 @@ RUN python3.13 -m venv /app/venv && \
 
 # Make virtual environment the default
 ENV PATH="/app/venv/bin:$PATH"
-
 
 # Copy application code
 COPY . /app/dns-server/

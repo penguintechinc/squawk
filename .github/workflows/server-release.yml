@@ -16,12 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev
 
       - name: Install test dependencies
         run: |
@@ -65,17 +68,157 @@ jobs:
           docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 bins/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
 
   # Build and release job only runs when version tag created
-  build-and-release:
-    name: Build and Release DNS Server
+  build-platform:
+    name: Build ${{ matrix.service }} for ${{ matrix.platform }}
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        include:
+          - service: dns-server
+            target: dns-server
+          - service: dns-server-prod
+            target: production
+          - service: dns-client-python
+            target: dns-client
+          - service: dns-testing
+            target: testing
+        platform: [linux/amd64, linux/arm64]
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9b11de45568b7b44d28e85c0b8e7  # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebba01cdb9b2d9a7ac3b0c11b09  # v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf5ca  # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Extract platform tag
+        id: platform_tag
+        run: |
+          PLATFORM_TAG=$(echo ${{ matrix.platform }} | sed 's/linux\///')
+          echo "tag=$PLATFORM_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build and push ${{ matrix.service }} Docker image for ${{ matrix.platform }}
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ghcr.io/penguintechinc/squawk-${{ matrix.service }}:${{ steps.version.outputs.VERSION }}-${{ steps.platform_tag.outputs.tag }}
+            ghcr.io/penguintechinc/squawk-${{ matrix.service }}:latest-${{ steps.platform_tag.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=Squawk ${{ matrix.service }}
+            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.platform }}
+
+  merge-manifests:
+    name: Merge Docker manifests
+    runs-on: ubuntu-latest
+    needs: build-platform
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
       packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+        with:
+          fetch-depth: 0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf5ca  # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebba01cdb9b2d9a7ac3b0c11b09  # v3
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Merge DNS Server manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server:latest \
+            ghcr.io/penguintechinc/squawk-dns-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server:latest-arm64
+
+      - name: Merge DNS Server Production manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server-prod:latest \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:latest-arm64
+
+      - name: Merge DNS Client Python manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-client-python:latest \
+            ghcr.io/penguintechinc/squawk-dns-client-python:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-client-python:latest-arm64
+
+      - name: Merge DNS Testing manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-testing:latest \
+            ghcr.io/penguintechinc/squawk-dns-testing:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-testing:latest-arm64
+
+  # Extract release notes and create release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: merge-manifests
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
         with:
           fetch-depth: 0
 
@@ -88,86 +231,6 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Build and push DNS Server Docker images
-      - name: Build and push DNS Server Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: dns-server
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }}
-            ghcr.io/penguintechinc/squawk-dns-server:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Server
-            org.opencontainers.image.description=DNS-over-HTTPS server with web console and authentication
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push DNS Server Production Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: production
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}
-            ghcr.io/penguintechinc/squawk-dns-server-prod:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Server (Production)
-            org.opencontainers.image.description=Production-optimized DNS-over-HTTPS server
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push DNS Client Python Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: dns-client
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}
-            ghcr.io/penguintechinc/squawk-dns-client-python:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Client (Python)
-            org.opencontainers.image.description=Python DNS-over-HTTPS client with local forwarding
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push Testing Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: testing
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }}
-            ghcr.io/penguintechinc/squawk-dns-testing:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Testing
-            org.opencontainers.image.description=Testing environment with comprehensive test suite
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      # Extract release notes from RELEASE_NOTES.md
       - name: Extract Release Notes
         run: |
           chmod +x .github/scripts/extract-release-notes.sh
@@ -175,7 +238,6 @@ jobs:
           GITHUB_SHA="${{ github.sha }}" \
           .github/scripts/extract-release-notes.sh server "${{ steps.version.outputs.VERSION }}" release_body.md
 
-      # Create GitHub Release for server
       - name: Create Server Release
         uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e  # v1
         id: create_release
@@ -192,7 +254,7 @@ jobs:
   notify:
     name: Notify Server Release
     runs-on: ubuntu-latest
-    needs: [test, build-and-release]
+    needs: [test, merge-manifests, release]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Server Release Summary

@@ -1,6 +1,5 @@
 # Unified Multi-stage Dockerfile for Squawk DNS System
-# Ubuntu 24.04 LTS with Python 3.13 - Standardized Build Environment
-FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a AS base
+FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc AS base
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.group"
@@ -15,26 +14,17 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     TZ=UTC
 
-# Install Python 3.13 and basic build dependencies
-RUN apt-get update && apt-get install -y \
-    python3.13 \
-    python3.13-dev \
-    python3.13-venv \
+# Install build and LDAP/XML dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
     g++ \
     libc6-dev \
     libffi-dev \
     libssl-dev \
     pkg-config \
-    build-essential \
     curl \
     ca-certificates \
-    && ln -sf /usr/bin/python3.13 /usr/bin/python3 \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install LDAP and XML dependencies
-RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt1-dev \
     libldap-dev \

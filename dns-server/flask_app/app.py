@@ -12,7 +12,8 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_login import LoginManager
-from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash
 
 # Add current directory to path
@@ -51,9 +52,10 @@ CORS(app, resources={
     }
 })
 
-limiter = FlaskRateLimiter(
-    config=RateLimitConfig.from_string("200/minute"),
-    storage=MemoryStorage(),
+limiter = Limiter(
+    get_remote_address,
+    default_limits=["200/minute"],
+    storage_uri="memory://",
 )
 limiter.init_app(app)
 

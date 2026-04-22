@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
     - name: Set up Python
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
@@ -38,7 +38,7 @@ jobs:
           --cov-fail-under=98 -v --tb=short || true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@3f20e214133d0983f9a10f3d63b0faf9241a3daa  # v6
+      uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
@@ -53,12 +53,16 @@ jobs:
       run: |
         docker run --rm -w /app/dns-server squawk-dns-server:test python3.13 -m pytest tests/ -v --tb=short
 
+    - name: Clean up Playwright artifacts
+      if: always()
+      run: rm -rf /tmp/playwright-squawk
+
   docker-multi-build:
     runs-on: ubuntu-latest
     needs: build-and-test
 
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
     - name: Build unified Docker image - DNS Server
       run: |
@@ -87,7 +91,7 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
     - name: Set up Python for bandit
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
@@ -95,7 +99,7 @@ jobs:
         python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Set up Go for gosec
-      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
       with:
         go-version: ${{ env.GO_VERSION }}
 
@@ -106,13 +110,13 @@ jobs:
       continue-on-error: true
 
     - name: Run gosec (Go security scanner)
-      uses: securego/gosec@5e5517beec77b8228ba43ec8d7cc22d82ed31924  # v2.25.0
+      uses: securego/gosec@223e19b8856e00f02cc67804499a83f77e208f3c  # v2.25.0
       with:
         args: '-no-fail -fmt json -out gosec-results.json ./...'
       continue-on-error: true
 
     - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
       with:
         version: 'v0.69.3'
         scan-type: 'fs'
@@ -121,7 +125,7 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3  # v3
+      uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225  # v4
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'

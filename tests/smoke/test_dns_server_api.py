@@ -13,6 +13,16 @@ import json
 class TestDNSServerHealth:
     """Test DNS server health endpoints"""
 
+    def test_ready_endpoint(self, config, http_session):
+        """GET /ready returns readiness status"""
+        url = f"{config.dns_server_url}/ready"
+
+        response = http_session.get(url, timeout=config.request_timeout)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") in ("ready", "ok", "healthy")
+
     def test_health_endpoint(self, config, http_session):
         """GET /health returns healthy status"""
         url = f"{config.dns_server_url}/health"

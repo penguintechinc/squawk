@@ -9,6 +9,22 @@ import requests
 
 @pytest.mark.smoke
 @pytest.mark.api
+class TestWebConsoleHealth:
+    """Test web console health and readiness endpoints"""
+
+    def test_ready_endpoint(self, config, fresh_http_session):
+        """GET /ready returns readiness status"""
+        url = f"{config.web_console_url}/ready"
+
+        response = fresh_http_session.get(url, timeout=config.request_timeout)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") in ("ready", "ok", "healthy")
+
+
+@pytest.mark.smoke
+@pytest.mark.api
 @pytest.mark.auth
 class TestQueryAPI:
     """Test query-related API endpoints"""
@@ -159,6 +175,55 @@ class TestLogsManagementAPI:
         assert response.status_code == 200
         data = response.json()
         assert "success" in data
+
+
+@pytest.mark.smoke
+@pytest.mark.api
+@pytest.mark.auth
+class TestQueryFilterParams:
+    """Test filter and pagination params on query/domain/log endpoints"""
+
+    def test_queries_pagination_params(self, authenticated_client):
+        """GET /api/v1/queries supports page and limit params"""
+        response = authenticated_client.get("/api/v1/queries", params={"page": 1, "limit": 10})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "queries" in data
+        assert len(data["queries"]) <= 10
+
+    def test_queries_empty_far_page(self, authenticated_client):
+        """GET /api/v1/queries with a far-out page returns empty list, not error"""
+        response = authenticated_client.get("/api/v1/queries", params={"page": 99999, "limit": 10})
+
+        assert response.status_code == 200
+        data = response.json()
+        items = data.get("queries", data.get("items", data.get("data", [])))
+        assert isinstance(items, list)
+
+    def test_domains_filter_active(self, authenticated_client):
+        """GET /api/v1/domains?active=true returns only active domains"""
+        response = authenticated_client.get("/api/v1/domains", params={"active": "true"})
+
+        assert response.status_code == 200
+
+    def test_domains_filter_inactive(self, authenticated_client):
+        """GET /api/v1/domains?active=false returns only inactive domains"""
+        response = authenticated_client.get("/api/v1/domains", params={"active": "false"})
+
+        assert response.status_code == 200
+
+    def test_logs_pagination_params(self, authenticated_client):
+        """GET /api/v1/logs supports page and limit params"""
+        response = authenticated_client.get("/api/v1/logs", params={"page": 1, "limit": 50})
+
+        assert response.status_code == 200
+
+    def test_ioc_feed_invalid_id_returns_404(self, authenticated_client):
+        """GET /api/v1/ioc/feeds/<invalid_id> returns 404"""
+        response = authenticated_client.get("/api/v1/ioc/feeds/nonexistent-feed-id-000")
+
+        assert response.status_code == 404
 
 
 @pytest.mark.smoke

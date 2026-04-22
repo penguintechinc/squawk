@@ -57,7 +57,7 @@ jobs:
       - name: Security scan
         working-directory: dns-client-go
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
           make security
 
   # Build and release job - triggered by version tags

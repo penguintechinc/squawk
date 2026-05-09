@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-server
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: dns-server
+        image: localhost:32000/squawk-dns-server:latest
+        imagePullPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-client
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: dns-client
+        image: localhost:32000/squawk-dns-client:latest
+        imagePullPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: valkey
+        image: valkey/valkey:8-bookworm@sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704

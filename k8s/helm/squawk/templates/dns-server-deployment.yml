@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.dnsServer.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.dnsServer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.dnsServer.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: dns-server
+        image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsServer.image.repository }}:{{ .Values.dnsServer.image.tag }}
+        imagePullPolicy: Always
+        ports:
+        - name: doh
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: VALKEY_HOST
+          value: {{ .Values.dnsServer.env.valkeyHost | quote }}
+        - name: VALKEY_PORT
+          value: {{ .Values.dnsServer.env.valkeyPort | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.dnsServer.env.logLevel | quote }}
+        - name: DNS_PORT
+          value: {{ .Values.dnsServer.env.dnsPort | quote }}
+        - name: DOH_PORT
+          value: {{ .Values.dnsServer.env.dohPort | quote }}
+        resources:
+          {{- toYaml .Values.dnsServer.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3

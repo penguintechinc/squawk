@@ -1,5 +1,5 @@
 # Apply when ready to route external DNS through squawk:
-# kubectl --context dal2-beta patch configmap coredns -n kube-system --patch-file k8s/coredns-external-patch.yaml
+# kubectl --context dal2-beta patch configmap coredns -n kube-system --patch-file k8s/coredns-external-patch.yml
 # kubectl --context dal2-beta rollout restart deployment/coredns -n kube-system
 apiVersion: v1
 kind: ConfigMap

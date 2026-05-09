@@ -1,0 +1,15 @@
+dnsServer:
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+dnsClient:
+  replicas: 3
+
+valkey:
+  replicas: 1

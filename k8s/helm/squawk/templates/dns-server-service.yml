@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: doh
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    {{- include "squawk.dnsServer.selectorLabels" . | nindent 4 }}

@@ -1,0 +1,57 @@
+global:
+  imageRegistry: ghcr.io
+
+namespace:
+  create: true
+  name: squawk
+
+dnsServer:
+  image:
+    repository: penguintechinc/squawk
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    squawkServerUrl: "http://localhost:8080"
+    valkeyHost: "valkey"
+    valkeyPort: "6379"
+    logLevel: "info"
+    dnsPort: "8080"
+    dohPort: "8080"
+
+dnsClient:
+  image:
+    repository: penguintechinc/squawk-dns-client
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  listenPort: 5300
+
+valkey:
+  image: valkey/valkey
+  tag: "8-bookworm"
+  digest: "sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704"
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+serviceAccount:
+  create: false
+  name: ""

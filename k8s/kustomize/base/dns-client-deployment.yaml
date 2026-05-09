@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-client
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: dns-client
+    app.kubernetes.io/instance: dns-client
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: dns-client
+      app.kubernetes.io/instance: dns-client
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: dns-client
+        app.kubernetes.io/instance: dns-client
+    spec:
+      containers:
+      - name: dns-client
+        image: ghcr.io/penguintechinc/squawk-dns-client:latest
+        imagePullPolicy: Always
+        args:
+          - --server
+          - "http://dns-server:8080"
+          - --udp
+          - --tcp
+        env:
+        - name: SQUAWK_SERVER_URL
+          value: "http://dns-server:8080"
+        - name: SQUAWK_UDP_ADDRESS
+          value: "0.0.0.0:5300"
+        - name: SQUAWK_TCP_ADDRESS
+          value: "0.0.0.0:5300"
+        - name: SQUAWK_LISTEN_UDP
+          value: "true"
+        - name: SQUAWK_LISTEN_TCP
+          value: "true"
+        ports:
+        - name: dns-udp
+          containerPort: 5300
+          protocol: UDP
+        - name: dns-tcp
+          containerPort: 5300
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          tcpSocket:
+            port: 5300
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 5300
+          initialDelaySeconds: 5
+          periodSeconds: 5

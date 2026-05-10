@@ -127,7 +127,7 @@ Create the name of the service account to use
 Get the namespace
 */}}
 {{- define "squawk.namespace" -}}
-{{- if .Values.namespace.create }}
+{{- if and .Values.namespace .Values.namespace.create }}
 {{- .Values.namespace.name }}
 {{- else }}
 {{- .Release.Namespace }}

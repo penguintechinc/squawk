@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,8 +19,10 @@ import (
 	grpcclient "github.com/penguintechinc/squawk/dns-client-go/pkg/grpc"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/license"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/logger"
+	"github.com/penguintechinc/squawk/dns-client-go/pkg/metrics"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/performance"
 	timeservice "github.com/penguintechinc/squawk/dns-client-go/pkg/time"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 )
 
@@ -356,7 +360,10 @@ func overrideConfigWithFlags(cmd *cobra.Command, cfg *config.AppConfig) {
 
 // runForwarder starts the DNS forwarder service
 func runForwarder(dohClient *client.DoHClient, cfg *config.AppConfig) {
-	fwd := forwarder.NewForwarder(dohClient, cfg.Forwarder)
+	// Create metrics registry
+	m := metrics.New()
+
+	fwd := forwarder.NewForwarderWithMetrics(dohClient, cfg.Forwarder, m)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -371,10 +378,10 @@ func runForwarder(dohClient *client.DoHClient, cfg *config.AppConfig) {
 	if enablePerformanceMonitoring {
 		// Create simple logger
 		log := logger.NewSimpleLogger(verbose)
-		
+
 		// Initialize performance monitor
 		perfMonitor = performance.NewDNSPerformanceMonitor(cfg.Client, log)
-		
+
 		if err := perfMonitor.Start(); err != nil {
 			log.Printf("Failed to start performance monitoring: %v", err)
 		} else if verbose {
@@ -382,8 +389,18 @@ func runForwarder(dohClient *client.DoHClient, cfg *config.AppConfig) {
 		}
 	}
 
-	// Start forwarder in goroutine
+	// Start metrics HTTP server
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+		startMetricsServer(m)
+	}()
+
+	// Start forwarder in goroutine
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		if err := fwd.Start(ctx); err != nil {
 			log.Printf("Forwarder error: %v", err)
 		}
@@ -392,18 +409,35 @@ func runForwarder(dohClient *client.DoHClient, cfg *config.AppConfig) {
 	// Wait for shutdown signal
 	<-sigChan
 	log.Println("Received shutdown signal, stopping services...")
-	
+
 	// Stop performance monitoring first
 	if perfMonitor != nil {
 		if err := perfMonitor.Stop(); err != nil {
 			log.Printf("Error stopping performance monitor: %v", err)
 		}
 	}
-	
+
 	cancel()
 
 	// Give some time for graceful shutdown
 	time.Sleep(1 * time.Second)
+	wg.Wait()
+}
+
+// startMetricsServer starts the Prometheus metrics HTTP server on :2112
+func startMetricsServer(m *metrics.Metrics) {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{}))
+
+	server := &http.Server{
+		Addr:    ":2112",
+		Handler: mux,
+	}
+
+	log.Println("Starting metrics server on :2112/metrics")
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("Metrics server error: %v", err)
+	}
 }
 
 // printDNSResponse prints the DNS response in a human-readable format

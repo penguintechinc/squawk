@@ -28,7 +28,6 @@ test/
 *.test
 # Documentation
 *.md
-!README.md
 LICENSE
 # CI/CD
 .github/

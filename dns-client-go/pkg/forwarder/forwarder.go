@@ -10,6 +10,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/penguintechinc/squawk/dns-client-go/pkg/client"
+	"github.com/penguintechinc/squawk/dns-client-go/pkg/metrics"
 )
 
 // safeUint32 safely converts an int to uint32, clamping to valid range
@@ -26,6 +27,7 @@ func safeUint32(value int) uint32 {
 // Forwarder handles DNS forwarding from traditional DNS (UDP/TCP) to DNS-over-HTTPS
 type Forwarder struct {
 	dohClient   *client.DoHClient
+	metrics     *metrics.Metrics
 	udpAddr     string
 	tcpAddr     string
 	udpServer   *dns.Server
@@ -48,6 +50,11 @@ type Config struct {
 
 // NewForwarder creates a new DNS forwarder
 func NewForwarder(dohClient *client.DoHClient, config *Config) *Forwarder {
+	return NewForwarderWithMetrics(dohClient, config, nil)
+}
+
+// NewForwarderWithMetrics creates a new DNS forwarder with optional metrics.
+func NewForwarderWithMetrics(dohClient *client.DoHClient, config *Config, m *metrics.Metrics) *Forwarder {
 	if config == nil {
 		config = &Config{
 			UDPAddress: "127.0.0.1:53",
@@ -59,6 +66,7 @@ func NewForwarder(dohClient *client.DoHClient, config *Config) *Forwarder {
 
 	return &Forwarder{
 		dohClient: dohClient,
+		metrics:   m,
 		udpAddr:   config.UDPAddress,
 		tcpAddr:   config.TCPAddress,
 		listenUDP: config.ListenUDP,
@@ -153,6 +161,15 @@ func (f *Forwarder) Stop() error {
 
 // handleDNSRequest processes incoming DNS requests
 func (f *Forwarder) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
+	// Track active queries
+	if f.metrics != nil {
+		f.metrics.ActiveQueries.Inc()
+		defer f.metrics.ActiveQueries.Dec()
+	}
+
+	// Start timer for overall query duration
+	start := time.Now()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -165,16 +182,37 @@ func (f *Forwarder) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 	for _, q := range r.Question {
 		// Convert DNS type to string
 		qtype := dns.TypeToString[q.Qtype]
-		
+
 		log.Printf("DNS Query: %s %s from %s", q.Name, qtype, w.RemoteAddr())
+
+		// Start upstream timer
+		upstreamStart := time.Now()
 
 		// Query via DNS-over-HTTPS
 		resp, err := f.dohClient.Query(ctx, q.Name, qtype)
+
+		// Record upstream duration
+		if f.metrics != nil {
+			f.metrics.UpstreamDuration.WithLabelValues("doh").Observe(time.Since(upstreamStart).Seconds())
+		}
+
 		if err != nil {
 			log.Printf("DoH query failed for %s: %v", q.Name, err)
 			msg.SetRcode(r, dns.RcodeServerFailure)
+			// Record failed query
+			if f.metrics != nil {
+				f.metrics.QueriesTotal.WithLabelValues(
+					"bridge",
+					metrics.DNSTypeLabel(q.Qtype),
+					"external",
+					"servfail",
+				).Inc()
+			}
 			continue
 		}
+
+		// Determine result code
+		resultCode := metrics.DNSResultCode(resp.Status)
 
 		// Convert DoH response to DNS records
 		if resp.Status == 0 && len(resp.Answer) > 0 {
@@ -192,11 +230,26 @@ func (f *Forwarder) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 				msg.SetRcode(r, dns.RcodeServerFailure)
 			}
 		}
+
+		// Record successful query
+		if f.metrics != nil {
+			f.metrics.QueriesTotal.WithLabelValues(
+				"bridge",
+				metrics.DNSTypeLabel(q.Qtype),
+				"external",
+				resultCode,
+			).Inc()
+		}
 	}
 
 	// Send response
 	if err := w.WriteMsg(msg); err != nil {
 		log.Printf("Failed to write DNS response: %v", err)
+	}
+
+	// Record overall query duration
+	if f.metrics != nil {
+		f.metrics.QueryDuration.WithLabelValues("bridge", "external").Observe(time.Since(start).Seconds())
 	}
 }
 

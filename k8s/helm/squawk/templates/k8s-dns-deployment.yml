@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-dns
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-dns
+spec:
+  replicas: {{ .Values.k8sDns.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: k8s-dns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "squawk.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: k8s-dns
+    spec:
+      serviceAccountName: squawk-k8s-dns
+      containers:
+      - name: k8s-dns
+        image: {{ include "squawk.imageRegistry" . }}/{{ .Values.k8sDns.image.repository }}:{{ .Values.k8sDns.image.tag }}
+        imagePullPolicy: Always
+        command: ["squawk-k8s-dns", "serve"]
+        ports:
+        - name: dns-udp
+          containerPort: {{ .Values.k8sDns.listenPort }}
+          protocol: UDP
+        - name: dns-tcp
+          containerPort: {{ .Values.k8sDns.listenPort }}
+          protocol: TCP
+        - name: health
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: SQUAWK_SERVER_URL
+          value: {{ .Values.k8sDns.env.squawkServerUrl | quote }}
+        - name: SQUAWK_UDP_ADDRESS
+          value: {{ printf "0.0.0.0:%d" (.Values.k8sDns.listenPort | int) | quote }}
+        - name: SQUAWK_TCP_ADDRESS
+          value: {{ printf "0.0.0.0:%d" (.Values.k8sDns.listenPort | int) | quote }}
+        - name: SQUAWK_CLUSTER_DOMAIN
+          value: {{ .Values.k8sDns.env.clusterDomain | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.k8sDns.env.logLevel | quote }}
+        resources:
+          {{- toYaml .Values.k8sDns.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5

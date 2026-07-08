@@ -115,3 +115,6 @@ __pycache__/
 **/*.db
 **/*.db3
 storage.db
+
+# Track the pre-commit hook config despite the broad *.yaml ignore
+!.pre-commit-config.yaml

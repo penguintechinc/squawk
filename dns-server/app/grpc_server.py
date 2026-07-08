@@ -106,7 +106,7 @@ class DNSQueryServicer:
             source=token or 'grpc'
         )
 
-        return self._build_grpc_response(result, response_time, from_cache=False)
+        return self._build_grpc_response(result, response_time_sec, from_cache=False)
 
     async def BatchQuery(self, request, context):
         """

@@ -484,7 +484,7 @@ class WHOISManager:
             logger.error(f"Cache write failed: {e}")
 
     async def _update_search_index(
-        self, db: DAL, whois_id: int, whois_data: dict[str, Any]
+        self, db: DB, whois_id: int, whois_data: dict[str, Any]
     ) -> None:
         """Update search index for WHOIS data."""
         try:

@@ -1,5 +1,5 @@
 # Makefile for Squawk DNS System
-.PHONY: help setup test test-unit test-integration test-security test-performance clean build run stop logs shell fix-lint
+.PHONY: help setup test test-unit test-integration test-security test-performance clean build run stop logs shell fix-lint install-hooks smoke-test test-e2e test-functional
 
 PYTHON := venv/bin/python3
 PIP := venv/bin/pip3
@@ -19,21 +19,24 @@ help:
 	@echo "  setup-dev             - Set up development environment with all tools"
 	@echo "  install               - Install dependencies"
 	@echo "  install-dev           - Install development dependencies"
+	@echo "  install-hooks         - Install git pre-commit hooks"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test                  - Run all tests"
-	@echo "  test-unit             - Run unit tests only"
+	@echo "  smoke-test            - Run fast smoke tests (pre-commit)"
+	@echo "  test-unit             - Run unit tests"
 	@echo "  test-integration      - Run integration tests"
-	@echo "  test-security         - Run security tests"
+	@echo "  test-e2e              - Run end-to-end tests"
+	@echo "  test                  - Run all tests (unit + integration)"
+	@echo "  test-security         - Run security scans"
 	@echo "  test-performance      - Run performance tests"
 	@echo "  test-coverage         - Run tests with coverage report"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint                  - Run linting (flake8)"
-	@echo "  fix-lint              - Fix linting errors (black)"
+	@echo "  lint                  - Run linting (flake8, black, isort)"
+	@echo "  fix-lint              - Fix linting errors (black, isort)"
 	@echo "  format                - Format code (black)"
 	@echo "  type-check            - Run type checking (mypy)"
-	@echo "  security-check        - Run security checks (bandit, safety)"
+	@echo "  security-check        - Run security checks"
 	@echo "  quality-check         - Run all quality checks"
 	@echo ""
 	@echo "Docker:"
@@ -65,24 +68,28 @@ install-dev:
 	cd dns-server && $(PIP) install -r requirements.txt -r requirements-dev.txt
 	cd dns-client && $(PIP) install -r requirements.txt -r requirements-dev.txt
 
-setup-pre-commit:
-	@echo "Setting up pre-commit hooks..."
-	cd dns-server && venv/bin/pre-commit install
+setup-pre-commit: install-hooks
+
+install-hooks:
+	@echo "Installing pre-commit hooks..."
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit install && pre-commit install --hook-type pre-push; \
+	else \
+		echo "pre-commit not found. Install with: pip install pre-commit"; \
+		exit 1; \
+	fi
 
 # Testing targets
 test: test-unit test-integration
 
 test-unit:
 	@echo "Running unit tests..."
-	cd dns-server && $(PYTHON) -m pytest tests/ --ignore=tests/integration/ -v
+	python3 -m pytest tests/unit/ dns-server/tests/ dns-client/tests/ manager/backend/tests/ \
+		-v --tb=short
 
 test-integration:
 	@echo "Running integration tests..."
-	cd dns-server && $(PYTHON) -m pytest tests/integration/ -v
-
-test-security:
-	@echo "Running security tests..."
-	cd dns-server && $(PYTHON) -m pytest tests/ -m "security" -v
+	python3 -m pytest tests/integration/ -v --tb=short
 
 test-performance:
 	@echo "Running performance tests..."
@@ -98,13 +105,44 @@ test-coverage:
 # Code quality targets
 lint:
 	@echo "=== Linting ==="
-	@if command -v flake8 >/dev/null 2>&1; then echo "-- flake8 --"; python3 -m flake8 . --max-line-length=120 --exclude=.git,__pycache__,venv,node_modules || true; fi
-	@if command -v black >/dev/null 2>&1; then echo "-- black --"; black --check . --exclude '/(\.git|venv|__pycache__|node_modules)/' || true; fi
-	@if command -v isort >/dev/null 2>&1; then echo "-- isort --"; isort --check-only . || true; fi
-	@if command -v mypy >/dev/null 2>&1; then echo "-- mypy --"; python3 -m mypy . --ignore-missing-imports || true; fi
-	@if command -v golangci-lint >/dev/null 2>&1; then echo "-- golangci-lint --"; find . -name "go.mod" -not -path "*/.git/*" -not -path "*/vendor/*" | xargs -I{} dirname {} | xargs -I{} sh -c 'cd {} && golangci-lint run || true'; fi
-	@if command -v hadolint >/dev/null 2>&1; then echo "-- hadolint --"; find . -name "Dockerfile*" -not -path "*/.git/*" | xargs hadolint || true; fi
-	@if command -v shellcheck >/dev/null 2>&1; then echo "-- shellcheck --"; find . -name "*.sh" -not -path "*/.git/*" | xargs shellcheck || true; fi
+	@exit_code=0; \
+	if command -v flake8 >/dev/null 2>&1; then \
+		echo "-- flake8 --"; \
+		python3 -m flake8 dns-server/app manager/backend/app dns-client/bins --config=.flake8 || exit_code=1; \
+	else \
+		echo "flake8 not installed, skipping"; \
+	fi; \
+	if command -v black >/dev/null 2>&1; then \
+		echo "-- black (check) --"; \
+		black --check dns-server/app manager/backend/app dns-client/bins --line-length=120 || true; \
+	else \
+		echo "black not installed, skipping"; \
+	fi; \
+	if command -v isort >/dev/null 2>&1; then \
+		echo "-- isort (check, advisory) --"; \
+		isort --check-only dns-server/app manager/backend/app dns-client/bins --profile=black --line-length=120 2>&1 || true; \
+	else \
+		echo "isort not installed, skipping"; \
+	fi; \
+	if command -v golangci-lint >/dev/null 2>&1; then \
+		echo "-- golangci-lint (advisory) --"; \
+		cd dns-client-go && golangci-lint run --config=../.golangci.yml 2>&1 || true; cd ..; \
+	else \
+		echo "golangci-lint not installed, skipping"; \
+	fi; \
+	if command -v hadolint >/dev/null 2>&1; then \
+		echo "-- hadolint --"; \
+		find . -name "Dockerfile*" -not -path "*/.git/*" -not -path "*/venv/*" | xargs hadolint || exit_code=1; \
+	else \
+		echo "hadolint not installed, skipping"; \
+	fi; \
+	if command -v shellcheck >/dev/null 2>&1; then \
+		echo "-- shellcheck (advisory) --"; \
+		find . -name "*.sh" -not -path "*/.git/*" -not -path "*/venv/*" | xargs shellcheck || true; \
+	else \
+		echo "shellcheck not installed, skipping"; \
+	fi; \
+	exit $$exit_code
 
 fix-lint: format
 
@@ -120,12 +158,38 @@ type-check:
 
 test-security:
 	@echo "=== Security Scans ==="
-	@if command -v bandit >/dev/null 2>&1; then echo "-- bandit --"; bandit -r . -x ./tests,./venv,./.git --quiet || true; fi
-	@if command -v pip-audit >/dev/null 2>&1; then echo "-- pip-audit --"; find . -name "requirements.txt" -not -path "*/.git/*" -not -path "*/venv/*" | xargs -I{} pip-audit -r {} 2>/dev/null || true; fi
-	@if command -v gosec >/dev/null 2>&1; then echo "-- gosec --"; find . -name "go.mod" -not -path "*/.git/*" -not -path "*/vendor/*" | xargs -I{} dirname {} | xargs -I{} sh -c 'cd {} && gosec ./... || true'; fi
-	@if command -v govulncheck >/dev/null 2>&1; then echo "-- govulncheck --"; find . -name "go.mod" -not -path "*/.git/*" -not -path "*/vendor/*" | xargs -I{} dirname {} | xargs -I{} sh -c 'cd {} && govulncheck ./... || true'; fi
-	@find . -name "package.json" -not -path "*/.git/*" -not -path "*/node_modules/*" -maxdepth 3 | xargs -I{} dirname {} | xargs -I{} sh -c 'cd {} && npm audit 2>/dev/null || true'
-	@if command -v gitleaks >/dev/null 2>&1; then echo "-- gitleaks --"; gitleaks detect --source . --no-git 2>/dev/null || true; fi
+	@exit_code=0; \
+	if command -v bandit >/dev/null 2>&1; then \
+		echo "-- bandit --"; \
+		bandit -r dns-server/app manager/backend/app dns-client/bins -ll -q || exit_code=1; \
+	else \
+		echo "bandit not installed, skipping"; \
+	fi; \
+	if command -v pip-audit >/dev/null 2>&1; then \
+		echo "-- pip-audit --"; \
+		find . -name "requirements.txt" -not -path "*/.git/*" -not -path "*/venv/*" | xargs -I{} pip-audit -r {} || exit_code=1; \
+	else \
+		echo "pip-audit not installed, skipping"; \
+	fi; \
+	if command -v gosec >/dev/null 2>&1; then \
+		echo "-- gosec --"; \
+		cd dns-client-go && gosec ./... || exit_code=1; cd ..; \
+	else \
+		echo "gosec not installed, skipping"; \
+	fi; \
+	if command -v govulncheck >/dev/null 2>&1; then \
+		echo "-- govulncheck --"; \
+		cd dns-client-go && govulncheck ./... || exit_code=1; cd ..; \
+	else \
+		echo "govulncheck not installed, skipping"; \
+	fi; \
+	if command -v gitleaks >/dev/null 2>&1; then \
+		echo "-- gitleaks --"; \
+		gitleaks detect --source . --no-git -v || exit_code=1; \
+	else \
+		echo "gitleaks not installed, skipping"; \
+	fi; \
+	exit $$exit_code
 
 security-check: test-security
 	@echo "All security checks completed!"
@@ -162,14 +226,17 @@ dev:
 	@echo "Starting development environment..."
 	@$(MAKE) docker-build && docker-compose up
 
-test-functional:
-	@echo "No functional tests defined"
+smoke-test:
+	@echo "Running smoke tests..."
+	python3 -m pytest tests/smoke/ -v --tb=short -m "not slow"
 
 test-e2e:
-	@echo "No e2e tests defined"
+	@echo "Running end-to-end tests..."
+	python3 -m pytest tests/integration/ tests/load/ -v --tb=short
 
-smoke-test:
-	@echo "No smoke tests defined"
+test-functional:
+	@echo "Running functional tests..."
+	python3 -m pytest tests/ -v --tb=short -k "functional"
 
 docker-build:
 	@echo "Building Docker images..."

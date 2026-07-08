@@ -1,0 +1,21 @@
+[flake8]
+# Critical errors only (E9xx, F6xx, F7xx, F8xx)
+# Warnings reported but not blocking (set in Makefile)
+max-line-length = 120
+extend-ignore = E203, E266, E501, W503
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    */venv,
+    node_modules,
+    .pytest_cache,
+    htmlcov,
+    .mypy_cache,
+    alembic,
+    migrations,
+    */alembic,
+    */migrations
+# Select only critical error codes
+select = E9,F63,F7,F821

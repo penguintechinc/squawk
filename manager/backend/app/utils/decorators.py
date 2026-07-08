@@ -189,8 +189,7 @@ def handle_db_errors(f):
                 'error': 'Database operation failed',
                 'message': str(e)
             }), 500
-        return decorated_function
-    return decorator
+    return decorated_function
 
 
 def audit_log(action: str):

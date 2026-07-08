@@ -1,0 +1,96 @@
+[tool.black]
+line-length = 120
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | htmlcov
+  | migrations
+  | alembic
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = [
+    "*/venv/*",
+    "*/.venv/*",
+    "*/node_modules/*",
+    "*/.pytest_cache/*",
+    "*/htmlcov/*",
+    "*/.mypy_cache/*",
+    "*/alembic/*",
+    "*/migrations/*"
+]
+known_first_party = ["dns_server", "dns_client", "manager"]
+include_trailing_comma = true
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_no_return = true
+files = ["dns-server/app", "manager/backend/app", "dns-client/bins"]
+exclude = [
+    "venv",
+    ".venv",
+    "migrations",
+    "alembic",
+    "tests"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "dns-server/tests", "dns-client/tests", "manager/backend/tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["dns-server/app", "manager/backend/app", "dns-client/bins"]
+omit = [
+    "*/venv/*",
+    "*/.venv/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__main__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "^\\s*pass\\s*$",
+    "^\\s*\\.\\.\\.$"
+]
+fail_under = 80

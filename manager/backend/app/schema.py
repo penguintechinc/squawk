@@ -203,6 +203,48 @@ token = Table(
 )
 Index("idx_token_active", token.c.token, token.c.active)
 
+# ── WHOIS Cache ─────────────────────────────────────────────────────────────
+
+whois_cache = Table(
+    "whois_cache",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("query", String(1024), unique=True, nullable=False, index=True),
+    Column("query_type", String(20), nullable=False),
+    Column("whois_data", Text),
+    Column("parsed_data", JSON),
+    Column("registrar", String(255), nullable=True),
+    Column("creation_date", DateTime, nullable=True),
+    Column("expiration_date", DateTime, nullable=True),
+    Column("nameservers", JSON, nullable=True),
+    Column("query_timestamp", DateTime, nullable=False, server_default=func.now()),
+    Column("last_updated", DateTime, nullable=False, server_default=func.now(),
+           onupdate=func.now()),
+)
+
+whois_search_index = Table(
+    "whois_search_index",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("whois_id", Integer, ForeignKey("whois_cache.id", ondelete="CASCADE"),
+           nullable=False, index=True),
+    Column("search_field", String(100), nullable=False),
+    Column("search_value", String(1024), nullable=False, index=True),
+    Column("indexed_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+whois_query_log = Table(
+    "whois_query_log",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("query", String(1024), nullable=False),
+    Column("query_type", String(20), nullable=False),
+    Column("cache_hit", Boolean, nullable=False, server_default="0"),
+    Column("response_time_ms", Integer, nullable=True),
+    Column("client_ip", String(45), nullable=True),
+    Column("timestamp", DateTime, nullable=False, server_default=func.now(), index=True),
+)
+
 # ── DHCP ────────────────────────────────────────────────────────────────────
 
 dhcp_pool = Table(

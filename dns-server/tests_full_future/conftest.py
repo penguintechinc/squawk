@@ -7,6 +7,7 @@ import asyncio
 import tempfile
 import os
 import sys
+import logging
 from unittest.mock import Mock, patch, AsyncMock
 from pydal import DAL, Field
 from datetime import datetime, timedelta
@@ -21,6 +22,11 @@ bins_path = os.path.join(os.path.dirname(__file__), '..', 'bins')
 if bins_path not in sys.path:
     sys.path.insert(0, bins_path)
 
+# Add manager backend for IOCManager
+manager_backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'manager', 'backend', 'app', 'services')
+if manager_backend_path not in sys.path:
+    sys.path.insert(0, manager_backend_path)
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
@@ -31,12 +37,93 @@ def event_loop():
 @pytest.fixture
 def temp_db():
     """Create temporary SQLite database for testing"""
+    from sqlalchemy import create_engine
+
     with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
         db_path = tmp.name
-    
+
+    # Import schema from manager backend
+    try:
+        # Adjust path relative to where this conftest is
+        manager_schema_path = os.path.join(os.path.dirname(__file__), '..', '..', 'manager', 'backend', 'app', 'schema')
+        if manager_schema_path not in sys.path:
+            sys.path.insert(0, os.path.dirname(manager_schema_path))
+        from schema import metadata
+    except ImportError:
+        # Fallback: create basic schema
+        logger = logging.getLogger(__name__)
+        logger.warning("Could not import schema from manager backend, using basic schema")
+        metadata = None
+
+    # Create SQLAlchemy engine
+    engine = create_engine(f'sqlite:///{db_path}')
+
+    # Create IOC tables from schema
+    if metadata:
+        # Create only the IOC-related tables
+        from sqlalchemy import MetaData as SAMetadata, inspect
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+
+        # Create tables from the imported metadata
+        for table in metadata.tables.values():
+            if table.name in ['ioc_feed', 'ioc_entry', 'ioc_override']:
+                if table.name not in existing_tables:
+                    table.create(engine, checkfirst=True)
+    else:
+        # Fallback: create basic IOC tables
+        from sqlalchemy import Table, Column, Integer, String, DateTime, Boolean, Text, MetaData as SAMetadata, ForeignKey
+        from sqlalchemy.sql import func
+
+        temp_metadata = SAMetadata()
+
+        ioc_feed_table = Table(
+            'ioc_feed', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('name', String(100), unique=True, nullable=False),
+            Column('url', String(1024), nullable=False),
+            Column('feed_type', String(20), nullable=False),
+            Column('format', String(50)),
+            Column('update_interval', Integer, server_default='24'),
+            Column('last_updated', DateTime),
+            Column('enabled', Boolean, server_default='1'),
+            Column('active', Boolean, server_default='1'),
+            Column('entry_count', Integer, server_default='0'),
+            Column('created_at', DateTime, server_default=func.now()),
+            Column('updated_at', DateTime, onupdate=func.now()),
+        )
+
+        ioc_entry_table = Table(
+            'ioc_entry', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('feed_id', Integer, ForeignKey('ioc_feed.id', ondelete='CASCADE'), nullable=False),
+            Column('indicator', String(1024), nullable=False, index=True),
+            Column('indicator_type', String(50), nullable=False),
+            Column('threat_type', String(100)),
+            Column('confidence', Integer),
+            Column('created_at', DateTime, server_default=func.now()),
+            Column('updated_at', DateTime, onupdate=func.now()),
+        )
+
+        ioc_override_table = Table(
+            'ioc_override', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('token_id', Integer, nullable=False, index=True),
+            Column('indicator', String(1024), nullable=False, index=True),
+            Column('indicator_type', String(50), nullable=False),
+            Column('override_type', String(20), nullable=False),
+            Column('reason', String(1024)),
+            Column('created_by', String(255)),
+            Column('created_at', DateTime, server_default=func.now()),
+            Column('expires_at', DateTime),
+        )
+
+        temp_metadata.create_all(engine)
+
+    # Create PyDAL instance pointing to the same database
     db = DAL(f'sqlite://{db_path}')
-    
-    # Define test tables
+
+    # Define PyDAL tables for legacy DNS server testing (not IOC-related)
     db.define_table('tokens',
         Field('token', 'string', unique=True, notnull=True),
         Field('name', 'string', notnull=True),
@@ -45,19 +132,19 @@ def temp_db():
         Field('last_used', 'datetime'),
         Field('active', 'boolean', default=True)
     )
-    
+
     db.define_table('domains',
         Field('name', 'string', unique=True, notnull=True),
         Field('description', 'text'),
         Field('created_at', 'datetime', default=datetime.now)
     )
-    
+
     db.define_table('token_domains',
         Field('token_id', 'reference tokens', notnull=True, ondelete='CASCADE'),
         Field('domain_id', 'reference domains', notnull=True, ondelete='CASCADE'),
         Field('created_at', 'datetime', default=datetime.now)
     )
-    
+
     db.define_table('query_logs',
         Field('token_id', 'reference tokens', ondelete='SET NULL'),
         Field('domain_queried', 'string'),
@@ -66,12 +153,18 @@ def temp_db():
         Field('client_ip', 'string'),
         Field('timestamp', 'datetime', default=datetime.now)
     )
-    
+
+    # Store db_path in db for later access by test
+    db._db_path = db_path
+
     yield db
-    
+
     # Cleanup
     db.close()
-    os.unlink(db_path)
+    try:
+        os.unlink(db_path)
+    except Exception:
+        pass
 
 @pytest.fixture
 def sample_token_data(temp_db):

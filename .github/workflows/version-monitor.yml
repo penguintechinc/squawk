@@ -70,8 +70,8 @@ jobs:
     - name: Verify DNS Server version support
       run: |
         echo "DNS Server Version Check"
-        if [ -f "dns-server/bins/server_optimized.py" ]; then
-          echo "  ✓ DNS Server found"
+        if [ -f "dns-server/app/main.py" ]; then
+          echo "  ✓ DNS Server (Quart app) found"
         fi
 
     - name: Verify DNS Client version support

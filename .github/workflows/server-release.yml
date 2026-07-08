@@ -32,8 +32,8 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          python3 -m pytest dns-server/tests dns-server/flask_app/tests \
-            --cov=dns-server/bins --cov=dns-server/flask_app --cov=dns-server/app \
+          python3 -m pytest dns-server/tests \
+            --cov=dns-server/app \
             --cov-report=xml:coverage.xml --cov-report=term-missing \
             --cov-fail-under=98 -v --tb=short || true
 
@@ -52,20 +52,20 @@ jobs:
       - name: Run Docker unit tests
         run: |
           if [ -d dns-server/tests ]; then
-            docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m pytest tests/ -v --cov=bins --cov-report=term-missing --tb=short
+            docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m pytest tests/ -v --cov=app --cov-report=term-missing --tb=short
           else
             echo "No tests found, skipping test execution"
           fi
 
       - name: Run security scans on complete application image
         run: |
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m bandit -r bins/ -f json || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m bandit -r app/ -f json || true
           docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m safety check || true
 
       - name: Run linting on complete application image
         run: |
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 bins/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 bins/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
 
   # Build and release job only runs when version tag created
   build-platform:

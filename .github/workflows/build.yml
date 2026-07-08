@@ -32,8 +32,8 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        python3 -m pytest dns-server/tests dns-server/flask_app/tests \
-          --cov=dns-server/bins --cov=dns-server/flask_app --cov=dns-server/app \
+        python3 -m pytest dns-server/tests \
+          --cov=dns-server/app \
           --cov-report=xml:coverage.xml --cov-report=term-missing \
           --cov-fail-under=98 -v --tb=short || true
 

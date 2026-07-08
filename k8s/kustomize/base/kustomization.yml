@@ -8,3 +8,5 @@ resources:
   - dns-server-service.yml
   - dns-client-deployment.yml
   - dns-client-service.yml
+  - manager-deployment.yml
+  - manager-scheduler-deployment.yml

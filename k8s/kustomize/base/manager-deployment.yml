@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: manager
+    app.kubernetes.io/instance: manager
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: manager
+      app.kubernetes.io/instance: manager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: manager
+        app.kubernetes.io/instance: manager
+    spec:
+      containers:
+      - name: manager
+        image: ghcr.io/penguintechinc/squawk/manager:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: gunicorn
+          containerPort: 5000
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        env:
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: manager-db
+              key: url
+        - name: VALKEY_HOST
+          value: "valkey"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL

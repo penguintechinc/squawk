@@ -33,7 +33,7 @@ jobs:
     - name: Run tests with coverage
       run: |
         python3 -m pytest dns-server/tests dns-server/flask_app/tests \
-          --cov=dns-server/bins --cov=dns-server/flask_app \
+          --cov=dns-server/bins --cov=dns-server/flask_app --cov=dns-server/app \
           --cov-report=xml:coverage.xml --cov-report=term-missing \
           --cov-fail-under=98 -v --tb=short || true
 
@@ -56,6 +56,31 @@ jobs:
     - name: Clean up Playwright artifacts
       if: always()
       run: rm -rf /tmp/playwright-squawk
+
+  # Acceptance tests for future feature migration (non-blocking)
+  # These tests validate parity gates for features being migrated from flask_app to app.
+  # Keep non-blocking (continue-on-error) until app/ is ready to absorb all functionality.
+  acceptance-future:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install system dependencies
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev
+
+    - name: Install dependencies for acceptance tests
+      run: |
+        cd dns-server && pip install -r requirements.txt pytest
+
+    - name: Run acceptance tests for future features
+      run: |
+        python3 -m pytest dns-server/tests_full_future/ -v --tb=short || true
+      continue-on-error: true
 
   docker-multi-build:
     runs-on: ubuntu-latest

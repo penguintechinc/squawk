@@ -136,10 +136,55 @@ ioc_feed = Table(
     Column("update_interval", Integer, nullable=False, server_default="24"),
     Column("last_updated", DateTime),
     Column("active", Boolean, nullable=False, server_default="1"),
+    Column("enabled", Boolean, nullable=False, server_default="1"),
     Column("description", Text),
+    Column("format", String(50), nullable=True),
+    Column("parser_config", JSON),
+    Column("authentication", JSON),
+    Column("entry_count", Integer, nullable=False, server_default="0"),
+    Column("last_success", DateTime),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
+
+ioc_entry = Table(
+    "ioc_entry",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("feed_id", Integer, ForeignKey("ioc_feed.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("indicator", String(1024), nullable=False, index=True),
+    Column("indicator_type", String(50), nullable=False),
+    Column("threat_type", String(100), nullable=True),
+    Column("confidence", Integer, nullable=True),
+    Column("first_seen", DateTime, nullable=True),
+    Column("last_seen", DateTime, nullable=True),
+    Column("tags", JSON),
+    Column("context", JSON),
+    Column("source_format", String(50), nullable=True),
+    Column("misp_event_id", String(100), nullable=True),
+    Column("misp_attribute_id", String(100), nullable=True),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_ioc_entry_feed_indicator", ioc_entry.c.feed_id,
+      ioc_entry.c.indicator)
+
+ioc_override = Table(
+    "ioc_override",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("token_id", Integer, nullable=False, index=True),
+    Column("indicator", String(1024), nullable=False, index=True),
+    Column("indicator_type", String(50), nullable=False),
+    Column("override_type", String(20), nullable=False),
+    Column("reason", String(1024), nullable=True),
+    Column("created_by", String(255), nullable=True),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("expires_at", DateTime, nullable=True),
+)
+Index("idx_ioc_override_token_indicator", ioc_override.c.token_id,
+      ioc_override.c.indicator)
 
 token = Table(
     "token",

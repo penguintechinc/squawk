@@ -1,0 +1,298 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default-deny baseline for the squawk namespace, mirroring
+# k8s/kustomize/base/networkpolicy-*.yml so Helm and Kustomize deployments
+# enforce identical network security.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-kube-dns
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# dns-server serves DoH, /health and Prometheus /metrics all on the SAME
+# port (8080/DOH_PORT — see dns-server/app/main.py). NetworkPolicy is L3/L4
+# only, so this port is treated as fully public per product requirement
+# (dns-server is the external resolver).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-dns-server-public
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.dnsServer.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+---
+# dns-server performs live upstream DNS resolution (dns.resolver.Resolver in
+# dns-server/app/services/dns_resolver.py) and outbound license/feature-flag
+# checks. Egress to kube-dns/CoreDNS is already covered by
+# allow-egress-kube-dns above.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns-server-upstream
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.dnsServer.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+        - protocol: TCP
+          port: 443
+---
+# dns-client is the public UDP/TCP:53 listener; it proxies queries to
+# dns-server over HTTP (see templates/dns-client-deployment.yml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-dns-client-public
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsClient.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.dnsClient.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# k8s-dns: internal cluster DNS plugin (CoreDNS stub-domain forward target,
+# see templates/k8s-dns-deployment.yml). Cluster-reachable, not
+# public-internet-facing — same treatment as dns-client but without a
+# public-anywhere requirement in the task; left open to any source since
+# NetworkPolicy has no way to scope "any namespace in this cluster" more
+# tightly than "no restriction" without knowing which namespaces run
+# CoreDNS/stub-domain forwarders.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-k8s-dns
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-dns
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/component: k8s-dns
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Manager backend (Flask) — namespace-internal only, never world-exposed.
+# Ports: 5000/tcp (gunicorn/health), 50051/tcp (grpc) — see
+# templates/manager-deployment.yml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-manager
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.manager.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.manager.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 50051
+---
+# manager + manager-scheduler read DB_URL from the "manager-db" secret and
+# connect to an EXTERNAL PostgreSQL instance — no in-cluster postgres
+# workload ships in this chart. Egress must stay open on 5432/tcp or DB
+# connectivity breaks under default-deny.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-manager-external-db
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - manager
+          - manager-scheduler
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 5432
+---
+# manager + manager-scheduler run IOC threat-feed ingestion
+# (manager/backend/app/services/ioc_ingestion_service.py), which fetches
+# operator-configured external feed URLs over HTTPS — this does NOT degrade
+# gracefully (feeds simply never populate). Manager also calls
+# license.penguintech.io + PostHog over 443. Destination is unrestricted
+# (0.0.0.0/0) since feed URLs are operator-configured and SSRF is guarded at
+# the app layer. DNS (53 udp/tcp) included for name resolution of feed/
+# license hosts, in addition to the shared allow-egress-kube-dns rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-manager-external-https
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - manager
+          - manager-scheduler
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# valkey/cache — namespace-internal only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-valkey
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/component: cache
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Forward-compatible placeholder: no in-cluster PostgreSQL Deployment/Service
+# ships in this chart today (manager connects to an external, unmanaged
+# PostgreSQL instance via the "manager-db" secret / squawk.databaseUrl
+# helper). Has no matching pods currently; takes effect automatically if a
+# postgres workload with this label is added later (e.g. Bitnami postgresql
+# subchart per devops-kubernetes.md).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-postgres
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}

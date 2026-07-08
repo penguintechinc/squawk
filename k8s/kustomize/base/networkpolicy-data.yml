@@ -1,0 +1,54 @@
+# Data-tier dependencies — namespace-internal ingress only, never world-exposed.
+#
+# valkey labels/port sourced from k8s/kustomize/base/valkey-deployment.yml
+# and valkey-service.yml: app.kubernetes.io/name: squawk,
+# app.kubernetes.io/component: cache, port 6379/tcp.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-valkey
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: cache
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: cache
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Forward-compatible placeholder: no in-cluster PostgreSQL Deployment/Service
+# exists in this repo today (manager connects to an external, unmanaged
+# PostgreSQL instance via the "manager-db" secret). This policy has no
+# matching pods currently; it takes effect automatically if a postgres
+# workload carrying this label is added later (e.g. Bitnami postgresql
+# subchart, per devops-kubernetes.md).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-postgres
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432

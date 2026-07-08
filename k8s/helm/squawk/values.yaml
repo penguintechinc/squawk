@@ -89,3 +89,6 @@ manager:
 serviceAccount:
   create: false
   name: ""
+
+networkPolicy:
+  enabled: true

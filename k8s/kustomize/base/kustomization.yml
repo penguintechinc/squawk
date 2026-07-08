@@ -10,3 +10,7 @@ resources:
   - dns-client-service.yml
   - manager-deployment.yml
   - manager-scheduler-deployment.yml
+  - networkpolicy-default-deny.yml
+  - networkpolicy-dns.yml
+  - networkpolicy-manager.yml
+  - networkpolicy-data.yml

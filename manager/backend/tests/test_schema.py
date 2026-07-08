@@ -25,6 +25,8 @@ def test_schema_creates_all_tables():
         # client config (migration)
         "deployment_domain", "client_config", "config_role",
         "config_user_role", "client_instance", "config_history",
+        # selective DNS routing (migration)
+        "dns_group", "user_group_assignment", "dns_routing_zone", "group_zone_access",
     }
     assert expected == tables
     engine.dispose()

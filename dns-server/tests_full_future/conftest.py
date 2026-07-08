@@ -81,7 +81,8 @@ def temp_db():
             'ioc_feed', 'ioc_entry', 'ioc_override',  # IOC tables
             'whois_cache', 'whois_search_index', 'whois_query_log',  # WHOIS tables
             'deployment_domain', 'client_config', 'config_role',  # Client config core tables
-            'config_user_role', 'client_instance', 'config_history'  # Client config detail tables
+            'config_user_role', 'client_instance', 'config_history',  # Client config detail tables
+            'dns_group', 'user_group_assignment', 'dns_routing_zone', 'group_zone_access'  # Selective DNS routing tables
         ]
         for table_name in table_order:
             if table_name in metadata.tables and table_name not in existing_tables:
@@ -369,22 +370,28 @@ def sample_token_data(temp_db):
     db_path = temp_db._uri[9:] if temp_db._uri.startswith('sqlite://') else temp_db._uri
     schema_db = DB(f'sqlite:///{db_path}')
 
+    schema_token_id = None
     try:
         # Insert token - let DB assign the ID (penguin_dal doesn't support specifying PK on insert)
-        inserted_id = schema_db.token.insert(
+        schema_token_id = schema_db.token.insert(
             token='test-token-123456789',
             name='test-token-123456789',  # Name must match token for mTLS cert verification tests
             active=True
         )
         schema_db.commit()
-    except Exception as e:
-        # Token might already exist, continue
-        pass
+    except Exception:
+        # Token might already exist — look up its schema id
+        existing = schema_db(schema_db.token.token == 'test-token-123456789').select().first()
+        if existing:
+            schema_token_id = existing.id
     finally:
         schema_db.close()
 
+    # Return the SCHEMA `token` table id (what services + selective router read via
+    # penguin_dal), not the legacy pydal `tokens` id — this keeps token_id assertions
+    # correct regardless of how many other tokens a test seeds first.
     return {
-        'token_id': token_id,
+        'token_id': schema_token_id,
         'domain_id': domain_id,
         'wildcard_id': wildcard_id,
         'token': 'test-token-123456789',

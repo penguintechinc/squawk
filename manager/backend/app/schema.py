@@ -475,3 +475,56 @@ config_history = Table(
 )
 Index("idx_config_history_config_version", config_history.c.config_id,
       config_history.c.version)
+
+# ── Selective DNS Routing ───────────────────────────────────────────────────────
+
+dns_group = Table(
+    "dns_group",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), unique=True, nullable=False),
+    Column("description", Text),
+    Column("visibility_levels", JSON),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_dns_group_name", dns_group.c.name, unique=True)
+
+user_group_assignment = Table(
+    "user_group_assignment",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("group_id", Integer, ForeignKey("dns_group.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("role", String(50), nullable=False, server_default="member"),
+    Column("assigned_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_user_group_assignment_user_group", user_group_assignment.c.user_id,
+      user_group_assignment.c.group_id, unique=True)
+
+dns_routing_zone = Table(
+    "dns_routing_zone",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(255), unique=True, nullable=False),
+    Column("visibility", String(50), nullable=False),
+    Column("description", Text),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_dns_routing_zone_name", dns_routing_zone.c.name, unique=True)
+
+group_zone_access = Table(
+    "group_zone_access",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("group_id", Integer, ForeignKey("dns_group.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("zone_id", Integer, ForeignKey("dns_routing_zone.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+Index("idx_group_zone_access_group_zone", group_zone_access.c.group_id,
+      group_zone_access.c.zone_id, unique=True)

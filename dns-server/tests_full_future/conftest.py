@@ -82,7 +82,8 @@ def temp_db():
             'whois_cache', 'whois_search_index', 'whois_query_log',  # WHOIS tables
             'deployment_domain', 'client_config', 'config_role',  # Client config core tables
             'config_user_role', 'client_instance', 'config_history',  # Client config detail tables
-            'dns_group', 'user_group_assignment', 'dns_routing_zone', 'group_zone_access'  # Selective DNS routing tables
+            'dns_group', 'user_group_assignment', 'dns_routing_zone', 'group_zone_access',  # Selective DNS routing tables
+            'mtls_certificate', 'mtls_revocation'  # mTLS certificate tables
         ]
         for table_name in table_order:
             if table_name in metadata.tables and table_name not in existing_tables:

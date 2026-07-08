@@ -528,3 +528,40 @@ group_zone_access = Table(
 )
 Index("idx_group_zone_access_group_zone", group_zone_access.c.group_id,
       group_zone_access.c.zone_id, unique=True)
+
+# ── mTLS Certificate Management ──────────────────────────────────────────────
+
+mtls_certificate = Table(
+    "mtls_certificate",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("cert_type", String(20), nullable=False),  # 'ca' | 'server' | 'client'
+    Column("common_name", String(255), nullable=False),
+    Column("serial_number", String(255), nullable=False, unique=True, index=True),
+    Column("fingerprint_sha256", String(64), nullable=False, unique=True, index=True),
+    Column("pem_certificate", Text, nullable=False),
+    Column("issued_at", DateTime, nullable=False, server_default=func.now()),
+    Column("not_valid_before", DateTime, nullable=False),
+    Column("not_valid_after", DateTime, nullable=False),
+    Column("is_revoked", Boolean, nullable=False, server_default="0"),
+    Column("revoked_at", DateTime),
+    Column("revocation_reason", String(255)),
+    Column("subject_dn", String(512), nullable=False),
+    Column("issuer_dn", String(512), nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_mtls_certificate_type", mtls_certificate.c.cert_type)
+Index("idx_mtls_certificate_expiry", mtls_certificate.c.not_valid_after)
+
+mtls_revocation = Table(
+    "mtls_revocation",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("serial_number", String(255), nullable=False, unique=True, index=True),
+    Column("common_name", String(255), nullable=False),
+    Column("revoked_at", DateTime, nullable=False, server_default=func.now()),
+    Column("revocation_reason", String(255)),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+Index("idx_mtls_revocation_serial", mtls_revocation.c.serial_number)

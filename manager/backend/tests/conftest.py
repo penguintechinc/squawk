@@ -7,12 +7,18 @@ the full schema pre-created from app/schema.py.
 
 import os
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import create_engine, text
 
 # Ensure app package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+# Mock penguin_limiter which is not yet published
+sys.modules['penguin_limiter'] = MagicMock()
+sys.modules['penguin_limiter.storage'] = MagicMock()
+sys.modules['penguin_limiter.storage.redis_store'] = MagicMock()
 
 
 @pytest.fixture(scope="session")

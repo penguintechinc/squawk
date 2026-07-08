@@ -56,6 +56,10 @@ def create_app(config_class: type = Config) -> Flask:
     # Initialize license service
     app.license_service = LicenseService()
 
+    # Initialize IOC manager
+    from app.services.ioc_ingestion_service import IOCManager
+    app.ioc_manager = IOCManager(db_url=app.config['DB_URL'])
+
     # Register blueprints
     from app.blueprints.auth import auth_bp
     from app.blueprints.users import users_bp

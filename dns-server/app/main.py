@@ -49,8 +49,8 @@ async def startup():
         config = manager_client.config_cache
         if config.get('zones'):
             selective_router.load_zones(config['zones'])
-        if config.get('iocFeeds'):
-            ioc_checker.load_feeds(config['iocFeeds'])
+        if config.get('ioc_feeds'):
+            ioc_checker.load_feeds(config['ioc_feeds'])
 
     # Try to register/refresh with Manager
     if not manager_client.is_jwt_valid():
@@ -61,8 +61,8 @@ async def startup():
                 config = manager_client.config_cache
                 if config.get('zones'):
                     selective_router.load_zones(config['zones'])
-                if config.get('iocFeeds'):
-                    ioc_checker.load_feeds(config['iocFeeds'])
+                if config.get('ioc_feeds'):
+                    ioc_checker.load_feeds(config['ioc_feeds'])
         else:
             logger.warning("Failed to register with Manager, will retry")
 
@@ -143,6 +143,15 @@ async def dns_query():
 
     response_time = (time.time() - start_time) * 1000
 
+    # Block resolved answers whose IP is in an IOC feed (A/AAAA data)
+    for answer in result.get('Answer', []):
+        if ioc_checker.is_ip_blocked(answer.get('data', '')):
+            logger.warning(f"Blocked IOC resolved IP {answer.get('data')} for {domain}")
+            metrics_reporter.record_ioc_block()
+            metrics_reporter.record_query(domain, record_type, mode)
+            metrics_reporter.record_response_time(response_time)
+            return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
+
     # Cache result if successful
     if result.get('Status') == 0:
         await cache_manager.set(domain, record_type, result)
@@ -222,8 +231,8 @@ async def sync_task():
                 selective_router.load_zones(config['zones'])
                 logger.info(f"Reloaded {len(config['zones'])} zones")
 
-            if config.get('iocFeeds'):
-                ioc_checker.load_feeds(config['iocFeeds'])
+            if config.get('ioc_feeds'):
+                ioc_checker.load_feeds(config['ioc_feeds'])
                 logger.info("Reloaded IOC feeds")
 
 

@@ -230,15 +230,25 @@ def delete_ioc_feed(feed_id):
 @audit_log('ioc_feed_sync_triggered')
 def trigger_ioc_feed_sync(feed_id):
     """
-    Trigger immediate IOC feed sync.
+    Trigger immediate IOC feed sync (fetch from URL and ingest).
 
     Response:
         {
-            "message": "Feed sync triggered",
-            "feed_id": 1
+            "message": "Feed sync successful",
+            "feed_id": 1,
+            "feed_name": "URLhaus",
+            "indicators_added": 150
         }
+
+    Error responses:
+        400: Feed URL is empty/invalid
+        404: Feed not found
+        500: Sync failed (network error, parse error, etc.)
     """
+    import asyncio
+    import aiohttp
     from datetime import datetime
+    from app.services.ioc_ingestion_service import IOCManager
 
     db = current_app.db
     feed = db.ioc_feed[feed_id]
@@ -246,15 +256,59 @@ def trigger_ioc_feed_sync(feed_id):
     if not feed:
         return jsonify({'error': 'IOC feed not found'}), 404
 
-    # Update last_updated timestamp
-    feed.update_record(last_updated=datetime.utcnow())
-    db.commit()
+    # Validate feed has a URL
+    if not feed.url or not feed.url.strip():
+        return jsonify({'error': 'Feed URL is empty. Manual upload not yet implemented.'}), 400
 
-    # In production, this would trigger an async task to fetch and process the feed
-    # For now, just update the timestamp
+    try:
+        # Fetch feed content
+        async def fetch_and_ingest():
+            async with aiohttp.ClientSession() as session:
+                async with session.get(feed.url, timeout=60) as response:
+                    if response.status != 200:
+                        raise Exception(f"HTTP {response.status} from {feed.url}")
+                    content = await response.text()
 
-    return jsonify({
-        'message': 'Feed sync triggered successfully',
-        'feed_id': feed_id,
-        'feed_name': feed.name
-    }), 200
+                    # Use IOCManager to ingest content
+                    ioc_mgr = IOCManager(current_app.config['DB_URL'])
+                    result = await ioc_mgr.update_feed_from_content(
+                        name=feed.name,
+                        content=content,
+                        feed_type=feed.feed_type,
+                        format_type=feed.format or 'txt'
+                    )
+                    return result
+
+        # Run async ingestion in sync context
+        result = asyncio.run(fetch_and_ingest())
+
+        if not result.get('success'):
+            error_msg = result.get('error', 'Unknown ingestion error')
+            return jsonify({
+                'error': f'Feed ingestion failed: {error_msg}',
+                'feed_id': feed_id,
+                'feed_name': feed.name
+            }), 500
+
+        # Update feed metadata on success
+        feed.update_record(
+            last_updated=datetime.utcnow(),
+            last_success=datetime.utcnow()
+        )
+        db.commit()
+
+        indicators_added = result.get('indicators_added', 0)
+        return jsonify({
+            'message': 'Feed sync successful',
+            'feed_id': feed_id,
+            'feed_name': feed.name,
+            'indicators_added': indicators_added
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f"IOC feed sync failed for feed {feed_id}: {str(e)}")
+        return jsonify({
+            'error': f'Feed sync failed: {str(e)}',
+            'feed_id': feed_id,
+            'feed_name': feed.name
+        }), 500

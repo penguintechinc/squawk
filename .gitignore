@@ -104,3 +104,9 @@ Thumbs.db
 # Git worktrees
 .claude/worktrees/
 
+# Python virtual environments
+venv/
+*/venv/
+**/venv/
+__pycache__/
+.coverage

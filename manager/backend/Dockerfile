@@ -6,9 +6,12 @@ RUN apt-get update && apt-get install -y \
     build-essential libpq-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Copy supercronic binary
-# TODO: pin digest — fetch with: docker pull ghcr.io/aptible/supercronic:latest && docker inspect ghcr.io/aptible/supercronic:latest | grep Digest | head -1
-FROM ghcr.io/aptible/supercronic:latest AS supercronic
+# Stage 2: Copy supercronic binary (fixed to v0.2.47, digest pending registry access)
+# TODO WAVE-6: Pin digest — requires ghcr.io registry access to resolve:
+#   docker pull ghcr.io/aptible/supercronic:0.2.47 && \
+#   docker inspect ghcr.io/aptible/supercronic:0.2.47 | grep Digest | head -1
+# Replace 'latest' with @sha256:<digest> once digest is available
+FROM ghcr.io/aptible/supercronic:0.2.47 AS supercronic
 # Binary is at /usr/local/bin/supercronic in the supercronic image
 
 FROM base AS backend

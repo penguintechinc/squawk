@@ -28,3 +28,9 @@ CACHE_DIR = os.getenv('CACHE_DIR', '/app/cache')
 
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+# HTTP/3 (QUIC) settings
+HTTP3_ENABLED = os.getenv('HTTP3_ENABLED', 'false').lower() == 'true'
+QUIC_BIND = os.getenv('QUIC_BIND', '0.0.0.0:8443')
+TLS_CERT_FILE = os.getenv('TLS_CERT_FILE')  # Optional; CertManager fallback
+TLS_KEY_FILE = os.getenv('TLS_KEY_FILE')    # Optional; CertManager fallback

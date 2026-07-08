@@ -1,6 +1,6 @@
 """
 DNS Server Main Application
-Quart async application for DNS query handling.
+Quart async application for DNS query handling with HTTP/3 (QUIC) support.
 """
 import asyncio
 import logging
@@ -16,6 +16,7 @@ from app.services.ioc_checker import IOCChecker
 from app.services.selective_router import SelectiveRouter
 from app.utils.resilience import ResilienceManager
 from app.services.prometheus_metrics import PrometheusMetrics, init_prometheus_metrics
+from app.services.http3_serving import build_serving_config
 
 # Configure logging
 logging.basicConfig(
@@ -265,4 +266,11 @@ def _find_zone_name(domain: str) -> Optional[str]:
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=DNS_PORT)
+    # Use hypercorn for ASGI serving with optional HTTP/3 (QUIC) support
+    from hypercorn.asyncio import serve
+
+    # Build hypercorn config with HTTP/3 support if enabled
+    config = build_serving_config(app_config=None)
+
+    # Serve the Quart app
+    asyncio.run(serve(app, config))

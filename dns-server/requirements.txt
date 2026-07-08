@@ -20,7 +20,7 @@ PyYAML>=6.0.2
 cryptography==44.0.0
 gunicorn>=23.0.0
 prometheus-client==0.21.1
-hypercorn>=0.17.3
+hypercorn[h3]==0.18.0
 quart>=0.19.9
 httpx[http3]>=0.28.1
 aiofiles>=24.1.0

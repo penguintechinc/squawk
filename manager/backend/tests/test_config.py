@@ -90,7 +90,8 @@ def test_config_dict():
     assert config['development'] == DevelopmentConfig
     assert config['production'] == ProductionConfig
     assert config['testing'] == TestingConfig
-    assert config['default'] == DevelopmentConfig
+    # default maps to ProductionConfig (security hardening: never default to DEBUG)
+    assert config['default'] == ProductionConfig
 
 
 def test_config_inheritance():

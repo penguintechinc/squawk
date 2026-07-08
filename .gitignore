@@ -110,3 +110,8 @@ venv/
 **/venv/
 __pycache__/
 .coverage
+
+# SQLite artifacts (test/dev)
+**/*.db
+**/*.db3
+storage.db

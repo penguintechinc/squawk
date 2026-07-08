@@ -60,16 +60,23 @@ def temp_db():
 
     # Create IOC tables from schema
     if metadata:
-        # Create only the IOC-related tables
+        # Create only the IOC-related and WHOIS tables (not client_config, which pydal will create)
         from sqlalchemy import MetaData as SAMetadata, inspect
         inspector = inspect(engine)
         existing_tables = inspector.get_table_names()
 
-        # Create tables from the imported metadata
-        for table in metadata.tables.values():
-            if table.name in ['ioc_feed', 'ioc_entry', 'ioc_override', 'whois_cache', 'whois_search_index', 'whois_query_log']:
-                if table.name not in existing_tables:
-                    table.create(engine, checkfirst=True)
+        # Create all required tables from schema metadata to satisfy foreign key dependencies
+        # Create in order of dependency
+        table_order = [
+            'auth_user', 'team', 'token',  # Base tables
+            'ioc_feed', 'ioc_entry', 'ioc_override',  # IOC tables
+            'whois_cache', 'whois_search_index', 'whois_query_log',  # WHOIS tables
+            'deployment_domain', 'client_config', 'config_role',  # Client config core tables
+            'config_user_role', 'client_instance', 'config_history'  # Client config detail tables
+        ]
+        for table_name in table_order:
+            if table_name in metadata.tables and table_name not in existing_tables:
+                metadata.tables[table_name].create(engine, checkfirst=True)
     else:
         # Fallback: create basic IOC tables
         from sqlalchemy import Table, Column, Integer, String, DateTime, Boolean, Text, MetaData as SAMetadata, ForeignKey
@@ -118,6 +125,86 @@ def temp_db():
             Column('expires_at', DateTime),
         )
 
+        # Fallback client_config tables
+        token_table = Table(
+            'token', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('token', String(255), unique=True, nullable=False),
+            Column('name', String(100), nullable=False),
+            Column('active', Boolean, server_default='1'),
+            Column('last_used', DateTime),
+        )
+
+        deployment_domain_table = Table(
+            'deployment_domain', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('name', String(100), unique=True, nullable=False),
+            Column('description', Text),
+            Column('jwt_token', String(512), unique=True, nullable=False),
+            Column('jwt_expires', DateTime, nullable=False),
+            Column('active', Boolean, server_default='1'),
+            Column('created_at', DateTime, server_default=func.now()),
+        )
+
+        client_config_table = Table(
+            'client_config', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('name', String(100), nullable=False),
+            Column('domain_id', Integer, ForeignKey('deployment_domain.id', ondelete='CASCADE'), nullable=False),
+            Column('config_data', String, nullable=False),
+            Column('version', Integer, server_default='1'),
+            Column('description', Text),
+            Column('created_by', String(255)),
+            Column('active', Boolean, server_default='1'),
+            Column('created_at', DateTime, server_default=func.now()),
+        )
+
+        config_role_table = Table(
+            'config_role', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('name', String(50), unique=True, nullable=False),
+            Column('permissions', String, nullable=False),
+            Column('description', Text),
+            Column('created_at', DateTime, server_default=func.now()),
+        )
+
+        config_user_role_table = Table(
+            'config_user_role', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('user_token_id', Integer, ForeignKey('token.id', ondelete='CASCADE'), nullable=False),
+            Column('role_id', Integer, ForeignKey('config_role.id', ondelete='CASCADE'), nullable=False),
+            Column('domain_id', Integer, ForeignKey('deployment_domain.id', ondelete='CASCADE')),
+            Column('granted_by', String(255)),
+            Column('granted_at', DateTime, server_default=func.now()),
+        )
+
+        client_instance_table = Table(
+            'client_instance', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('client_id', String(100), unique=True, nullable=False),
+            Column('domain_id', Integer, ForeignKey('deployment_domain.id', ondelete='CASCADE'), nullable=False),
+            Column('config_id', Integer, ForeignKey('client_config.id', ondelete='SET NULL')),
+            Column('hostname', String(255), nullable=False),
+            Column('ip_address', String(45), nullable=False),
+            Column('last_checkin', DateTime),
+            Column('last_config_pull', DateTime),
+            Column('client_version', String(50)),
+            Column('os_info', String(255)),
+            Column('status', String(20), server_default='active'),
+            Column('registered_at', DateTime, server_default=func.now()),
+        )
+
+        config_history_table = Table(
+            'config_history', temp_metadata,
+            Column('id', Integer, primary_key=True, autoincrement=True),
+            Column('config_id', Integer, ForeignKey('client_config.id', ondelete='CASCADE'), nullable=False),
+            Column('version', Integer, nullable=False),
+            Column('config_data', String, nullable=False),
+            Column('change_description', String(1024)),
+            Column('changed_by', String(255)),
+            Column('changed_at', DateTime, server_default=func.now()),
+        )
+
         temp_metadata.create_all(engine)
 
     # Create PyDAL instance pointing to the same database
@@ -125,12 +212,13 @@ def temp_db():
 
     # Define PyDAL tables for legacy DNS server testing (not IOC-related)
     db.define_table('tokens',
-        Field('token', 'string', unique=True, notnull=True),
-        Field('name', 'string', notnull=True),
+        Field('token', 'string', unique=True),
+        Field('name', 'string'),
         Field('description', 'text'),
         Field('created_at', 'datetime', default=datetime.now),
         Field('last_used', 'datetime'),
-        Field('active', 'boolean', default=True)
+        Field('active', 'boolean', default=True),
+        migrate=True
     )
 
     db.define_table('domains',
@@ -154,13 +242,83 @@ def temp_db():
         Field('timestamp', 'datetime', default=datetime.now)
     )
 
+    # Define pydal aliases for client_config tables (created by SQLAlchemy above)
+    # These allow tests to access existing SQLAlchemy-created tables via pydal
+    db.define_table('deployment_domains',
+        Field('name', 'string', unique=True),
+        Field('description', 'text'),
+        Field('jwt_token', 'string', unique=True),
+        Field('jwt_expires', 'datetime'),
+        Field('active', 'boolean', default=True),
+        Field('created_at', 'datetime'),
+        migrate=False  # Table already exists in DB
+    )
+
+    db.define_table('client_configs',
+        Field('name', 'string'),
+        Field('domain_id', 'reference deployment_domains'),
+        Field('config_data', 'json'),
+        Field('version', 'integer'),
+        Field('description', 'text'),
+        Field('created_by', 'string'),
+        Field('active', 'boolean'),
+        Field('created_at', 'datetime'),
+        migrate=False
+    )
+
+    db.define_table('config_roles',
+        Field('name', 'string', unique=True),
+        Field('permissions', 'json'),
+        Field('description', 'text'),
+        Field('created_at', 'datetime'),
+        migrate=False
+    )
+
+    db.define_table('config_user_roles',
+        Field('user_token_id', 'reference tokens'),
+        Field('role_id', 'reference config_roles'),
+        Field('domain_id', 'reference deployment_domains'),
+        Field('granted_by', 'string'),
+        Field('granted_at', 'datetime'),
+        migrate=False
+    )
+
+    db.define_table('client_instances',
+        Field('client_id', 'string', unique=True),
+        Field('domain_id', 'reference deployment_domains'),
+        Field('config_id', 'reference client_configs'),
+        Field('hostname', 'string'),
+        Field('ip_address', 'string'),
+        Field('last_checkin', 'datetime'),
+        Field('last_config_pull', 'datetime'),
+        Field('client_version', 'string'),
+        Field('os_info', 'string'),
+        Field('status', 'string'),
+        Field('registered_at', 'datetime'),
+        migrate=False
+    )
+
+    db.define_table('config_histories',
+        Field('config_id', 'reference client_configs'),
+        Field('version', 'integer'),
+        Field('config_data', 'json'),
+        Field('change_description', 'text'),
+        Field('changed_by', 'string'),
+        Field('changed_at', 'datetime'),
+        migrate=False
+    )
+
     # Store db_path in db for later access by test
     db._db_path = db_path
 
     yield db
 
-    # Cleanup
-    db.close()
+    # Cleanup — tolerate an already-closed DB (some fixtures, e.g. sample_token_data,
+    # close temp_db early to release the sqlite write lock before a penguin_dal insert).
+    try:
+        db.close()
+    except Exception:
+        pass
     try:
         os.unlink(db_path)
     except Exception:
@@ -169,31 +327,53 @@ def temp_db():
 @pytest.fixture
 def sample_token_data(temp_db):
     """Create sample token data for testing"""
-    # Insert test token
+    # Insert test token into pydal legacy table
     token_id = temp_db.tokens.insert(
         token='test-token-123456789',
         name='Test Token',
         description='Token for testing',
         active=True
     )
-    
+
     # Insert test domain
     domain_id = temp_db.domains.insert(
         name='example.com',
         description='Test domain'
     )
-    
+
     # Insert wildcard domain
     wildcard_id = temp_db.domains.insert(
         name='*',
         description='Wildcard domain'
     )
-    
+
     # Grant permissions
     temp_db.token_domains.insert(token_id=token_id, domain_id=domain_id)
-    
+
     temp_db.commit()
-    
+    # CRITICAL: Close pydal DB to release the lock before penguin_dal tries to insert
+    temp_db.close()
+
+    # ALSO insert into schema `token` table (used by ClientConfigManager service)
+    # Use penguin_dal to insert to avoid database locking issues
+    from penguin_dal import DB
+    db_path = temp_db._uri[9:] if temp_db._uri.startswith('sqlite://') else temp_db._uri
+    schema_db = DB(f'sqlite:///{db_path}')
+
+    try:
+        # Insert token - let DB assign the ID (penguin_dal doesn't support specifying PK on insert)
+        inserted_id = schema_db.token.insert(
+            token='test-token-123456789',
+            name='test-token-123456789',  # Name must match token for mTLS cert verification tests
+            active=True
+        )
+        schema_db.commit()
+    except Exception as e:
+        # Token might already exist, continue
+        pass
+    finally:
+        schema_db.close()
+
     return {
         'token_id': token_id,
         'domain_id': domain_id,

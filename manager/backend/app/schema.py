@@ -385,3 +385,93 @@ time_config = Table(
     Column("description", Text),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
+
+# ── Client Configuration ────────────────────────────────────────────────────
+
+deployment_domain = Table(
+    "deployment_domain",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), unique=True, nullable=False),
+    Column("description", Text),
+    Column("jwt_token", String(512), unique=True, nullable=False),
+    Column("jwt_expires", DateTime, nullable=False),
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+
+client_config = Table(
+    "client_config",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), nullable=False),
+    Column("domain_id", Integer, ForeignKey("deployment_domain.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("config_data", JSON, nullable=False),
+    Column("version", Integer, nullable=False, server_default="1"),
+    Column("description", Text),
+    Column("created_by", String(255)),
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+
+config_role = Table(
+    "config_role",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(50), unique=True, nullable=False),
+    Column("permissions", JSON, nullable=False),
+    Column("description", Text),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+config_user_role = Table(
+    "config_user_role",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_token_id", Integer, ForeignKey("token.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("role_id", Integer, ForeignKey("config_role.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("domain_id", Integer, ForeignKey("deployment_domain.id", ondelete="CASCADE")),
+    Column("granted_by", String(255)),
+    Column("granted_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+client_instance = Table(
+    "client_instance",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("client_id", String(100), unique=True, nullable=False),
+    Column("domain_id", Integer, ForeignKey("deployment_domain.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("config_id", Integer, ForeignKey("client_config.id", ondelete="SET NULL")),
+    Column("hostname", String(255), nullable=False),
+    Column("ip_address", String(45), nullable=False),
+    Column("last_checkin", DateTime),
+    Column("last_config_pull", DateTime),
+    Column("client_version", String(50)),
+    Column("os_info", String(255)),
+    Column("status", String(20), nullable=False, server_default="active"),
+    Column("registered_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_client_instance_domain", client_instance.c.domain_id)
+Index("idx_client_instance_status", client_instance.c.status)
+
+config_history = Table(
+    "config_history",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("config_id", Integer, ForeignKey("client_config.id", ondelete="CASCADE"),
+           nullable=False),
+    Column("version", Integer, nullable=False),
+    Column("config_data", JSON, nullable=False),
+    Column("change_description", String(1024)),
+    Column("changed_by", String(255)),
+    Column("changed_at", DateTime, nullable=False, server_default=func.now()),
+)
+Index("idx_config_history_config_version", config_history.c.config_id,
+      config_history.c.version)

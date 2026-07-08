@@ -30,9 +30,12 @@ app = Quart(__name__)
 async def dns_query():
     global AUTH_TOKEN, ALLOWED_DOMAINS, DB_TYPE, DB_URL, USE_NEW_AUTH
 
-    # Extract token from Authorization header
+    # Extract token from Authorization header (strict parsing: require "Bearer " prefix)
     auth_header = request.headers.get("Authorization")
-    token = auth_header.split("Bearer ")[-1] if auth_header else None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]  # Strip "Bearer " prefix (7 chars)
+    else:
+        token = None
 
     # Parse query parameters
     name = request.args.get("name")
@@ -150,6 +153,7 @@ async def check_token_permission_new(token_value, domain_name):
     )
 
     # Check if token exists and is active
+    # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
     token_record = db(db.tokens.token == token_value).select().first()
     if not token_record or not token_record.active:
         db.close()

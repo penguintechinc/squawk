@@ -4,7 +4,9 @@ Implements per-user/group zone access control.
 """
 import logging
 import jwt as pyjwt
+from jwt.exceptions import InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError
 from typing import Dict, List, Optional
+from app.config import JWT_SECRET_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +66,14 @@ class SelectiveRouter:
             logger.debug(f"Access denied to {visibility} zone {zone['name']}: no token provided")
             return False
 
-        # Parse token to get user teams
+        # Verify JWT signature and extract payload
         try:
-            payload = pyjwt.decode(token, options={"verify_signature": False})
+            # Fail closed: JWT_SECRET_KEY must be configured for non-public zones
+            if not JWT_SECRET_KEY:
+                logger.error("JWT_SECRET_KEY not configured; denying access to non-public zone")
+                return False
+
+            payload = pyjwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
             user_teams = payload.get('teams', [])
             user_id = payload.get('user_id')
 
@@ -102,6 +109,9 @@ class SelectiveRouter:
                 # Unknown visibility, deny
                 return False
 
+        except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
+            logger.warning(f"Invalid JWT token for zone access: {e}")
+            return False
         except Exception as e:
             logger.error(f"Token parsing error: {e}")
             return False

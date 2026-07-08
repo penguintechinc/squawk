@@ -32,9 +32,12 @@ class DNSHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         global AUTH_TOKEN, ALLOWED_DOMAINS, DB_TYPE, DB_URL, USE_NEW_AUTH, USE_LICENSE_SERVER
 
-        # Extract token from Authorization header
-        token = self.headers.get("Authorization")
-        token = token.split("Bearer ")[-1] if token else None
+        # Extract token from Authorization header (strict parsing: require "Bearer " prefix)
+        auth_header = self.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Strip "Bearer " prefix (7 chars)
+        else:
+            token = None
 
         # Parse query parameters
         query = self.path.split("?name=")[-1]
@@ -269,6 +272,7 @@ class DNSHandler(http.server.BaseHTTPRequestHandler):
         )
 
         # Check if token exists and is active
+        # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
         token_record = db(db.tokens.token == token_value).select().first()
         if not token_record or not token_record.active:
             db.close()
@@ -341,6 +345,7 @@ class DNSHandler(http.server.BaseHTTPRequestHandler):
                 migrate=False,
             )
 
+            # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
             token_record = (
                 db(db.tokens.token == token_value).select().first()
                 if token_value

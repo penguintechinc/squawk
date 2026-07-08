@@ -156,17 +156,31 @@ def missing_token_callback(error):
     return jsonify({'error': 'Missing token', 'message': 'Authorization required'}), 401
 
 
-# --- Seed default admin ---
+# --- Seed default admin (manual/CLI only, gated behind SQUAWK_ADMIN_PASSWORD) ---
 
-def seed_admin_user():
-    """Seed default admin user if not exists"""
+def seed_admin_user() -> bool:
+    """
+    Seed default admin user if not exists.
+
+    Requires SQUAWK_ADMIN_PASSWORD environment variable to be set.
+    This function should only be called from explicit CLI/initialization paths,
+    never at module import time.
+
+    Returns:
+        bool: True if seeding succeeded, False if already exists or password not provided.
+    """
+    admin_password = os.environ.get('SQUAWK_ADMIN_PASSWORD')
+    if not admin_password:
+        print("Error: SQUAWK_ADMIN_PASSWORD environment variable not set. Admin seeding skipped.")
+        return False
+
     try:
         admin_exists = db(db.auth_user.email == 'admin@localhost').count() > 0
         if not admin_exists:
-            print("Seeding default admin user: admin@localhost / admin123")
+            print("Seeding default admin user: admin@localhost")
             db.auth_user.insert(
                 email='admin@localhost',
-                password=generate_password_hash('admin123'),
+                password=generate_password_hash(admin_password),
                 first_name='Admin',
                 last_name='User',
                 is_admin=True,
@@ -174,15 +188,15 @@ def seed_admin_user():
             )
             db.commit()
             print("Admin user created successfully!")
+            return True
         else:
             print("Admin user already exists")
+            return True
     except Exception as e:
         import traceback
         print(f"Error seeding admin user: {e}")
         traceback.print_exc()
-
-
-seed_admin_user()
+        return False
 
 
 # --- Root routes ---

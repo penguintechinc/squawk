@@ -3,6 +3,7 @@ Flask application factory for Squawk DNS Manager.
 """
 
 import logging
+import os
 
 from flask import Flask
 from flask_cors import CORS
@@ -12,13 +13,22 @@ from app.db import init_db
 from app.services.license_service import LicenseService
 
 
-def create_app(config_class=Config):
+def create_app(config_class: type = Config) -> Flask:
     """Create and configure Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # CORS
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # CORS with allowlist (default deny cross-origin if ALLOWED_ORIGINS unset)
+    allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
+    allowed_origins: list[str] = [
+        origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()
+    ] if allowed_origins_str else []
+
+    if allowed_origins:
+        CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
+    else:
+        # Empty allowlist = deny cross-origin
+        CORS(app, resources={r"/api/*": {"origins": []}})
 
     # Rate limiting via penguin-limiter
     from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig

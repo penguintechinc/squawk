@@ -8,6 +8,9 @@ import os
 MANAGER_URL = os.getenv('MANAGER_URL', 'http://localhost:5000')
 JOIN_KEY = os.getenv('JOIN_KEY')
 
+# JWT authentication (MUST match manager's JWT_SECRET_KEY for token verification)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+
 # DNS server settings
 DNS_PORT = int(os.getenv('DNS_PORT', 8080))
 GRPC_PORT = int(os.getenv('GRPC_PORT', 50052))

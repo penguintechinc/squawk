@@ -6,8 +6,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import jwt as pyjwt
+from jwt.exceptions import InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError
 
 from app.services.manager_client import ManagerClient
+from app.config import JWT_SECRET_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +115,13 @@ class ResilienceManager:
             return False
 
         try:
-            # Parse JWT token
-            payload = pyjwt.decode(token, options={"verify_signature": False})
+            # Fail closed: JWT_SECRET_KEY must be configured for non-public zones
+            if not JWT_SECRET_KEY:
+                logger.error("JWT_SECRET_KEY not configured; denying access to non-public zone")
+                return False
+
+            # Verify JWT signature and extract payload
+            payload = pyjwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
             user_teams = payload.get('teams', [])
             allowed_teams = zone.get('allowed_teams', [])
 
@@ -126,6 +133,9 @@ class ResilienceManager:
             # User must be in at least one allowed team
             return any(team in allowed_teams for team in user_teams)
 
+        except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
+            logger.warning(f"Invalid JWT token for zone access: {e}")
+            return False
         except Exception as e:
             logger.error(f"Token validation error: {e}")
             return False

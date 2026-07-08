@@ -272,7 +272,8 @@ class SelectiveDNSRouter:
         db = DAL(self.db_url)
 
         # Get token record
-        token_record = db(db.tokens.token == token).select().first()
+        # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
+        token_record: Optional[object] = db(db.tokens.token == token).select().first()
         if not token_record:
             db.close()
             return []
@@ -302,10 +303,11 @@ class SelectiveDNSRouter:
 
     def assign_user_to_group(
         self, token: str, group_name: str, assigned_by: str = "manual"
-    ):
+    ) -> bool:
         """Assign a user token to a group"""
         db = DAL(self.db_url)
 
+        # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
         token_record = db(db.tokens.token == token).select().first()
         if not token_record:
             db.close()
@@ -344,10 +346,11 @@ class SelectiveDNSRouter:
 
     def sync_idp_groups(
         self, token: str, idp_groups: List[str], idp_type: str = "saml"
-    ):
+    ) -> bool:
         """Sync user groups from IDP (SAML/LDAP)"""
         db = DAL(self.db_url)
 
+        # Security: Token lookup is indexed in DB; timing surface is the database query, not Python comparison
         token_record = db(db.tokens.token == token).select().first()
         if not token_record:
             db.close()

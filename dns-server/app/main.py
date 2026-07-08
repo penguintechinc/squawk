@@ -14,8 +14,8 @@ from app.services.dns_resolver import DNSResolver
 from app.services.cache_manager import CacheManager
 from app.services.ioc_checker import IOCChecker
 from app.services.selective_router import SelectiveRouter
-from app.services.metrics_reporter import MetricsReporter
 from app.utils.resilience import ResilienceManager
+from app.services.prometheus_metrics import PrometheusMetrics, init_prometheus_metrics
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,7 @@ dns_resolver = DNSResolver()
 cache_manager = CacheManager()
 ioc_checker = IOCChecker()
 selective_router = SelectiveRouter()
-metrics_reporter = MetricsReporter()
+metrics_reporter = init_prometheus_metrics(db_url=None, enable_collection=False)
 resilience_manager = ResilienceManager(manager_client)
 
 # Create Quart app
@@ -110,14 +110,29 @@ async def dns_query():
     zone_name = _find_zone_name(domain)
     if not resilience_manager.should_serve_zone(zone_name, token):
         logger.info(f"Access denied to {domain} (mode: {mode}, token: {'yes' if token else 'no'})")
-        metrics_reporter.record_query(domain, record_type, mode)
+        metrics_reporter.record_query(
+            domain=domain,
+            record_type=record_type,
+            status='error',
+            response_time=0.0,
+            cache_hit=False,
+            source=token or 'unknown'
+        )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
     # Check IOC feeds
     if ioc_checker.is_blocked(domain):
         logger.warning(f"Blocked IOC domain: {domain}")
-        metrics_reporter.record_ioc_block()
-        metrics_reporter.record_query(domain, record_type, mode)
+        metrics_reporter.record_query(
+            domain=domain,
+            record_type=record_type,
+            status='blocked',
+            response_time=0.0,
+            cache_hit=False,
+            blocked=True,
+            block_reason='threat_intelligence',
+            source=token or 'unknown'
+        )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
     # Check cache
@@ -125,13 +140,16 @@ async def dns_query():
     cached_result = await cache_manager.get(domain, record_type)
 
     if cached_result:
-        response_time = (time.time() - start_time) * 1000
-        metrics_reporter.record_cache_hit()
-        metrics_reporter.record_query(domain, record_type, mode)
-        metrics_reporter.record_response_time(response_time)
+        response_time_sec = (time.time() - start_time)
+        metrics_reporter.record_query(
+            domain=domain,
+            record_type=record_type,
+            status='success',
+            response_time=response_time_sec,
+            cache_hit=True,
+            source=token or 'unknown'
+        )
         return jsonify(cached_result), 200
-
-    metrics_reporter.record_cache_miss()
 
     # Check custom zones first
     zone_records = selective_router.get_zone_records(domain)
@@ -141,15 +159,22 @@ async def dns_query():
         # Use public DNS
         result = await dns_resolver.resolve(domain, record_type)
 
-    response_time = (time.time() - start_time) * 1000
+    response_time_sec = (time.time() - start_time)
 
     # Block resolved answers whose IP is in an IOC feed (A/AAAA data)
     for answer in result.get('Answer', []):
         if ioc_checker.is_ip_blocked(answer.get('data', '')):
             logger.warning(f"Blocked IOC resolved IP {answer.get('data')} for {domain}")
-            metrics_reporter.record_ioc_block()
-            metrics_reporter.record_query(domain, record_type, mode)
-            metrics_reporter.record_response_time(response_time)
+            metrics_reporter.record_query(
+                domain=domain,
+                record_type=record_type,
+                status='blocked',
+                response_time=response_time_sec,
+                cache_hit=False,
+                blocked=True,
+                block_reason='threat_intelligence',
+                source=token or 'unknown'
+            )
             return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
     # Cache result if successful
@@ -157,8 +182,15 @@ async def dns_query():
         await cache_manager.set(domain, record_type, result)
 
     # Record metrics
-    metrics_reporter.record_query(domain, record_type, mode)
-    metrics_reporter.record_response_time(response_time)
+    result_status = 'success' if result.get('Status') == 0 else 'error'
+    metrics_reporter.record_query(
+        domain=domain,
+        record_type=record_type,
+        status=result_status,
+        response_time=response_time_sec,
+        cache_hit=False,
+        source=token or 'unknown'
+    )
 
     return jsonify(result), 200
 
@@ -166,42 +198,15 @@ async def dns_query():
 @app.route('/metrics')
 async def metrics():
     """Prometheus-compatible metrics endpoint."""
-    metrics_data = metrics_reporter.get_metrics()
-
-    # Format as Prometheus metrics
-    output = []
-    output.append(f"# HELP dns_queries_total Total DNS queries")
-    output.append(f"# TYPE dns_queries_total counter")
-    output.append(f"dns_queries_total {metrics_data['queries_total']}")
-
-    output.append(f"# HELP dns_cache_hits Total cache hits")
-    output.append(f"# TYPE dns_cache_hits counter")
-    output.append(f"dns_cache_hits {metrics_data['cache_hits']}")
-
-    output.append(f"# HELP dns_cache_misses Total cache misses")
-    output.append(f"# TYPE dns_cache_misses counter")
-    output.append(f"dns_cache_misses {metrics_data['cache_misses']}")
-
-    output.append(f"# HELP dns_errors Total errors")
-    output.append(f"# TYPE dns_errors counter")
-    output.append(f"dns_errors {metrics_data['errors']}")
-
-    output.append(f"# HELP dns_ioc_blocked Total IOC blocks")
-    output.append(f"# TYPE dns_ioc_blocked counter")
-    output.append(f"dns_ioc_blocked {metrics_data['ioc_blocked']}")
-
-    output.append(f"# HELP dns_avg_response_ms Average response time in milliseconds")
-    output.append(f"# TYPE dns_avg_response_ms gauge")
-    output.append(f"dns_avg_response_ms {metrics_data['avg_response_ms']}")
-
-    return '\n'.join(output), 200, {'Content-Type': 'text/plain'}
+    metrics_output, content_type = metrics_reporter.get_metrics_endpoint()
+    return metrics_output, 200, {'Content-Type': content_type}
 
 
 @app.route('/status')
 async def status():
     """Detailed status endpoint."""
     resilience_status = resilience_manager.get_status()
-    metrics_data = metrics_reporter.get_metrics()
+    metrics_data = metrics_reporter.get_current_stats()
     cache_stats = cache_manager.get_stats()
     ioc_stats = ioc_checker.get_stats()
     routing_stats = selective_router.get_stats()
@@ -241,7 +246,7 @@ async def heartbeat_task():
     while True:
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
-        metrics = metrics_reporter.get_metrics()
+        metrics = metrics_reporter.get_current_stats()
         manager_client.heartbeat(metrics)
 
 

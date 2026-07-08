@@ -27,6 +27,15 @@ manager_backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'mana
 if manager_backend_path not in sys.path:
     sys.path.insert(0, manager_backend_path)
 
+# Add dns-server app/services so feature modules resolve to their SURVIVING home
+# (app/services), not the legacy bins/ copies (bins/ is slated for deletion).
+# Inserted last => index 0 => takes precedence over bins for bare-name imports.
+# NOTE: do NOT add the dns-server root here — it makes `app` resolve to dns-server/app
+# and collides with the manager's `app.` package used by cross-imported tests.
+app_services_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'services')
+if app_services_path not in sys.path:
+    sys.path.insert(0, app_services_path)
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""

@@ -81,18 +81,12 @@ RUN chown -R appuser:appuser /app
 # Switch to non-root user
 USER appuser
 
-# Health check
+# Health check (native Python, no curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f "http://localhost:${PORT:-8080}/health" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health',timeout=5).status==200 else 1)"
 
 # Expose ports
 EXPOSE 8080 8000
 
-# Smart command selection based on environment
-CMD if [ "$SQUAWK_ENV" = "test" ]; then \
-    echo "Running tests..." && \
-    python3 -m pytest tests/ -v; \
-    else \
-    echo "Starting DNS server..." && \
-    python3 /app/dns-server/bins/server_premium_integrated.py -p ${PORT:-8080} -n; \
-    fi
+# Launch Quart app via hypercorn
+CMD ["sh", "-c", "PYTHONPATH=/app/dns-server /app/venv/bin/python -m app.main"]

@@ -328,3 +328,18 @@ def mock_client_config():
 def test_jwt_secret():
     """Test JWT secret"""
     return "test_jwt_secret_key_for_unit_tests_only"
+
+
+@pytest.fixture(autouse=True)
+def _bypass_feed_url_ssrf_check():
+    """Keep feed-update tests hermetic: the real SSRF guard does live DNS
+    resolution, which these HTTP-mocked tests must not depend on. The SSRF
+    guard itself is tested directly in manager/backend/tests/test_ioc_ssrf.py.
+    """
+    try:
+        import ioc_ingestion_service
+    except ImportError:
+        yield
+        return
+    with patch.object(ioc_ingestion_service, "_assert_feed_url_safe", new=AsyncMock()):
+        yield

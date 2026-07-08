@@ -12,18 +12,51 @@ import asyncio
 import aiohttp
 import json
 import logging
+import os
 import re
 import csv
+import socket
 import defusedxml.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from io import StringIO
+from urllib.parse import urlparse
 import ipaddress
 
 from penguin_dal import DB
 
 logger = logging.getLogger(__name__)
+
+
+async def _assert_feed_url_safe(url: str) -> None:
+    """Reject SSRF-prone feed URLs before any outbound fetch.
+
+    Requires http/https, then resolves the host and refuses private,
+    loopback, link-local (incl. cloud metadata 169.254.169.254), reserved,
+    or multicast targets. Set IOC_ALLOW_PRIVATE_FEEDS=true to permit
+    internal feeds in on-prem deployments. Residual DNS-rebinding risk
+    remains (resolve-time check), which is acceptable for admin-configured
+    feeds; pin-and-connect can be added if needed.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Feed URL scheme not allowed: {parsed.scheme!r}")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Feed URL has no host")
+    if os.getenv("IOC_ALLOW_PRIVATE_FEEDS", "false").lower() == "true":
+        return
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = await asyncio.to_thread(socket.getaddrinfo, host, port)
+    except socket.gaierror as e:
+        raise ValueError(f"Feed URL host does not resolve: {host}") from e
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            raise ValueError(f"Feed URL resolves to a disallowed address ({ip}); refusing to fetch")
 
 
 @dataclass(slots=True)
@@ -669,8 +702,10 @@ class IOCManager:
 
     async def _update_single_feed(self, db: DB, feed: Any) -> None:
         """Update a single feed by fetching from its URL. Raises on error."""
+        await _assert_feed_url_safe(feed.url)
         async with aiohttp.ClientSession() as session:
-            async with session.get(feed.url, timeout=60) as response:
+            # Do not follow redirects: an allowed host could 302 to an internal target.
+            async with session.get(feed.url, timeout=60, allow_redirects=False) as response:
                 if response.status == 200:
                     content = await response.text()
 

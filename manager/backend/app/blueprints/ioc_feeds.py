@@ -248,7 +248,7 @@ def trigger_ioc_feed_sync(feed_id):
     import asyncio
     import aiohttp
     from datetime import datetime
-    from app.services.ioc_ingestion_service import IOCManager
+    from app.services.ioc_ingestion_service import IOCManager, _assert_feed_url_safe
 
     db = current_app.db
     feed = db.ioc_feed[feed_id]
@@ -263,8 +263,11 @@ def trigger_ioc_feed_sync(feed_id):
     try:
         # Fetch feed content
         async def fetch_and_ingest():
+            # SSRF guard: reject internal/metadata targets before fetching,
+            # and do not follow redirects (an allowed host could 302 to 169.254.169.254).
+            await _assert_feed_url_safe(feed.url)
             async with aiohttp.ClientSession() as session:
-                async with session.get(feed.url, timeout=60) as response:
+                async with session.get(feed.url, timeout=60, allow_redirects=False) as response:
                     if response.status != 200:
                         raise Exception(f"HTTP {response.status} from {feed.url}")
                     content = await response.text()

@@ -25,3 +25,4 @@ psycopg2-binary==2.9.10
 PyMySQL==1.1.1
 defusedxml==0.7.1
 aiohttp==3.10.0
+posthog==3.6.0

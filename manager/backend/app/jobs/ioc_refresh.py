@@ -46,11 +46,30 @@ async def main() -> int:
     """
     try:
         from app.services.ioc_ingestion_service import IOCManager
+        from app.services.posthog_client import PostHogClient
 
         db_url = _get_db_url()
         manager = IOCManager(db_url)
 
-        # TODO(ioc-gating): skip refresh when PostHog flag 'squawkdns.ioc-ingestion' disabled
+        # Check PostHog feature flag for IOC ingestion
+        posthog = PostHogClient()
+        distinct_id = os.getenv('HOSTNAME', 'squawk-manager')
+        flag_enabled = posthog.feature_enabled(
+            'squawkdns.ioc-ingestion',
+            distinct_id,
+            default=False,
+        )
+
+        if not flag_enabled:
+            # Feature flag disabled; skip refresh
+            summary = {
+                'job': 'ioc_refresh',
+                'skipped': True,
+                'reason': 'Feature flag squawkdns.ioc-ingestion is disabled',
+            }
+            print(json.dumps(summary))
+            logger.info('IOC refresh skipped: feature flag disabled')
+            return 0
 
         result = await manager.update_all_feeds()
 

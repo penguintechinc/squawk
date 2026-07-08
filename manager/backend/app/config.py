@@ -43,6 +43,11 @@ class Config:
     LICENSE_SERVER_URL = os.getenv('LICENSE_SERVER_URL', 'https://license.squawkdns.com')
     LICENSE_KEY = os.getenv('PENGUINTECH_LICENSE_KEY')
 
+    # PostHog feature flags
+    POSTHOG_API_KEY = os.getenv('POSTHOG_API_KEY')
+    POSTHOG_HOST = os.getenv('POSTHOG_HOST')
+    POSTHOG_PROJECT_KEY = os.getenv('POSTHOG_PROJECT_KEY')
+
     # gRPC
     GRPC_PORT = int(os.getenv('GRPC_PORT', 50051))
 

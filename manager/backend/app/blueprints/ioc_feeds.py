@@ -3,12 +3,75 @@ IOC Feed management API blueprint.
 Handles threat intelligence feed configuration.
 """
 
+import os
+from functools import wraps
+from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
 from app.middleware.rbac import requires_system_admin, requires_role
 from app.utils.decorators import validate_json, audit_log
 
 ioc_feeds_bp = Blueprint('ioc_feeds', __name__)
+
+# Enterprise-only feed formats
+ENTERPRISE_FORMATS = {'taxii', 'misp', 'stix', 'openioc'}
+COMMUNITY_FORMATS = {'txt', 'csv', 'json', 'xml'}
+
+
+def _get_deployment_id() -> str:
+    """Get stable deployment identifier for PostHog flag checks."""
+    return os.getenv('HOSTNAME', 'squawk-manager')
+
+
+def _check_ioc_flag_and_license(format_type: Optional[str] = None):
+    """
+    Decorator to enforce PostHog flag + license gating for IOC operations.
+
+    - PostHog flag 'squawkdns.ioc-ingestion' must be enabled
+    - If format_type is enterprise, license feature 'ioc_advanced_feeds' must be enabled
+
+    Returns 403 if flag disabled, 402 if license required but not available.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check PostHog flag
+            posthog = current_app.posthog
+            distinct_id = _get_deployment_id()
+            flag_enabled = posthog.feature_enabled(
+                'squawkdns.ioc-ingestion',
+                distinct_id,
+                default=False,
+            )
+
+            if not flag_enabled:
+                return jsonify({
+                    'error': 'IOC ingestion feature is disabled',
+                    'feature_flag': 'squawkdns.ioc-ingestion',
+                }), 403
+
+            # Check license for enterprise formats
+            # Get format from request data or kwargs
+            fmt = format_type
+            if not fmt and request.is_json:
+                data = request.get_json()
+                fmt = data.get('format') if data else None
+
+            if fmt and fmt.lower() in ENTERPRISE_FORMATS:
+                license_service = current_app.license_service
+                if not license_service.is_feature_enabled('ioc_advanced_feeds'):
+                    tier = license_service.get_tier()
+                    return jsonify({
+                        'error': 'Advanced IOC formats require Enterprise license',
+                        'feature': 'ioc_advanced_feeds',
+                        'format': fmt,
+                        'tier_required': 'enterprise',
+                        'current_tier': tier,
+                    }), 402
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds', methods=['GET'])
@@ -70,6 +133,7 @@ def list_ioc_feeds():
 @token_required
 @requires_system_admin
 @validate_json('name', 'url', 'feed_type')
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_created')
 def create_ioc_feed():
     """
@@ -158,6 +222,7 @@ def get_ioc_feed(feed_id):
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['PUT'])
 @token_required
 @requires_system_admin
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_updated')
 def update_ioc_feed(feed_id):
     """
@@ -207,6 +272,7 @@ def update_ioc_feed(feed_id):
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['DELETE'])
 @token_required
 @requires_system_admin
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_deleted')
 def delete_ioc_feed(feed_id):
     """Delete IOC feed."""
@@ -227,6 +293,7 @@ def delete_ioc_feed(feed_id):
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>/sync', methods=['POST'])
 @token_required
 @requires_system_admin
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_sync_triggered')
 def trigger_ioc_feed_sync(feed_id):
     """

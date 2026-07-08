@@ -101,6 +101,10 @@ class IOCManager:
     - Expiring overrides
     """
 
+    # Enterprise-only formats (require license)
+    ENTERPRISE_FORMATS = {'taxii', 'misp', 'stix', 'openioc'}
+    COMMUNITY_FORMATS = {'txt', 'csv', 'json', 'xml'}
+
     def __init__(
         self,
         db_url: str,
@@ -143,6 +147,35 @@ class IOCManager:
             db.close()
         except Exception as e:
             logger.warning(f"Database initialization check failed: {e}. Schema may not exist yet.")
+
+    def _is_format_licensed(self, format_type: str) -> bool:
+        """
+        Check if a format is available (licensed).
+
+        Community formats are always available.
+        Enterprise formats require 'ioc_advanced_feeds' license.
+
+        Args:
+            format_type: Format name (txt, csv, json, xml, taxii, misp, stix, openioc)
+
+        Returns:
+            True if format is available, False if requires unavailable license.
+        """
+        fmt = format_type.lower() if format_type else ''
+
+        # Community formats always available
+        if fmt in self.COMMUNITY_FORMATS:
+            return True
+
+        # Enterprise formats require license
+        if fmt in self.ENTERPRISE_FORMATS:
+            if self.license_manager:
+                return self.license_manager.is_feature_enabled('ioc_advanced_feeds')
+            # No license manager set; deny enterprise formats
+            return False
+
+        # Unknown format; deny by default
+        return False
 
     # ── Normalization ────────────────────────────────────────────────────────
 
@@ -511,6 +544,14 @@ class IOCManager:
         - warnings (optional list)
         - error (optional str)
         """
+        # Check license for enterprise formats
+        if not self._is_format_licensed(format_type):
+            return {
+                "success": False,
+                "indicators_added": 0,
+                "error": f"Format '{format_type}' requires Enterprise license (ioc_advanced_feeds)",
+            }
+
         try:
             db = DB(self.db_url)
 
@@ -599,6 +640,13 @@ class IOCManager:
         - success (bool)
         - feed_id (int, if success)
         """
+        # Check license for enterprise formats
+        if not self._is_format_licensed(format_type):
+            return {
+                "success": False,
+                "error": f"Format '{format_type}' requires Enterprise license (ioc_advanced_feeds)",
+            }
+
         try:
             db = DB(self.db_url)
 

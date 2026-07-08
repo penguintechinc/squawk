@@ -22,12 +22,17 @@ async def test_ioc_refresh_main_success(capsys: pytest.CaptureFixture[str]) -> N
         "skipped": 1,
     }
 
-    with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
-        mock_manager = MagicMock()
-        mock_manager.update_all_feeds = AsyncMock(return_value=mock_result)
-        MockIOCManager.return_value = mock_manager
+    with patch("app.services.posthog_client.PostHogClient") as MockPostHog:
+        mock_posthog = MagicMock()
+        mock_posthog.feature_enabled.return_value = True
+        MockPostHog.return_value = mock_posthog
 
-        exit_code = await main()
+        with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
+            mock_manager = MagicMock()
+            mock_manager.update_all_feeds = AsyncMock(return_value=mock_result)
+            MockIOCManager.return_value = mock_manager
+
+            exit_code = await main()
 
     assert exit_code == 0
     captured = capsys.readouterr()
@@ -48,12 +53,17 @@ async def test_ioc_refresh_main_failure(capsys: pytest.CaptureFixture[str]) -> N
         "error": "Network timeout on feed update",
     }
 
-    with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
-        mock_manager = MagicMock()
-        mock_manager.update_all_feeds = AsyncMock(return_value=mock_result)
-        MockIOCManager.return_value = mock_manager
+    with patch("app.services.posthog_client.PostHogClient") as MockPostHog:
+        mock_posthog = MagicMock()
+        mock_posthog.feature_enabled.return_value = True
+        MockPostHog.return_value = mock_posthog
 
-        exit_code = await main()
+        with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
+            mock_manager = MagicMock()
+            mock_manager.update_all_feeds = AsyncMock(return_value=mock_result)
+            MockIOCManager.return_value = mock_manager
+
+            exit_code = await main()
 
     assert exit_code != 0
     captured = capsys.readouterr()
@@ -68,10 +78,15 @@ async def test_ioc_refresh_main_exception(capsys: pytest.CaptureFixture[str]) ->
     """Test main() returns non-zero on exception."""
     from app.jobs.ioc_refresh import main
 
-    with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
-        MockIOCManager.side_effect = RuntimeError("Database connection failed")
+    with patch("app.services.posthog_client.PostHogClient") as MockPostHog:
+        mock_posthog = MagicMock()
+        mock_posthog.feature_enabled.return_value = True
+        MockPostHog.return_value = mock_posthog
 
-        exit_code = await main()
+        with patch("app.services.ioc_ingestion_service.IOCManager") as MockIOCManager:
+            MockIOCManager.side_effect = RuntimeError("Database connection failed")
+
+            exit_code = await main()
 
     assert exit_code != 0
     captured = capsys.readouterr()

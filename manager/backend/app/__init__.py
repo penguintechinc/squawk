@@ -56,6 +56,10 @@ def create_app(config_class: type = Config) -> Flask:
     # Initialize license service
     app.license_service = LicenseService()
 
+    # Initialize PostHog client for feature flags
+    from app.services.posthog_client import PostHogClient
+    app.posthog = PostHogClient()
+
     # Initialize IOC manager
     from app.services.ioc_ingestion_service import IOCManager
     app.ioc_manager = IOCManager(db_url=app.config['DB_URL'])

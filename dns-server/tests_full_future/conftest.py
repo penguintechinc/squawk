@@ -67,7 +67,7 @@ def temp_db():
 
         # Create tables from the imported metadata
         for table in metadata.tables.values():
-            if table.name in ['ioc_feed', 'ioc_entry', 'ioc_override']:
+            if table.name in ['ioc_feed', 'ioc_entry', 'ioc_override', 'whois_cache', 'whois_search_index', 'whois_query_log']:
                 if table.name not in existing_tables:
                     table.create(engine, checkfirst=True)
     else:

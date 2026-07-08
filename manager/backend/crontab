@@ -2,3 +2,8 @@
 # Output is captured by supercronic and logged to stdout
 
 */30 * * * * cd /app && python3 -m app.jobs.ioc_refresh
+
+# WHOIS cache cleanup job — runs daily at 3 AM
+# Output is captured by supercronic and logged to stdout
+
+0 3 * * * cd /app && python3 -m app.jobs.whois_cleanup

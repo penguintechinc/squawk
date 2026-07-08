@@ -64,6 +64,10 @@ def create_app(config_class: type = Config) -> Flask:
     from app.services.ioc_ingestion_service import IOCManager
     app.ioc_manager = IOCManager(db_url=app.config['DB_URL'])
 
+    # Initialize WHOIS manager
+    from app.services.whois_service import WHOISManager
+    app.whois_manager = WHOISManager(db_url=app.config['DB_URL'])
+
     # Register blueprints
     from app.blueprints.auth import auth_bp
     from app.blueprints.users import users_bp
@@ -72,6 +76,7 @@ def create_app(config_class: type = Config) -> Flask:
     from app.blueprints.dns_servers import dns_servers_bp
     from app.blueprints.zones import zones_bp
     from app.blueprints.ioc_feeds import ioc_feeds_bp
+    from app.blueprints.whois import whois_bp
     from app.blueprints.analytics import analytics_bp
     from app.blueprints.dhcp import dhcp_bp
     from app.blueprints.time import time_bp
@@ -83,6 +88,7 @@ def create_app(config_class: type = Config) -> Flask:
     app.register_blueprint(dns_servers_bp)
     app.register_blueprint(zones_bp)
     app.register_blueprint(ioc_feeds_bp)
+    app.register_blueprint(whois_bp)
     app.register_blueprint(analytics_bp)
     app.register_blueprint(dhcp_bp)
     app.register_blueprint(time_bp)

@@ -72,9 +72,6 @@ ENV PATH="/app/venv/bin:$PATH"
 # Copy application code
 COPY . /app/dns-server/
 
-# Copy web console
-COPY web/ /app/web/
-
 # Set permissions
 RUN chown -R appuser:appuser /app
 

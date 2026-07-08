@@ -90,8 +90,8 @@ test-performance:
 
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(PYTHON) -m pytest dns-server/tests dns-client/tests dns-server/flask_app/tests \
-		--cov=dns-server/bins --cov=dns-client/bins --cov=dns-server/flask_app \
+	$(PYTHON) -m pytest dns-server/tests dns-client/tests \
+		--cov=dns-server/app --cov=dns-client/bins \
 		--cov-report=html:htmlcov --cov-report=term-missing --cov-report=xml:coverage.xml \
 		--cov-fail-under=98
 
@@ -110,12 +110,12 @@ fix-lint: format
 
 format:
 	@echo "Formatting code..."
-	cd dns-server && $(BLACK) bins/ tests/
+	cd dns-server && $(BLACK) app/ tests/
 	cd dns-client && $(BLACK) bins/ tests/
 
 type-check:
 	@echo "Running type checks..."
-	cd dns-server && $(MYPY) bins/
+	cd dns-server && $(MYPY) app/
 	cd dns-client && $(MYPY) bins/
 
 test-security:

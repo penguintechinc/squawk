@@ -14,15 +14,14 @@ from typing import Any
 from sqlalchemy.engine import Engine
 from penguin_dal import DB
 
-# Add bins directory to Python path
-bins_path = os.path.join(os.path.dirname(__file__), "..", "bins")
-if bins_path not in sys.path:
-    sys.path.insert(0, bins_path)
-
-# Set up test database before any flask_app imports
-flask_app_path = os.path.join(os.path.dirname(__file__), "..", "flask_app")
-if flask_app_path not in sys.path:
-    sys.path.insert(0, flask_app_path)
+# Add the manager backend app dir to path so the shared SQLAlchemy schema
+# (manager/backend/app/schema.py) is importable — this is the canonical schema
+# authority now that the legacy flask_app tree has been removed.
+manager_app_path = os.path.join(
+    os.path.dirname(__file__), "..", "..", "manager", "backend", "app"
+)
+if manager_app_path not in sys.path:
+    sys.path.insert(0, manager_app_path)
 
 # Create a temp SQLite file for this test session
 _fd, _test_db_tmp = tempfile.mkstemp(suffix=".db", prefix="squawk_test_")
@@ -64,8 +63,6 @@ def db(db_engine: Engine) -> Generator[DB, None, None]:
 def clean_db_tables(db: DB) -> Generator[None, None, None]:
     """Truncate all tables before each test for isolation."""
     yield
-    # Note: test_flask_database.py tests import database.db directly (not this fixture's db).
-    # Both use the same SQLite file via DATABASE_URI, so teardown here still clears their rows.
     from schema import metadata
     from sqlalchemy import text
 

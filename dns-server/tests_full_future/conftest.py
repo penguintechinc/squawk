@@ -12,24 +12,12 @@ from unittest.mock import Mock, patch, AsyncMock
 from pydal import DAL, Field
 from datetime import datetime, timedelta
 
-# Add web/apps directory to Python path for importing dns_console
-web_apps_path = os.path.join(os.path.dirname(__file__), '..', 'web', 'apps')
-if web_apps_path not in sys.path:
-    sys.path.insert(0, web_apps_path)
-
-# Add bins directory to Python path for importing feature modules
-bins_path = os.path.join(os.path.dirname(__file__), '..', 'bins')
-if bins_path not in sys.path:
-    sys.path.insert(0, bins_path)
-
 # Add manager backend for IOCManager
 manager_backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'manager', 'backend', 'app', 'services')
 if manager_backend_path not in sys.path:
     sys.path.insert(0, manager_backend_path)
 
-# Add dns-server app/services so feature modules resolve to their SURVIVING home
-# (app/services), not the legacy bins/ copies (bins/ is slated for deletion).
-# Inserted last => index 0 => takes precedence over bins for bare-name imports.
+# Add dns-server app/services so feature modules resolve to their canonical home.
 # NOTE: do NOT add the dns-server root here — it makes `app` resolve to dns-server/app
 # and collides with the manager's `app.` package used by cross-imported tests.
 app_services_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'services')

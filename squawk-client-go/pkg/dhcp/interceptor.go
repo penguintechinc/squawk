@@ -362,7 +362,7 @@ func (i *Interceptor) buildResponsePacket(request *DHCPMessage, lease *Lease, ms
 	// DNS servers
 	if len(lease.DNSServers) > 0 {
 		packet[offset] = OptDNS
-		packet[offset+1] = byte(len(lease.DNSServers) * 4)
+		packet[offset+1] = byte(len(lease.DNSServers) * 4) //nolint:gosec // G115: len(DNSServers)*4 is always < 256 (max 6 servers * 4 = 24)
 		offset += 2
 		for _, dns := range lease.DNSServers {
 			dnsIP := net.ParseIP(dns)

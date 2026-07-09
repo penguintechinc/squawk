@@ -186,7 +186,7 @@ func (c *NTPClient) queryServer(ctx context.Context, serverAddr string) (*TimeRe
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NTP server: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := conn.SetDeadline(deadline); err != nil {
 		return nil, fmt.Errorf("failed to set deadline: %w", err)

@@ -80,17 +80,23 @@ func (w *Watcher) Start(ctx context.Context) error {
 	)
 
 	// Add event handlers
-	w.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := w.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    w.handleServiceAdd,
 		UpdateFunc: w.handleServiceUpdate,
 		DeleteFunc: w.handleServiceDelete,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add service event handler: %w", err)
+	}
 
-	w.endpointInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = w.endpointInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    w.handleEndpointAdd,
 		UpdateFunc: w.handleEndpointUpdate,
 		DeleteFunc: w.handleEndpointDelete,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add endpoint event handler: %w", err)
+	}
 
 	// Start informers
 	go w.serviceInformer.Run(w.stopCh)
@@ -212,7 +218,7 @@ func (w *Watcher) updateServiceRecords(svc *corev1.Service) {
 					},
 					Priority: 10,
 					Weight:   100,
-					Port:     uint16(port.Port),
+					Port:     uint16(port.Port), //nolint:gosec // G115: port.Port is guaranteed to be a valid port number (0-65535)
 					Target:   targetName,
 				},
 			}

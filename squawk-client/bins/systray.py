@@ -36,9 +36,7 @@ class DNSClientTray:
         self.start_health_monitoring()
 
     def setup_logging(self):
-        logging.basicConfig(
-            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-        )
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     def create_image(self, health_status="unknown"):
         """Create a simple DNS icon for the system tray with health indicator"""
@@ -96,11 +94,7 @@ class DNSClientTray:
     def create_menu(self):
         """Create the system tray menu"""
         health_text = f"Server Health: {self.server_health['status'].title()}"
-        fallback_text = (
-            "Restore Original DNS"
-            if self.dns_fallback_active
-            else "Fallback to Original DNS"
-        )
+        fallback_text = "Restore Original DNS" if self.dns_fallback_active else "Fallback to Original DNS"
 
         return pystray.Menu(
             pystray.MenuItem(
@@ -108,9 +102,7 @@ class DNSClientTray:
                 self.start_service,
                 enabled=lambda item: not self.running,
             ),
-            pystray.MenuItem(
-                "Stop DNS Service", self.stop_service, enabled=lambda item: self.running
-            ),
+            pystray.MenuItem("Stop DNS Service", self.stop_service, enabled=lambda item: self.running),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(health_text, self.check_server_health_manual),
             pystray.Menu.SEPARATOR,
@@ -135,9 +127,7 @@ class DNSClientTray:
 
         try:
             # Load configuration
-            dns_server_url = self.config.get(
-                "dns_server_url", "https://dns.google/resolve"
-            )
+            dns_server_url = self.config.get("dns_server_url", "https://dns.google/resolve")
             auth_token = self.config.get("auth_token")
             listen_udp = self.config.get("listen_udp", False)
             listen_tcp = self.config.get("listen_tcp", False)
@@ -169,9 +159,7 @@ class DNSClientTray:
 
             # Start forwarder in background thread
             if listen_udp or listen_tcp:
-                self.forwarder_thread = threading.Thread(
-                    target=self.forwarder.start, daemon=True
-                )
+                self.forwarder_thread = threading.Thread(target=self.forwarder.start, daemon=True)
                 self.forwarder_thread.start()
 
             self.running = True
@@ -246,9 +234,7 @@ class DNSClientTray:
         """Open the web console"""
         import webbrowser
 
-        console_url = self.config.get(
-            "console_url", "http://localhost:8080/dns_console"
-        )
+        console_url = self.config.get("console_url", "http://localhost:8080/dns_console")
         webbrowser.open(console_url)
 
     def open_settings(self, icon=None, item=None):
@@ -307,9 +293,7 @@ class DNSClientTray:
             return
 
         self.health_check_running = True
-        self.health_monitor_thread = threading.Thread(
-            target=self._health_monitor_loop, daemon=True
-        )
+        self.health_monitor_thread = threading.Thread(target=self._health_monitor_loop, daemon=True)
         self.health_monitor_thread.start()
         logging.info("Started DNS server health monitoring")
 
@@ -389,14 +373,10 @@ class DNSClientTray:
             if healthy_servers == 0:
                 new_status = "unhealthy"
                 failures = self.server_health.get("failures", 0) + 1
-                self._handle_server_failure(
-                    f"All {total_servers} DNS servers are unreachable"
-                )
+                self._handle_server_failure(f"All {total_servers} DNS servers are unreachable")
             elif healthy_servers < total_servers:
                 new_status = "degraded"
-                failures = max(
-                    0, self.server_health.get("failures", 0) - 1
-                )  # Reduce failures but don't go negative
+                failures = max(0, self.server_health.get("failures", 0) - 1)  # Reduce failures but don't go negative
             else:
                 new_status = "healthy"
                 failures = 0
@@ -438,9 +418,7 @@ class DNSClientTray:
 
         # Show notification on first failure or every 5th failure to avoid spam
         if failures <= 1 or failures % 5 == 0:
-            self.show_notification(
-                "DNS Server Alert", f"{message}\n\nFailure count: {failures}"
-            )
+            self.show_notification("DNS Server Alert", f"{message}\n\nFailure count: {failures}")
 
         logging.warning(f"DNS server failure: {message} (failure #{failures})")
         self.update_icon_status(self.running)
@@ -452,9 +430,7 @@ class DNSClientTray:
         try:
             if sys.platform == "win32":
                 # Windows: Use nslookup to get DNS servers
-                result = subprocess.run(
-                    ["nslookup"], input="\n", text=True, capture_output=True, timeout=5
-                )
+                result = subprocess.run(["nslookup"], input="\n", text=True, capture_output=True, timeout=5)
                 for line in result.stdout.split("\n"):
                     if "Default Server:" in line or "Address:" in line:
                         # Extract IP address
@@ -466,14 +442,10 @@ class DNSClientTray:
 
             elif sys.platform == "darwin":
                 # macOS: Use scutil to get DNS servers
-                result = subprocess.run(
-                    ["scutil", "--dns"], capture_output=True, text=True, timeout=5
-                )
+                result = subprocess.run(["scutil", "--dns"], capture_output=True, text=True, timeout=5)
                 import re
 
-                dns_servers = re.findall(
-                    r"nameserver\[\d+\] : ([0-9.]+)", result.stdout
-                )
+                dns_servers = re.findall(r"nameserver\[\d+\] : ([0-9.]+)", result.stdout)
 
             else:
                 # Linux: Check common DNS configuration locations
@@ -491,11 +463,7 @@ class DNSClientTray:
 
             # Remove duplicates and localhost addresses
             dns_servers = list(dict.fromkeys(dns_servers))  # Remove duplicates
-            dns_servers = [
-                dns
-                for dns in dns_servers
-                if not dns.startswith("127.") and dns != "::1"
-            ]
+            dns_servers = [dns for dns in dns_servers if not dns.startswith("127.") and dns != "::1"]
 
         except Exception as e:
             logging.error(f"Failed to get system DNS servers: {e}")
@@ -584,17 +552,14 @@ class DNSClientTray:
                 )
 
                 interfaces = [
-                    line.strip()
-                    for line in result.stdout.split("\n")
-                    if line.strip() and not line.startswith("*")
+                    line.strip() for line in result.stdout.split("\n") if line.strip() and not line.startswith("*")
                 ]
 
                 for interface in interfaces[:2]:  # Try first two interfaces
                     try:
                         if dns_servers:
                             subprocess.run(
-                                ["networksetup", "-setdnsservers", interface]
-                                + dns_servers,
+                                ["networksetup", "-setdnsservers", interface] + dns_servers,
                                 capture_output=True,
                                 timeout=10,
                             )
@@ -636,14 +601,10 @@ class DNSClientTray:
                 success = self.set_system_dns_servers(["127.0.0.1"])
                 if success:
                     self.dns_fallback_active = False
-                    self.show_notification(
-                        "DNS Restored", "Switched back to Squawk DNS service"
-                    )
+                    self.show_notification("DNS Restored", "Switched back to Squawk DNS service")
                     logging.info("Restored system DNS to use Squawk service")
                 else:
-                    self.show_notification(
-                        "DNS Change Failed", "Could not restore DNS settings"
-                    )
+                    self.show_notification("DNS Change Failed", "Could not restore DNS settings")
             else:
                 # Fallback to original DNS servers
                 success = self.set_system_dns_servers(self.original_dns_servers)
@@ -654,19 +615,13 @@ class DNSClientTray:
                         "DNS Fallback Active",
                         f"Using original DNS servers:\n{servers_text}",
                     )
-                    logging.info(
-                        f"Switched to original DNS servers: {self.original_dns_servers}"
-                    )
+                    logging.info(f"Switched to original DNS servers: {self.original_dns_servers}")
                 else:
-                    self.show_notification(
-                        "DNS Change Failed", "Could not change DNS settings"
-                    )
+                    self.show_notification("DNS Change Failed", "Could not change DNS settings")
 
         except Exception as e:
             logging.error(f"DNS fallback toggle failed: {e}")
-            self.show_notification(
-                "DNS Fallback Error", f"Failed to change DNS settings: {e}"
-            )
+            self.show_notification("DNS Fallback Error", f"Failed to change DNS settings: {e}")
 
         # Update menu
         self.icon.menu = self.create_menu()

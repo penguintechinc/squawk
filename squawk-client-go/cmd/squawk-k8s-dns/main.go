@@ -139,7 +139,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create DoH client: %w", err)
 	}
-	defer dohClient.Close()
+	defer func() {
+		if err := dohClient.Close(); err != nil {
+			log.Printf("Warning: failed to close DoH client: %v", err)
+		}
+	}()
 
 	// Create resolver with metrics
 	res := resolver.NewWithMetrics(cache, dohClient, clusterDomain, m)
@@ -229,7 +233,9 @@ func startHealthServer(readyCh <-chan struct{}, m *metrics.Metrics) {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
+		if err := json.NewEncoder(w).Encode(HealthResponse{Status: "ok"}); err != nil {
+			log.Printf("Failed to encode health response: %v", err)
+		}
 	})
 
 	// Readiness probe
@@ -238,11 +244,15 @@ func startHealthServer(readyCh <-chan struct{}, m *metrics.Metrics) {
 		case <-readyCh:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
+			if err := json.NewEncoder(w).Encode(HealthResponse{Status: "ok"}); err != nil {
+				log.Printf("Failed to encode readiness response: %v", err)
+			}
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(HealthResponse{Status: "not ready"})
+			if err := json.NewEncoder(w).Encode(HealthResponse{Status: "not ready"}); err != nil {
+				log.Printf("Failed to encode readiness response: %v", err)
+			}
 		}
 	})
 
@@ -250,8 +260,9 @@ func startHealthServer(readyCh <-chan struct{}, m *metrics.Metrics) {
 	mux.Handle("/metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{}))
 
 	server := &http.Server{
-		Addr:    ":8081",
-		Handler: mux,
+		Addr:              ":8081",
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	log.Println("Starting health check server on :8081 (/healthz, /readyz, /metrics)")

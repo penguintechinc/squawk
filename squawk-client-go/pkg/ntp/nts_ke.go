@@ -151,6 +151,7 @@ func ParseNTSKEResponse(data []byte) (*NTSKeyMaterial, error) {
 		NTPPort: 123, // Default NTP port
 	}
 
+recordLoop:
 	for _, record := range records {
 		switch record.Type {
 		case NTSKERecordError:
@@ -178,7 +179,7 @@ func ParseNTSKEResponse(data []byte) (*NTSKeyMaterial, error) {
 
 		case NTSKERecordEndOfMessage:
 			// End of records
-			break
+			break recordLoop
 		}
 	}
 

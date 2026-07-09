@@ -56,7 +56,7 @@ func TestNewNTPClient(t *testing.T) {
 				t.Error("NewNTPClient() returned nil client without error")
 			}
 			if client != nil {
-				client.Close()
+				_ = client.Close()
 			}
 		})
 	}
@@ -72,7 +72,7 @@ func TestNTPClient_GetServerURLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	urls := client.GetServerURLs()
 	if len(urls) != 2 {
@@ -97,7 +97,7 @@ func TestNTPClient_GetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Initially not synchronized
 	synchronized, offset, lastSync := client.GetStatus()
@@ -117,8 +117,8 @@ func TestNTPTimeConversion(t *testing.T) {
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	// Convert to NTP format and back
-	sec := uint32(testTime.Unix() + ntpEpochOffset)
-	frac := uint32((uint64(testTime.Nanosecond()) << 32) / 1e9)
+	sec := uint32(testTime.Unix() + ntpEpochOffset) //nolint:gosec // G115: Unix timestamp + offset is guaranteed to fit in uint32 for valid dates
+	frac := uint32((uint64(testTime.Nanosecond()) << 32) / 1e9) //nolint:gosec // G115: nanosecond value (0-999999999) always fits in uint32
 
 	result := ntpTimeToGoTime(sec, frac)
 
@@ -171,7 +171,7 @@ func TestNTPClient_Query_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -222,7 +222,7 @@ func TestNTPClient_Query_ContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Cancel context immediately
 	ctx, cancel := context.WithCancel(context.Background())

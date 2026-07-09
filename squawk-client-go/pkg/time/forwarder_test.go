@@ -18,7 +18,11 @@ func TestNewForwarder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NTP client: %v", err)
 	}
-	defer ntpClient.Close()
+	defer func() {
+		if err := ntpClient.Close(); err != nil {
+			t.Logf("Warning: failed to close NTP client: %v", err)
+		}
+	}()
 
 	tests := []struct {
 		name           string
@@ -88,7 +92,11 @@ func TestForwarder_IsRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NTP client: %v", err)
 	}
-	defer ntpClient.Close()
+	defer func() {
+		if err := ntpClient.Close(); err != nil {
+			t.Logf("Warning: failed to close NTP client: %v", err)
+		}
+	}()
 
 	forwarder := NewForwarder(ntpClient, &ForwarderConfig{
 		ListenAddress: "127.0.0.1:11234", // Use high port to avoid permission issues
@@ -111,7 +119,11 @@ func TestForwarder_GetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NTP client: %v", err)
 	}
-	defer ntpClient.Close()
+	defer func() {
+		if err := ntpClient.Close(); err != nil {
+			t.Logf("Warning: failed to close NTP client: %v", err)
+		}
+	}()
 
 	forwarder := NewForwarder(ntpClient, &ForwarderConfig{
 		ListenAddress: "127.0.0.1:11235",
@@ -141,7 +153,11 @@ func TestForwarder_StopNotRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NTP client: %v", err)
 	}
-	defer ntpClient.Close()
+	defer func() {
+		if err := ntpClient.Close(); err != nil {
+			t.Logf("Warning: failed to close NTP client: %v", err)
+		}
+	}()
 
 	forwarder := NewForwarder(ntpClient, &ForwarderConfig{
 		ListenAddress: "127.0.0.1:11236",
@@ -170,7 +186,11 @@ func TestForwarder_StartStop_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create NTP client: %v", err)
 	}
-	defer ntpClient.Close()
+	defer func() {
+		if err := ntpClient.Close(); err != nil {
+			t.Logf("Warning: failed to close NTP client: %v", err)
+		}
+	}()
 
 	// Use a high port to avoid permission issues
 	forwarder := NewForwarder(ntpClient, &ForwarderConfig{

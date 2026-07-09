@@ -224,7 +224,11 @@ func runClient(cmd *cobra.Command, args []string) {
 			}
 		}()
 	} else {
-		defer grpcClient.Close()
+		defer func() {
+			if err := grpcClient.Close(); err != nil {
+				log.Printf("Warning: failed to close gRPC client: %v", err)
+			}
+		}()
 	}
 
 	// If forwarding is enabled, start forwarder with DoH client
@@ -238,7 +242,11 @@ func runClient(cmd *cobra.Command, args []string) {
 			if err != nil {
 				log.Fatalf("Failed to create DoH client for forwarder: %v", err)
 			}
-			defer dohClient.Close()
+			defer func() {
+				if err := dohClient.Close(); err != nil {
+					log.Printf("Warning: failed to close DoH client: %v", err)
+				}
+			}()
 		}
 		runForwarder(dohClient, cfg)
 		return
@@ -503,8 +511,9 @@ func startMetricsServer(m *metrics.Metrics) {
 	mux.Handle("/metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{}))
 
 	server := &http.Server{
-		Addr:    ":2112",
-		Handler: mux,
+		Addr:              ":2112",
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	log.Println("Starting metrics server on :2112/metrics")
@@ -789,7 +798,11 @@ var timeQueryCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Failed to create NTP client: %v", err)
 		}
-		defer ntpClient.Close()
+		defer func() {
+			if err := ntpClient.Close(); err != nil {
+				log.Printf("Warning: failed to close NTP client: %v", err)
+			}
+		}()
 
 		// Query time
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

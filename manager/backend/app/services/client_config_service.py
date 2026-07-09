@@ -1,0 +1,723 @@
+"""
+Client Configuration Service for Squawk DNS Manager.
+
+Manages client configurations that can be pulled from the server.
+Features:
+- JWT-based client authentication
+- Per-client configuration profiles
+- Deployment domain grouping
+- Role-based access (Client-Reader, Client-Maintainer)
+- Configuration versioning and rollback
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import secrets
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import jwt
+from penguin_dal import DB
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class ConfigData:
+    """Validated client configuration data."""
+    server_url: str
+    dns_port: int
+    cache_enabled: bool
+    cache_ttl: Optional[int] = None
+    auth_token: Optional[str] = None
+    use_mtls: bool = False
+    cert_path: Optional[str] = None
+    key_path: Optional[str] = None
+    ca_cert_path: Optional[str] = None
+    log_level: str = "INFO"
+    timeout: int = 5
+    retries: int = 3
+
+
+@dataclass(slots=True, frozen=True)
+class OverrideRecord:
+    """Represents a config override record."""
+    token_id: int
+    indicator: str
+    override_type: str
+    reason: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+
+class ClientConfigManager:
+    """Manages client configurations using penguin-dal."""
+
+    def __init__(self, db_url: str, jwt_secret: Optional[str] = None) -> None:
+        """Initialize client config manager.
+
+        Args:
+            db_url: Database connection string
+            jwt_secret: JWT signing secret (generated if not provided)
+        """
+        self.db_url = db_url
+        self.jwt_secret = jwt_secret or secrets.token_urlsafe(32)
+        self._initialize_default_roles()
+
+    def _get_db(self) -> DB:
+        """Get a fresh database connection."""
+        return DB(self.db_url)
+
+    def _generate_domain_jwt(self, domain_name: str) -> str:
+        """Generate JWT token for deployment domain."""
+        payload = {
+            "domain": domain_name,
+            "type": "deployment_domain",
+            "issued_at": datetime.now().timestamp(),
+            "expires_at": (datetime.now() + timedelta(days=365)).timestamp(),
+        }
+        return jwt.encode(payload, self.jwt_secret, algorithm="HS256")
+
+    def _validate_config_data(self, config_data: Dict[str, Any]) -> bool:
+        """Validate client configuration data structure.
+
+        Required fields: server_url, dns_port, cache_enabled
+        """
+        required_fields = ["server_url", "dns_port", "cache_enabled"]
+
+        try:
+            for field in required_fields:
+                if field not in config_data:
+                    return False
+
+            # Validate server_url format
+            server_url = config_data["server_url"]
+            if not server_url.startswith(("http://", "https://")):
+                return False
+
+            # Validate port
+            dns_port = config_data["dns_port"]
+            if not isinstance(dns_port, int) or dns_port < 1 or dns_port > 65535:
+                return False
+
+            return True
+        except Exception:
+            return False
+
+    def _extract_cn_from_subject(self, subject_dn: str) -> Optional[str]:
+        """Extract Common Name from certificate subject DN.
+
+        Parses format: "CN=client-name,O=organization,..."
+        """
+        try:
+            parts = subject_dn.split(",")
+            for part in parts:
+                part = part.strip()
+                if part.startswith("CN="):
+                    return part[3:]
+        except Exception:
+            pass
+        return None
+
+    def _initialize_default_roles(self) -> None:
+        """Create default configuration roles if they don't exist."""
+        db = self._get_db()
+        try:
+            # Define default roles
+            default_roles = [
+                {
+                    "name": "Client-Reader",
+                    "permissions": "read_config,pull_config",
+                    "description": "Can read and pull client configurations",
+                },
+                {
+                    "name": "Client-Maintainer",
+                    "permissions": "read_config,create_config,update_config,pull_config",
+                    "description": "Can maintain client configurations",
+                },
+                {
+                    "name": "Domain-Admin",
+                    "permissions": "read_config,create_config,update_config,delete_config,pull_config,rollover_jwt,manage_clients",
+                    "description": "Full domain administration",
+                },
+            ]
+
+            for role in default_roles:
+                # Check if role exists
+                existing = db(db.config_role.name == role["name"]).select().first()
+                if not existing:
+                    db.config_role.insert(
+                        name=role["name"],
+                        permissions=role["permissions"],
+                        description=role["description"],
+                    )
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to initialize default roles: {e}")
+        finally:
+            db.close()
+
+    def create_deployment_domain(
+        self,
+        name: str,
+        description: str = "",
+        created_by: str = "",
+    ) -> Dict[str, Any]:
+        """Create a new deployment domain with JWT token."""
+        db = self._get_db()
+        try:
+            # Check for duplicate
+            existing = db(db.deployment_domain.name == name).select().first()
+            if existing:
+                return {"success": False, "error": "Domain already exists"}
+
+            # Generate JWT token
+            domain_jwt = self._generate_domain_jwt(name)
+
+            # Insert domain
+            domain_id = db.deployment_domain.insert(
+                name=name,
+                description=description,
+                jwt_token=domain_jwt,
+                jwt_expires=datetime.now() + timedelta(days=365),
+                active=True,
+            )
+
+            db.commit()
+
+            return {
+                "success": True,
+                "id": domain_id,
+                "name": name,
+                "jwt_token": domain_jwt,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to create deployment domain: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def rollover_domain_jwt(self, domain_id: int, admin_user: str = "") -> Dict[str, Any]:
+        """Generate new JWT token for deployment domain."""
+        db = self._get_db()
+        try:
+            domain = db(db.deployment_domain.id == domain_id).select().first()
+            if not domain:
+                return {"success": False, "error": "Domain not found"}
+
+            new_jwt = self._generate_domain_jwt(domain.name)
+
+            # Update domain
+            db(db.deployment_domain.id == domain_id).update(
+                jwt_token=new_jwt,
+                jwt_expires=datetime.now() + timedelta(days=365),
+            )
+
+            db.commit()
+            logger.info(f"JWT rolled over for domain {domain.name} by {admin_user}")
+
+            return {
+                "success": True,
+                "new_jwt": new_jwt,
+                "expires_at": (datetime.now() + timedelta(days=365)).isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to rollover JWT: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def create_client_config(
+        self,
+        name: str,
+        domain_id: int,
+        config_data: Dict[str, Any],
+        description: str = "",
+        created_by: str = "",
+    ) -> Dict[str, Any]:
+        """Create a new client configuration."""
+        db = self._get_db()
+        try:
+            # Validate config data
+            if not self._validate_config_data(config_data):
+                return {"success": False, "error": "Invalid configuration data"}
+
+            # Insert config
+            config_id = db.client_config.insert(
+                name=name,
+                domain_id=domain_id,
+                config_data=config_data,
+                version=1,
+                description=description,
+                created_by=created_by,
+                active=True,
+            )
+
+            # Store in history
+            db.config_history.insert(
+                config_id=config_id,
+                version=1,
+                config_data=config_data,
+                change_description="Initial configuration",
+                changed_by=created_by,
+            )
+
+            db.commit()
+
+            return {"success": True, "config_id": config_id, "version": 1}
+
+        except Exception as e:
+            logger.error(f"Failed to create client config: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def update_client_config(
+        self,
+        config_id: int,
+        config_data: Dict[str, Any],
+        description: str = "",
+        changed_by: str = "",
+    ) -> Dict[str, Any]:
+        """Update an existing client configuration."""
+        db = self._get_db()
+        try:
+            config = db(db.client_config.id == config_id).select().first()
+            if not config:
+                return {"success": False, "error": "Configuration not found"}
+
+            # Validate config data
+            if not self._validate_config_data(config_data):
+                return {"success": False, "error": "Invalid configuration data"}
+
+            # Increment version
+            new_version = config.version + 1
+
+            # Update config
+            db(db.client_config.id == config_id).update(
+                config_data=config_data,
+                version=new_version,
+                description=description,
+            )
+
+            # Store in history
+            db.config_history.insert(
+                config_id=config_id,
+                version=new_version,
+                config_data=config_data,
+                change_description=description,
+                changed_by=changed_by,
+            )
+
+            db.commit()
+
+            return {"success": True, "version": new_version}
+
+        except Exception as e:
+            logger.error(f"Failed to update client config: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def _verify_domain_jwt(self, jwt_token: str) -> Optional[Dict[str, Any]]:
+        """Verify domain JWT token and return domain info."""
+        db = self._get_db()
+        try:
+            # Decode JWT
+            payload = jwt.decode(jwt_token, self.jwt_secret, algorithms=["HS256"])
+
+            # Check if token is expired
+            expires_at = payload.get("expires_at")
+            if expires_at and datetime.now().timestamp() > expires_at:
+                return None
+
+            domain_name = payload.get("domain")
+            if not domain_name:
+                return None
+
+            # Find domain in database
+            domain = db(
+                (db.deployment_domain.name == domain_name)
+                & (db.deployment_domain.jwt_token == jwt_token)
+                & (db.deployment_domain.active == True)
+            ).select().first()
+
+            if domain:
+                return {
+                    "id": domain.id,
+                    "name": domain.name,
+                    "description": domain.description,
+                }
+
+        except jwt.ExpiredSignatureError:
+            logger.warning("Expired JWT token used for domain verification")
+        except jwt.InvalidTokenError:
+            logger.warning("Invalid JWT token used for domain verification")
+        except Exception as e:
+            logger.error(f"JWT verification failed: {e}")
+        finally:
+            db.close()
+
+        return None
+
+    def _verify_user_token(
+        self,
+        db: DB,
+        user_token: str,
+        client_cert_subject: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Verify user authentication token with optional mTLS cert validation."""
+        try:
+            # Check if token exists and is active
+            token_record = db(
+                (db.token.token == user_token) & (db.token.active == True)
+            ).select().first()
+
+            if not token_record:
+                return {"valid": False, "reason": "Invalid or inactive token"}
+
+            # If mTLS is enabled, verify client cert matches token
+            if client_cert_subject:
+                cert_cn = self._extract_cn_from_subject(client_cert_subject)
+                if cert_cn and cert_cn != token_record.name:
+                    return {
+                        "valid": False,
+                        "reason": "Certificate subject does not match token",
+                    }
+
+            # Update last used timestamp
+            db(db.token.id == token_record.id).update(last_used=datetime.now())
+
+            return {
+                "valid": True,
+                "token_id": token_record.id,
+                "token_name": token_record.name,
+            }
+
+        except Exception as e:
+            logger.error(f"User token verification failed: {e}")
+            return {"valid": False, "reason": "Token verification error"}
+
+    def register_client(
+        self,
+        client_id: str,
+        domain_jwt: str,
+        hostname: str,
+        ip_address: str,
+        client_version: str = "",
+        os_info: str = "",
+        user_token: Optional[str] = None,
+        client_cert_subject: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Register a new client instance."""
+        db = self._get_db()
+
+        try:
+            # Verify user auth if provided
+            if user_token:
+                auth_result = self._verify_user_token(
+                    db, user_token, client_cert_subject
+                )
+                if not auth_result["valid"]:
+                    return {
+                        "success": False,
+                        "error": f"Authentication failed: {auth_result['reason']}",
+                    }
+
+            # Verify JWT token
+            domain = self._verify_domain_jwt(domain_jwt)
+            if not domain:
+                return {"success": False, "error": "Invalid or expired JWT token"}
+
+            # Check if client already exists in this domain (tenant isolation: IDOR fix)
+            existing = db(
+                (db.client_instance.client_id == client_id) &
+                (db.client_instance.domain_id == domain["id"])
+            ).select().first()
+
+            # Reject cross-domain collision attempt
+            if not existing:
+                cross_domain = db(db.client_instance.client_id == client_id).select().first()
+                if cross_domain:
+                    return {
+                        "success": False,
+                        "error": "client_id already registered in another domain"
+                    }
+
+            if existing:
+                # Update existing (scoped to this domain)
+                db(
+                    (db.client_instance.client_id == client_id) &
+                    (db.client_instance.domain_id == domain["id"])
+                ).update(
+                    hostname=hostname,
+                    ip_address=ip_address,
+                    last_checkin=datetime.now(),
+                    client_version=client_version,
+                    os_info=os_info,
+                    status="active",
+                )
+                client_record_id = existing.id
+            else:
+                # Insert new
+                client_record_id = db.client_instance.insert(
+                    client_id=client_id,
+                    domain_id=domain["id"],
+                    hostname=hostname,
+                    ip_address=ip_address,
+                    last_checkin=datetime.now(),
+                    client_version=client_version,
+                    os_info=os_info,
+                    status="active",
+                )
+
+            db.commit()
+
+            return {
+                "success": True,
+                "client_record_id": client_record_id,
+                "domain_name": domain["name"],
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to register client: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def pull_client_config(
+        self,
+        client_id: str,
+        domain_jwt: str,
+        user_token: Optional[str] = None,
+        client_cert_subject: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Pull configuration for a client."""
+        db = self._get_db()
+
+        try:
+            # Verify user auth if provided
+            if user_token:
+                auth_result = self._verify_user_token(
+                    db, user_token, client_cert_subject
+                )
+                if not auth_result["valid"]:
+                    return {
+                        "success": False,
+                        "error": f"Authentication failed: {auth_result['reason']}",
+                    }
+
+            # Verify JWT token
+            domain = self._verify_domain_jwt(domain_jwt)
+            if not domain:
+                return {"success": False, "error": "Invalid or expired JWT token"}
+
+            # Find client
+            client = db(
+                (db.client_instance.client_id == client_id)
+                & (db.client_instance.domain_id == domain["id"])
+                & (db.client_instance.status == "active")
+            ).select().first()
+
+            if not client:
+                return {"success": False, "error": "Client not registered"}
+
+            # Get config
+            config = None
+            if client.config_id:
+                config = db(
+                    (db.client_config.id == client.config_id)
+                    & (db.client_config.active == True)
+                ).select().first()
+            else:
+                # Use default config
+                config = db(
+                    (db.client_config.domain_id == domain["id"])
+                    & (db.client_config.name == "default")
+                    & (db.client_config.active == True)
+                ).select().first()
+
+            if not config:
+                return {"success": False, "error": "No configuration available"}
+
+            # Update client last pull
+            db(db.client_instance.id == client.id).update(
+                last_config_pull=datetime.now(),
+                last_checkin=datetime.now(),
+            )
+
+            db.commit()
+
+            return {
+                "success": True,
+                "config": config.config_data,
+                "version": config.version,
+                "config_name": config.name,
+                "description": config.description,
+                "last_updated": config.created_at.isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to pull client config: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def assign_config_to_client(
+        self,
+        client_id: str,
+        config_id: int,
+        assigned_by: str = "",
+    ) -> Dict[str, Any]:
+        """Assign a specific configuration to a client."""
+        db = self._get_db()
+
+        try:
+            client = db(db.client_instance.client_id == client_id).select().first()
+            if not client:
+                return {"success": False, "error": "Client not found"}
+
+            config = db(db.client_config.id == config_id).select().first()
+            if not config:
+                return {"success": False, "error": "Configuration not found"}
+
+            # Tenant isolation: config's domain_id must match client's domain_id (IDOR fix)
+            if config.domain_id != client.domain_id:
+                return {
+                    "success": False,
+                    "error": "Configuration belongs to a different domain"
+                }
+
+            # Update client config assignment
+            db(db.client_instance.client_id == client_id).update(config_id=config_id)
+
+            db.commit()
+
+            logger.info(
+                f"Config {config.name} assigned to client {client_id} by {assigned_by}"
+            )
+
+            return {"success": True}
+
+        except Exception as e:
+            logger.error(f"Failed to assign config to client: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            db.close()
+
+    def get_domain_clients(self, domain_id: int) -> List[Dict[str, Any]]:
+        """Get all clients in a deployment domain."""
+        db = self._get_db()
+
+        try:
+            clients = db(db.client_instance.domain_id == domain_id).select()
+
+            result = []
+            for client in clients:
+                config_name = None
+                if client.config_id:
+                    config = db(db.client_config.id == client.config_id).select().first()
+                    if config:
+                        config_name = config.name
+
+                result.append({
+                    "client_id": client.client_id,
+                    "hostname": client.hostname,
+                    "ip_address": client.ip_address,
+                    "last_checkin": (
+                        client.last_checkin.isoformat() if client.last_checkin else None
+                    ),
+                    "last_config_pull": (
+                        client.last_config_pull.isoformat()
+                        if client.last_config_pull
+                        else None
+                    ),
+                    "client_version": client.client_version,
+                    "os_info": client.os_info,
+                    "status": client.status,
+                    "config_name": config_name,
+                    "registered_at": client.registered_at.isoformat(),
+                })
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to get domain clients: {e}")
+            return []
+        finally:
+            db.close()
+
+    def get_client_stats(self) -> Dict[str, Any]:
+        """Get client configuration statistics."""
+        db = self._get_db()
+
+        try:
+            # Domain stats
+            all_domains = db(db.deployment_domain.id > 0).count()  # All deployment domains
+            active_domains = db(db.deployment_domain.active == True).count()
+
+            # Client stats
+            all_clients = db(db.client_instance.id > 0).count()  # All clients
+            active_clients = db(db.client_instance.status == "active").count()
+
+            # Recent activity
+            recent_checkins = db(
+                db.client_instance.last_checkin
+                >= (datetime.now() - timedelta(hours=24))
+            ).count()
+
+            recent_config_pulls = db(
+                db.client_instance.last_config_pull
+                >= (datetime.now() - timedelta(hours=24))
+            ).count()
+
+            # Config stats
+            all_configs = db(db.client_config.id > 0).count()  # All configs
+            active_configs = db(db.client_config.active == True).count()
+
+            return {
+                "domains": {"total": all_domains, "active": active_domains},
+                "clients": {
+                    "total": all_clients,
+                    "active": active_clients,
+                    "recent_checkins_24h": recent_checkins,
+                    "recent_config_pulls_24h": recent_config_pulls,
+                },
+                "configurations": {"total": all_configs, "active": active_configs},
+                "timestamp": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get client stats: {e}")
+            return {}
+        finally:
+            db.close()
+
+    def cleanup_inactive_clients(self, inactive_days: int = 30) -> int:
+        """Remove clients that haven't checked in for specified days."""
+        db = self._get_db()
+
+        try:
+            cutoff_time = datetime.now() - timedelta(days=inactive_days)
+
+            deleted = db(
+                (db.client_instance.last_checkin < cutoff_time)
+                | (db.client_instance.last_checkin == None)
+            ).delete()
+
+            db.commit()
+
+            logger.info(f"Cleaned up {deleted} inactive clients")
+            return deleted
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup inactive clients: {e}")
+            return 0
+        finally:
+            db.close()

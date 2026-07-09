@@ -72,6 +72,23 @@ k8sDns:
     clusterDomain: "cluster.local"
     logLevel: "info"
 
+manager:
+  image:
+    repository: penguintechinc/squawk/manager
+    tag: latest
+  replicas: 1
+  logLevel: "info"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
 serviceAccount:
   create: false
   name: ""
+
+networkPolicy:
+  enabled: true

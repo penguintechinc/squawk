@@ -7,6 +7,7 @@ from flask import jsonify, current_app, request
 from datetime import datetime
 import time
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +189,7 @@ def handle_db_errors(f):
                 'error': 'Database operation failed',
                 'message': str(e)
             }), 500
-        return decorated_function
-    return decorator
+    return decorated_function
 
 
 def audit_log(action: str):
@@ -225,6 +225,7 @@ def audit_log(action: str):
 def cors_preflight(f):
     """
     Decorator to handle CORS preflight requests.
+    Only reflects Origin if it is in the ALLOWED_ORIGINS allowlist.
 
     Example:
         @cors_preflight
@@ -235,7 +236,17 @@ def cors_preflight(f):
     def decorated_function(*args, **kwargs):
         if request.method == 'OPTIONS':
             response = jsonify({'status': 'ok'})
-            response.headers['Access-Control-Allow-Origin'] = '*'
+
+            # Check if Origin is in allowlist
+            allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
+            allowed_origins: list[str] = [
+                origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()
+            ] if allowed_origins_str else []
+
+            origin: str | None = request.headers.get('Origin')
+            if origin and allowed_origins and origin in allowed_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
             return response

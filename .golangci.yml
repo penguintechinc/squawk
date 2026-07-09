@@ -1,0 +1,47 @@
+version: 2
+
+run:
+  timeout: 5m
+  go: "1.25"
+  skip-dirs:
+    - vendor
+    - .git
+    - build
+    - bin
+
+linters:
+  enable:
+    - staticcheck      # Static analysis
+    - gosec           # Security
+    - errcheck        # Error handling
+    - ineffassign     # Unused assignments
+    - unused          # Unused code
+
+linters-settings:
+  staticcheck:
+    checks: ["all"]
+
+  gosec:
+    # G401/G402/G403: Weak cryptography - real errors
+    # G101: Hardcoded secrets - real errors
+    severity: high
+    confidence: high
+
+  errcheck:
+    # Check all error returns
+    check-type-assertions: true
+    check-blank: true
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+issues:
+  exclude-rules:
+    - path: _test\.go$
+      linters:
+        - gosec
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

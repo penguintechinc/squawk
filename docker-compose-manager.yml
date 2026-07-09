@@ -19,7 +19,7 @@ services:
     environment:
       POSTGRES_DB: squawk_manager
       POSTGRES_USER: squawk
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -51,10 +51,10 @@ services:
       context: ./manager/backend
       dockerfile: Dockerfile
     environment:
-      DB_URL: postgresql://squawk:${DB_PASSWORD:-changeme}@postgres:5432/squawk_manager
+      DB_URL: postgresql://squawk:${DB_PASSWORD:?DB_PASSWORD must be set}@postgres:5432/squawk_manager
       REDIS_URL: redis://valkey:6379
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
     ports:
       - "5000:5000"
       - "50051:50051"

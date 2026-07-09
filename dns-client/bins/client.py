@@ -37,6 +37,12 @@ try:
     PROTOBUF_AVAILABLE = True
 except ImportError:
     PROTOBUF_AVAILABLE = False
+    # Provide fallbacks so tests can mock
+    DNSQueryServiceStub = None
+    QueryRequest = None
+    BatchQueryRequest = None
+    QueryResponse = None
+    HealthCheckRequest = None
 
 
 class DNSOverHTTPSClient:
@@ -267,13 +273,19 @@ class DNSOverHTTPSClient:
         """Configure SSL settings for the session"""
         # Configure certificate verification
         if self.ca_cert and os.path.exists(self.ca_cert):
+            # Use custom CA bundle
             self.session.verify = self.ca_cert
-        elif not self.verify_ssl:
+        elif self.verify_ssl:
+            # TLS verification enabled (default and recommended)
+            self.session.verify = True
+        else:
+            # TLS verification explicitly disabled - log prominent warning
             self.session.verify = False
-            # Suppress SSL warnings if verification is disabled
-            import urllib3
-
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logging.warning(
+                "TLS VERIFICATION DISABLED: SSL/TLS certificate verification is disabled. "
+                "This is insecure and should only be used for development/testing. "
+                "To enable verification, set SQUAWK_VERIFY_SSL=true or use --verify flag."
+            )
 
         # Configure client certificate for mTLS
         if self.client_cert and self.client_key:

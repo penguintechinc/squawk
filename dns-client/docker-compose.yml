@@ -41,7 +41,7 @@ services:
       - SQUAWK_VERIFY_SSL=true
       
       # Console URL (optional)
-      - SQUAWK_CONSOLE_URL=http://localhost:8000/dns_console
+      - SQUAWK_CONSOLE_URL=http://localhost:8080/health
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

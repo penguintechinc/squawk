@@ -101,16 +101,10 @@ for VERSION_FILE in "${VERSION_FILES[@]}"; do
     fi
 done
 
-# Also update flask_app/.version if it exists (nested in dns-server)
-if [[ -f "${PROJECT_ROOT}/dns-server/flask_app/.version" ]]; then
-    echo "$NEW_VERSION" > "${PROJECT_ROOT}/dns-server/flask_app/.version"
-    echo -e "${GREEN}✓${NC} Updated: ${PROJECT_ROOT}/dns-server/flask_app/.version"
-fi
-
 echo ""
 echo -e "${GREEN}Version update complete!${NC}"
 echo ""
 echo "To commit this change:"
-echo "  git add .version */.version */flask_app/.version"
+echo "  git add .version */.version"
 echo "  git commit -m 'Bump version to ${NEW_VERSION}'"
 echo ""

@@ -3,6 +3,7 @@ Flask application factory for Squawk DNS Manager.
 """
 
 import logging
+import os
 
 from flask import Flask
 from flask_cors import CORS
@@ -12,13 +13,22 @@ from app.db import init_db
 from app.services.license_service import LicenseService
 
 
-def create_app(config_class=Config):
+def create_app(config_class: type = Config) -> Flask:
     """Create and configure Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # CORS
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # CORS with allowlist (default deny cross-origin if ALLOWED_ORIGINS unset)
+    allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
+    allowed_origins: list[str] = [
+        origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()
+    ] if allowed_origins_str else []
+
+    if allowed_origins:
+        CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
+    else:
+        # Empty allowlist = deny cross-origin
+        CORS(app, resources={r"/api/*": {"origins": []}})
 
     # Rate limiting via penguin-limiter
     from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
@@ -46,6 +56,22 @@ def create_app(config_class=Config):
     # Initialize license service
     app.license_service = LicenseService()
 
+    # Initialize PostHog client for feature flags
+    from app.services.posthog_client import PostHogClient
+    app.posthog = PostHogClient()
+
+    # Initialize IOC manager
+    from app.services.ioc_ingestion_service import IOCManager
+    app.ioc_manager = IOCManager(db_url=app.config['DB_URL'])
+
+    # Initialize WHOIS manager
+    from app.services.whois_service import WHOISManager
+    app.whois_manager = WHOISManager(db_url=app.config['DB_URL'])
+
+    # Initialize Client Config manager
+    from app.services.client_config_service import ClientConfigManager
+    app.client_config_manager = ClientConfigManager(db_url=app.config['DB_URL'])
+
     # Register blueprints
     from app.blueprints.auth import auth_bp
     from app.blueprints.users import users_bp
@@ -54,6 +80,8 @@ def create_app(config_class=Config):
     from app.blueprints.dns_servers import dns_servers_bp
     from app.blueprints.zones import zones_bp
     from app.blueprints.ioc_feeds import ioc_feeds_bp
+    from app.blueprints.whois import whois_bp
+    from app.blueprints.client_config import client_config_bp
     from app.blueprints.analytics import analytics_bp
     from app.blueprints.dhcp import dhcp_bp
     from app.blueprints.time import time_bp
@@ -65,6 +93,8 @@ def create_app(config_class=Config):
     app.register_blueprint(dns_servers_bp)
     app.register_blueprint(zones_bp)
     app.register_blueprint(ioc_feeds_bp)
+    app.register_blueprint(whois_bp)
+    app.register_blueprint(client_config_bp)
     app.register_blueprint(analytics_bp)
     app.register_blueprint(dhcp_bp)
     app.register_blueprint(time_bp)

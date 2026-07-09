@@ -3,7 +3,7 @@ from sqlalchemy import create_engine, inspect
 
 
 def test_schema_creates_all_tables():
-    """Schema must define 17 tables and create them in SQLite."""
+    """Schema must define all tables and create them in SQLite."""
     from app.schema import metadata
 
     engine = create_engine("sqlite:///:memory:")
@@ -18,6 +18,17 @@ def test_schema_creates_all_tables():
         "ioc_feed", "token",
         "dhcp_pool", "dhcp_reservation", "dhcp_lease", "dhcp_server",
         "time_server", "time_sync_log", "time_client", "time_config",
+        # IOC ingestion (migration)
+        "ioc_entry", "ioc_override",
+        # WHOIS (migration)
+        "whois_cache", "whois_search_index", "whois_query_log",
+        # client config (migration)
+        "deployment_domain", "client_config", "config_role",
+        "config_user_role", "client_instance", "config_history",
+        # selective DNS routing (migration)
+        "dns_group", "user_group_assignment", "dns_routing_zone", "group_zone_access",
+        # mTLS certificate lifecycle (migration)
+        "mtls_certificate", "mtls_revocation",
     }
     assert expected == tables
     engine.dispose()

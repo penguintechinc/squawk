@@ -423,11 +423,11 @@ class TestClientConfigManager:
     
     def test_user_token_verification_with_mtls(self, config_manager, sample_token_data):
         """Test user token verification with mTLS certificate"""
-        from pydal import DAL
-        
+        from penguin_dal import DB
+
         # Create test database instance
-        db = DAL(config_manager.db_url)
-        
+        db = DB(config_manager.db_url)
+
         # Valid certificate subject matching token name
         result = config_manager._verify_user_token(
             db, sample_token_data['token'], f"CN={sample_token_data['token']},O=Test"
@@ -440,12 +440,10 @@ class TestClientConfigManager:
         result = config_manager._verify_user_token(
             db, sample_token_data['token'], "CN=different-name,O=Test"
         )
-        
+
         # This test depends on implementation - may pass or fail based on exact logic
         # The key is that the function handles certificate validation
         assert 'valid' in result
-        
-        db.close()
     
     def test_config_history_tracking(self, config_manager, mock_client_config):
         """Test that configuration changes are tracked in history"""
@@ -504,22 +502,20 @@ class TestClientConfigManager:
     
     def test_default_roles_creation(self, config_manager):
         """Test that default roles are created during initialization"""
-        from pydal import DAL
-        
-        db = DAL(config_manager.db_url)
-        
+        from penguin_dal import DB
+
+        db = DB(config_manager.db_url)
+
         # Check that default roles exist
-        client_reader = db(db.config_roles.name == 'Client-Reader').select().first()
+        client_reader = db(db.config_role.name == 'Client-Reader').select().first()
         assert client_reader is not None
         assert 'read_config' in client_reader.permissions
         assert 'pull_config' in client_reader.permissions
-        
-        client_maintainer = db(db.config_roles.name == 'Client-Maintainer').select().first()
+
+        client_maintainer = db(db.config_role.name == 'Client-Maintainer').select().first()
         assert client_maintainer is not None
         assert 'create_config' in client_maintainer.permissions
-        
-        domain_admin = db(db.config_roles.name == 'Domain-Admin').select().first()
+
+        domain_admin = db(db.config_role.name == 'Domain-Admin').select().first()
         assert domain_admin is not None
         assert 'rollover_jwt' in domain_admin.permissions
-        
-        db.close()

@@ -102,7 +102,7 @@ class SquawkInstaller:
             "udp_port": 53,
             "tcp_port": 53,
             "auto_start": True,
-            "console_url": os.getenv("SQUAWK_CONSOLE_URL", "http://localhost:8080/dns_console"),
+            "console_url": os.getenv("SQUAWK_CONSOLE_URL", "http://localhost:8080/health"),
             "cache_enabled": os.getenv("CACHE_ENABLED", "true").lower() == "true",
             "cache_ttl": int(os.getenv("CACHE_TTL", "300")),
             "valkey_url": os.getenv("VALKEY_URL", ""),

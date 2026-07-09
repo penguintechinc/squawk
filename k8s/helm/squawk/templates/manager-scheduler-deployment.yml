@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager-scheduler
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager-scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 0
+  selector:
+    matchLabels:
+      {{- include "squawk.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: manager-scheduler
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: manager-scheduler
+    spec:
+      containers:
+      - name: manager-scheduler
+        image: {{ include "squawk.manager.image" . }}
+        imagePullPolicy: IfNotPresent
+        command:
+          - /usr/local/bin/supercronic
+          - /app/crontab
+        env:
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: manager-db
+              key: url
+        - name: VALKEY_HOST
+          value: "{{ include "squawk.fullname" . }}-valkey"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: LOG_LEVEL
+          value: {{ .Values.manager.logLevel | quote }}
+        resources:
+          requests:
+            cpu: {{ .Values.manager.resources.requests.cpu }}
+            memory: {{ .Values.manager.resources.requests.memory }}
+          limits:
+            cpu: {{ .Values.manager.resources.limits.cpu }}
+            memory: {{ .Values.manager.resources.limits.memory }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL

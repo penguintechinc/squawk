@@ -104,3 +104,21 @@ Thumbs.db
 # Git worktrees
 .claude/worktrees/
 
+# Python virtual environments
+venv/
+*/venv/
+**/venv/
+__pycache__/
+.coverage
+
+# SQLite artifacts (test/dev)
+**/*.db
+**/*.db3
+storage.db
+
+# Track the pre-commit hook config despite the broad *.yaml ignore
+!.pre-commit-config.yaml
+
+# Requirements files must always be tracked despite the broad *.txt ignore
+!requirements*.txt
+!**/requirements*.txt

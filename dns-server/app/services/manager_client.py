@@ -220,7 +220,13 @@ class ManagerClient:
             return False
 
     def is_jwt_valid(self) -> bool:
-        """Check if current JWT token is valid (not expired)."""
+        """Check if current JWT token is valid (not expired).
+
+        NOTE: This is an expiry-only self-check of the server's own token (obtained from Manager).
+        Signature verification is intentionally disabled here because we are checking the server's
+        own cached token, not making authorization decisions. Authorization decisions in
+        selective_router.py and resilience.py DO verify signatures on user-supplied tokens.
+        """
         if not self.jwt_token:
             return False
 

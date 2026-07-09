@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.manager.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.manager.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: manager
+        image: {{ include "squawk.manager.image" . }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: gunicorn
+          containerPort: 5000
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        env:
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: manager-db
+              key: url
+        - name: VALKEY_HOST
+          value: "{{ include "squawk.fullname" . }}-valkey"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: LOG_LEVEL
+          value: {{ .Values.manager.logLevel | quote }}
+        resources:
+          requests:
+            cpu: {{ .Values.manager.resources.requests.cpu }}
+            memory: {{ .Values.manager.resources.requests.memory }}
+          limits:
+            cpu: {{ .Values.manager.resources.limits.cpu }}
+            memory: {{ .Values.manager.resources.limits.memory }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL

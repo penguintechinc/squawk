@@ -12,7 +12,6 @@ from datetime import datetime
 
 # Add project paths for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'dns-server'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'dns-server', 'flask_app'))
 
 
 @pytest.fixture
@@ -52,10 +51,23 @@ def mock_user():
 
 
 @pytest.fixture
-def mock_admin_user(mock_user):
-    """Provide a mock admin user object"""
-    mock_user.is_admin = True
-    return mock_user
+def mock_admin_user():
+    """Provide a mock admin user object.
+
+    Built independently rather than mutating the shared mock_user fixture, which
+    caused cross-test state bleed (mock_user.is_admin left True for other tests).
+    """
+    user = MagicMock()
+    user.id = 2
+    user.email = 'admin@example.com'
+    user.first_name = 'Admin'
+    user.last_name = 'User'
+    user.is_admin = True
+    user.is_active = True
+    user.is_authenticated = True
+    user.is_anonymous = False
+    user.get_id = MagicMock(return_value='2')
+    return user
 
 
 @pytest.fixture
@@ -69,17 +81,6 @@ def mock_request():
     request.headers = {}
     request.environ = {'REMOTE_ADDR': '127.0.0.1'}
     return request
-
-
-@pytest.fixture
-def mock_flask_app():
-    """Provide a mock Flask application"""
-    app = MagicMock()
-    app.config = {
-        'SECRET_KEY': 'test-secret-key',
-        'DATABASE_URI': 'sqlite:///:memory:'
-    }
-    return app
 
 
 @pytest.fixture

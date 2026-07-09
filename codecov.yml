@@ -16,6 +16,5 @@ comment:
 flags:
   unittests:
     paths:
-      - dns-server/bins/
-      - dns-server/flask_app/
+      - dns-server/app/
       - dns-client/bins/

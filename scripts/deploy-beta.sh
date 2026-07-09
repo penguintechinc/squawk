@@ -27,7 +27,6 @@ readonly DEFAULT_TAG="beta-$(date +%s)"
 # Service definitions (docker build contexts)
 declare -A SERVICES=(
   ["dns-server"]="./dns-server"
-  ["flask-api"]="./dns-server"
   ["dns-webui"]="./services/dns-webui"
   ["dns-client"]="./dns-client"
 )
@@ -140,9 +139,6 @@ build_and_push_image() {
 
   # Determine Dockerfile based on service
   local dockerfile="Dockerfile"
-  if [[ "$service_name" == "flask-api" ]]; then
-    dockerfile="Dockerfile.api"
-  fi
 
   # Build image
   if [[ -f "$build_context/$dockerfile" ]]; then
@@ -326,7 +322,7 @@ Usage: $(basename "$0") [OPTIONS]
 OPTIONS:
   --tag TAG               Image tag (default: beta-<epoch>)
   --service SERVICE       Build/deploy specific service
-                          Options: dns-server, flask-api, dns-webui, dns-client
+                          Options: dns-server, dns-webui, dns-client
   --skip-build            Skip docker build and push phase
   --dry-run               Preview deployment without applying changes
   --rollback              Rollback to previous helm release

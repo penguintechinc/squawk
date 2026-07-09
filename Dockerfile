@@ -79,14 +79,14 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-# Health check for DNS server
+# Health check for DNS server (native Python, no curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f "http://localhost:8080/health" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health',timeout=5).status==200 else 1)"
 
 EXPOSE 8080 8000
 
-# Default command
-CMD ["python3", "/app/dns-server/bins/server.py", "-p", "8080", "-n"]
+# Default command - launch Quart app via hypercorn
+CMD ["sh", "-c", "PYTHONPATH=/app/dns-server /app/venv/bin/python -m app.main"]
 
 # DNS Client Stage
 FROM base AS dns-client
@@ -167,11 +167,9 @@ ENV PYTHONPATH=/app \
 
 USER appuser
 
-# Production health check
+# Production health check (native Python, no curl)
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
-    CMD curl -f "http://localhost:${SQUAWK_PORT:-8080}/health" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; port=8080; sys.exit(0 if urllib.request.urlopen(f'http://localhost:{port}/health',timeout=5).status==200 else 1)"
 
-# Production command
-CMD ["python3", "/app/dns-server/bins/server.py", \
-     "-p", "${SQUAWK_PORT:-8080}", \
-     "-n"]
+# Production command - launch Quart app via hypercorn
+CMD ["sh", "-c", "PYTHONPATH=/app/dns-server /app/venv/bin/python -m app.main"]

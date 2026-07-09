@@ -20,7 +20,7 @@ services:
     environment:
       POSTGRES_DB: license_db
       POSTGRES_USER: license
-      POSTGRES_PASSWORD: license_secure_password_change_me
+      POSTGRES_PASSWORD: ${LICENSE_DB_PASSWORD:?LICENSE_DB_PASSWORD must be set}
     volumes:
       - license_db_data:/var/lib/postgresql/data
     networks:
@@ -33,8 +33,8 @@ services:
       dockerfile: Dockerfile
     container_name: squawk-license-server
     environment:
-      DATABASE_URL: "postgresql://license:license_secure_password_change_me@license-db/license_db"
-      SECRET_KEY: ${LICENSE_SECRET_KEY:-squawk-license-secret-production-2024}
+      DATABASE_URL: "postgresql://license:${LICENSE_DB_PASSWORD:?LICENSE_DB_PASSWORD must be set}@license-db/license_db"
+      SECRET_KEY: ${LICENSE_SECRET_KEY:?LICENSE_SECRET_KEY must be set}
       SERVER_HOST: "0.0.0.0"
       SERVER_PORT: "8001"
       PRODUCTION: "true"

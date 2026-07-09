@@ -11,7 +11,7 @@ class Config:
 
     # Flask
     DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    SECRET_KEY = os.getenv('SECRET_KEY')
 
     # JWT
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
@@ -43,6 +43,11 @@ class Config:
     LICENSE_SERVER_URL = os.getenv('LICENSE_SERVER_URL', 'https://license.squawkdns.com')
     LICENSE_KEY = os.getenv('PENGUINTECH_LICENSE_KEY')
 
+    # PostHog feature flags
+    POSTHOG_API_KEY = os.getenv('POSTHOG_API_KEY')
+    POSTHOG_HOST = os.getenv('POSTHOG_HOST')
+    POSTHOG_PROJECT_KEY = os.getenv('POSTHOG_PROJECT_KEY')
+
     # gRPC
     GRPC_PORT = int(os.getenv('GRPC_PORT', 50051))
 
@@ -50,11 +55,28 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
+    # Development-only ephemeral secrets (never use in production)
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-ephemeral-secret-key-only')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
 
 
 class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
+
+    def __init__(self) -> None:
+        """Validate required secrets are set at initialization."""
+        super().__init__()
+        if not self.SECRET_KEY:
+            raise RuntimeError(
+                'SECRET_KEY environment variable is required in production. '
+                'Set a strong random value and never commit it.'
+            )
+        if not self.JWT_SECRET_KEY:
+            raise RuntimeError(
+                'JWT_SECRET_KEY environment variable is required in production. '
+                'Set a strong random value and never commit it.'
+            )
 
 
 class TestingConfig(Config):
@@ -62,6 +84,9 @@ class TestingConfig(Config):
     TESTING = True
     DB_URL = 'sqlite:///:memory:'
     RATELIMIT_STORAGE_URL = None  # Use MemoryStorage for tests
+    # Testing-only ephemeral secrets (never use in production)
+    SECRET_KEY = 'test-ephemeral-secret-key-only'
+    JWT_SECRET_KEY = 'test-ephemeral-jwt-key-only'
 
 
 # Config dictionary
@@ -69,5 +94,5 @@ config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
-    'default': DevelopmentConfig
+    'default': ProductionConfig
 }

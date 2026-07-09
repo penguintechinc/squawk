@@ -55,12 +55,12 @@ jobs:
 
     - name: Test DHCP server (penguin-dal persistence + JWT auth)
       run: |
-        pip install -r dhcp-server/requirements.txt pytest
+        pip install -r dhcp-server/requirements.txt pytest pytest-asyncio
         python3 -m pytest dhcp-server/tests -v --tb=short
 
     - name: Test NTP server (RFC 8915 NTS)
       run: |
-        pip install -r ntp-server/requirements.txt pytest
+        pip install -r ntp-server/requirements.txt pytest pytest-asyncio
         openssl req -x509 -newkey rsa:2048 -keyout /tmp/ntp_test.key -out /tmp/ntp_test.crt -days 1 -nodes -subj "/CN=localhost"
         JWT_SECRET_KEY=ci-test-secret-32-bytes-minimum-len \
           TLS_CERT_FILE=/tmp/ntp_test.crt TLS_KEY_FILE=/tmp/ntp_test.key \

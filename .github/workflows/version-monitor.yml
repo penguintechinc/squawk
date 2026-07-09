@@ -40,7 +40,7 @@ jobs:
         echo "Version: $VERSION"
 
         # Check if version matches vMajor.Minor.Patch
-        if [[ ! $VERSION =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [[ ! $VERSION =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
           echo "ERROR: Version format invalid: $VERSION"
           echo "Expected format: vMajor.Minor.Patch"
           exit 1

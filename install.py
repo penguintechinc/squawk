@@ -80,7 +80,7 @@ class SquawkInstaller:
         print("Copying application files...")
         
         # Copy client files
-        client_src = Path(__file__).parent / "dns-client"
+        client_src = Path(__file__).parent / "squawk-client"
         if client_src.exists():
             shutil.copytree(client_src / "bins", self.install_path / "bins", dirs_exist_ok=True)
             shutil.copytree(client_src / "libs", self.install_path / "libs", dirs_exist_ok=True)

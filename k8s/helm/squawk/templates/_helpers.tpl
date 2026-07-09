@@ -232,7 +232,7 @@ DNS Client labels
 */}}
 {{- define "squawk.dnsClient.labels" -}}
 {{ include "squawk.labels" . }}
-app.kubernetes.io/component: dns-client
+app.kubernetes.io/component: squawk-client
 {{- end }}
 
 {{/*
@@ -240,5 +240,5 @@ DNS Client selector labels
 */}}
 {{- define "squawk.dnsClient.selectorLabels" -}}
 {{ include "squawk.selectorLabels" . }}
-app.kubernetes.io/component: dns-client
+app.kubernetes.io/component: squawk-client
 {{- end }}

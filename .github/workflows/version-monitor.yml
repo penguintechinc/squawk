@@ -77,7 +77,7 @@ jobs:
     - name: Verify DNS Client version support
       run: |
         echo "DNS Client (Go) Version Check"
-        if [ -f "dns-client/go.mod" ]; then
+        if [ -f "squawk-client-go/go.mod" ]; then
           echo "  ✓ DNS Client (Go) found"
         fi
 

@@ -6,8 +6,8 @@ resources:
   - valkey-service.yml
   - dns-server-deployment.yml
   - dns-server-service.yml
-  - dns-client-deployment.yml
-  - dns-client-service.yml
+  - squawk-client-deployment.yml
+  - squawk-client-service.yml
   - manager-deployment.yml
   - manager-scheduler-deployment.yml
   - networkpolicy-default-deny.yml

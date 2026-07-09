@@ -26,9 +26,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # Version files to update
 VERSION_FILES=(
     "${PROJECT_ROOT}/.version"
-    "${PROJECT_ROOT}/dns-client/.version"
+    "${PROJECT_ROOT}/squawk-client/.version"
     "${PROJECT_ROOT}/dns-server/.version"
-    "${PROJECT_ROOT}/dns-client-go/.version"
+    "${PROJECT_ROOT}/squawk-client-go/.version"
 )
 
 # Read current version from root .version file

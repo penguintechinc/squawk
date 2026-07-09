@@ -1,0 +1,3 @@
+# Redirects for Cloudflare Pages
+/docs /documentation 301
+/github https://github.com/penguincloud/squawk 302

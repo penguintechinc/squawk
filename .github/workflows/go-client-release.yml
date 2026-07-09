@@ -4,12 +4,12 @@ on:
   push:
     branches: ['main', 'v*.*.x']
     paths:
-      - 'dns-client-go/**'
+      - 'squawk-client-go/**'
       - '.github/workflows/go-client-release.yml'
   pull_request:
     branches: ['main', 'v*.*.x']
     paths:
-      - 'dns-client-go/**'
+      - 'squawk-client-go/**'
       - '.github/workflows/go-client-release.yml'
 
 env:
@@ -36,26 +36,26 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('dns-client-go/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('squawk-client-go/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Install dependencies
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: go mod download
 
       - name: Run tests
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: make test
 
       - name: Run linter
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: |
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
           make lint
 
       - name: Security scan
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
           make security
@@ -95,7 +95,7 @@ jobs:
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4
 
       - name: Build Go binary for platform
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         env:
           PLATFORM: ${{ matrix.platform }}
           BINARY_NAME: squawk
@@ -113,7 +113,7 @@ jobs:
               CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build \
                 -ldflags "-X main.version=${{ steps.version.outputs.VERSION }} -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
                 -o build/$ARCH/${{ steps.version.outputs.BINARY_NAME }} \
-                ./cmd/${{ env.APP_NAME }}
+                ./cmd/squawk-client
 
               ls -la build/$ARCH/${{ steps.version.outputs.BINARY_NAME }}
             '
@@ -122,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: binaries-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          path: dns-client-go/build/
+          path: squawk-client-go/build/
 
   build-docker-platform:
     name: Build Docker Image (${{ matrix.platform }})
@@ -171,7 +171,7 @@ jobs:
           BINARY_NAME: ${{ steps.version.outputs.BINARY_NAME }}
           APP_NAME: squawk-dns-client
         with:
-          context: dns-client-go
+          context: squawk-client-go
           platforms: ${{ matrix.platform }}
           push: true
           build-args: |

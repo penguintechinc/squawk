@@ -8,8 +8,8 @@ patches:
     target:
       kind: Deployment
       name: dns-server
-  - path: patch-dns-client-image.yml
+  - path: patch-squawk-client-image.yml
     target:
       kind: Deployment
-      name: dns-client
+      name: squawk-client
   - path: patch-replicas.yml

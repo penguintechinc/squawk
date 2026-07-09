@@ -56,17 +56,17 @@ setup-dev: setup-venv install-dev setup-pre-commit
 setup-venv:
 	@echo "Setting up virtual environments..."
 	cd dns-server && python3 -m venv venv
-	cd dns-client && python3 -m venv venv
+	cd squawk-client && python3 -m venv venv
 
 install:
 	@echo "Installing production dependencies..."
 	cd dns-server && $(PIP) install -r requirements.txt
-	cd dns-client && $(PIP) install -r requirements.txt
+	cd squawk-client && $(PIP) install -r requirements.txt
 
 install-dev:
 	@echo "Installing development dependencies..."
 	cd dns-server && $(PIP) install -r requirements.txt -r requirements-dev.txt
-	cd dns-client && $(PIP) install -r requirements.txt -r requirements-dev.txt
+	cd squawk-client && $(PIP) install -r requirements.txt -r requirements-dev.txt
 
 setup-pre-commit: install-hooks
 
@@ -84,7 +84,7 @@ test: test-unit test-integration
 
 test-unit:
 	@echo "Running unit tests..."
-	python3 -m pytest tests/unit/ dns-server/tests/ dns-client/tests/ manager/backend/tests/ \
+	python3 -m pytest tests/unit/ dns-server/tests/ squawk-client/tests/ manager/backend/tests/ \
 		-v --tb=short
 
 test-integration:
@@ -97,8 +97,8 @@ test-performance:
 
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(PYTHON) -m pytest dns-server/tests dns-client/tests \
-		--cov=dns-server/app --cov=dns-client/bins \
+	$(PYTHON) -m pytest dns-server/tests squawk-client/tests \
+		--cov=dns-server/app --cov=squawk-client/bins \
 		--cov-report=html:htmlcov --cov-report=term-missing --cov-report=xml:coverage.xml \
 		--cov-fail-under=98
 
@@ -108,25 +108,25 @@ lint:
 	@exit_code=0; \
 	if command -v flake8 >/dev/null 2>&1; then \
 		echo "-- flake8 --"; \
-		python3 -m flake8 dns-server/app manager/backend/app dns-client/bins --config=.flake8 || exit_code=1; \
+		python3 -m flake8 dns-server/app manager/backend/app squawk-client/bins --config=.flake8 || exit_code=1; \
 	else \
 		echo "flake8 not installed, skipping"; \
 	fi; \
 	if command -v black >/dev/null 2>&1; then \
 		echo "-- black (check) --"; \
-		black --check dns-server/app manager/backend/app dns-client/bins --line-length=120 || true; \
+		black --check dns-server/app manager/backend/app squawk-client/bins --line-length=120 || true; \
 	else \
 		echo "black not installed, skipping"; \
 	fi; \
 	if command -v isort >/dev/null 2>&1; then \
 		echo "-- isort (check, advisory) --"; \
-		isort --check-only dns-server/app manager/backend/app dns-client/bins --profile=black --line-length=120 2>&1 || true; \
+		isort --check-only dns-server/app manager/backend/app squawk-client/bins --profile=black --line-length=120 2>&1 || true; \
 	else \
 		echo "isort not installed, skipping"; \
 	fi; \
 	if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "-- golangci-lint (advisory) --"; \
-		cd dns-client-go && golangci-lint run --config=../.golangci.yml 2>&1 || true; cd ..; \
+		cd squawk-client-go && golangci-lint run --config=../.golangci.yml 2>&1 || true; cd ..; \
 	else \
 		echo "golangci-lint not installed, skipping"; \
 	fi; \
@@ -149,19 +149,19 @@ fix-lint: format
 format:
 	@echo "Formatting code..."
 	cd dns-server && $(BLACK) app/ tests/
-	cd dns-client && $(BLACK) bins/ tests/
+	cd squawk-client && $(BLACK) bins/ tests/
 
 type-check:
 	@echo "Running type checks..."
 	cd dns-server && $(MYPY) app/
-	cd dns-client && $(MYPY) bins/
+	cd squawk-client && $(MYPY) bins/
 
 test-security:
 	@echo "=== Security Scans ==="
 	@exit_code=0; \
 	if command -v bandit >/dev/null 2>&1; then \
 		echo "-- bandit --"; \
-		bandit -r dns-server/app manager/backend/app dns-client/bins -ll -q || exit_code=1; \
+		bandit -r dns-server/app manager/backend/app squawk-client/bins -ll -q || exit_code=1; \
 	else \
 		echo "bandit not installed, skipping"; \
 	fi; \
@@ -173,13 +173,13 @@ test-security:
 	fi; \
 	if command -v gosec >/dev/null 2>&1; then \
 		echo "-- gosec --"; \
-		cd dns-client-go && gosec ./... || exit_code=1; cd ..; \
+		cd squawk-client-go && gosec ./... || exit_code=1; cd ..; \
 	else \
 		echo "gosec not installed, skipping"; \
 	fi; \
 	if command -v govulncheck >/dev/null 2>&1; then \
 		echo "-- govulncheck --"; \
-		cd dns-client-go && govulncheck ./... || exit_code=1; cd ..; \
+		cd squawk-client-go && govulncheck ./... || exit_code=1; cd ..; \
 	else \
 		echo "govulncheck not installed, skipping"; \
 	fi; \

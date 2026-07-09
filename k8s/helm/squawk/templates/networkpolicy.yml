@@ -107,12 +107,12 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# dns-client is the public UDP/TCP:53 listener; it proxies queries to
-# dns-server over HTTP (see templates/dns-client-deployment.yml).
+# squawk-client is the public UDP/TCP:53 listener; it proxies queries to
+# dns-server over HTTP (see templates/squawk-client-deployment.yml).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-dns-client-public
+  name: allow-ingress-squawk-client-public
   namespace: {{ include "squawk.namespace" . }}
   labels:
     {{- include "squawk.dnsClient.labels" . | nindent 4 }}
@@ -131,7 +131,7 @@ spec:
 ---
 # k8s-dns: internal cluster DNS plugin (CoreDNS stub-domain forward target,
 # see templates/k8s-dns-deployment.yml). Cluster-reachable, not
-# public-internet-facing — same treatment as dns-client but without a
+# public-internet-facing — same treatment as squawk-client but without a
 # public-anywhere requirement in the task; left open to any source since
 # NetworkPolicy has no way to scope "any namespace in this cluster" more
 # tightly than "no restriction" without knowing which namespaces run

@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: squawk-client
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: squawk-client
+        image: ghcr.io/penguintechinc/squawk-dns-client:latest
+        imagePullPolicy: Always

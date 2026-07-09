@@ -111,7 +111,7 @@ RUN python3.13 -m venv /app/client-venv && \
 ENV PATH="/app/client-venv/bin:$PATH"
 
 # Copy DNS client code
-COPY dns-client/ /app/dns-client/
+COPY squawk-client/ /app/dns-client/
 COPY docs/ /app/docs/
 
 # Set permissions
@@ -140,7 +140,7 @@ RUN /app/venv/bin/pip install \
 
 # Copy test files
 COPY dns-server/tests/ /app/dns-server/tests/
-COPY dns-client/tests/ /app/dns-client/tests/
+COPY squawk-client/tests/ /app/dns-client/tests/
 
 # Create test data directory
 RUN mkdir -p /app/test-data && chown -R appuser:appuser /app

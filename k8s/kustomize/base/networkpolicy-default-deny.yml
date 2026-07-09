@@ -5,7 +5,7 @@
 #   (any port). Component-specific policies (manager, valkey, postgres)
 #   further document/restrict which components are reachable from outside
 #   the namespace (none, by omission) vs. the public internet (dns-server,
-#   dns-client).
+#   squawk-client).
 # - allow-egress-kube-dns: every pod needs to resolve in-cluster service
 #   names (valkey, manager, dns-server, ...) via CoreDNS/kube-dns.
 apiVersion: networking.k8s.io/v1

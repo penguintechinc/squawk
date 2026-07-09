@@ -1,0 +1,36 @@
+{
+  "name": "squawk-dns-website",
+  "version": "1.1.1",
+  "description": "Squawk DNS - Official Website and Documentation",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "export": "next export",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.1.0"
+  },
+  "keywords": [
+    "dns",
+    "dns-over-https",
+    "doh",
+    "security",
+    "privacy",
+    "mtls",
+    "authentication"
+  ],
+  "author": "PenguinCloud",
+  "license": "AGPL-3.0",
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}

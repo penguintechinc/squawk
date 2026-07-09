@@ -16,10 +16,10 @@ DNS Server (DoH):
 
 DNS Client (UDP/TCP bridge):
   The DNS client bridges standard DNS (UDP/TCP port 53) to the squawk DoH server.
-  Internal address: {{ include "squawk.fullname" . }}-dns-client.{{ include "squawk.namespace" . }}.svc.cluster.local:53
+  Internal address: {{ include "squawk.fullname" . }}-squawk-client.{{ include "squawk.namespace" . }}.svc.cluster.local:53
 
   To use squawk DNS for external resolution in your pods, configure CoreDNS to forward to:
-    {{ include "squawk.fullname" . }}-dns-client.{{ include "squawk.namespace" . }}.svc.cluster.local
+    {{ include "squawk.fullname" . }}-squawk-client.{{ include "squawk.namespace" . }}.svc.cluster.local
 
 Valkey Cache:
   Internal URL: redis://{{ include "squawk.fullname" . }}-valkey:6379

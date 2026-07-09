@@ -51,7 +51,7 @@ check_untyped_defs = false
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_no_return = true
-files = ["dns-server/app", "manager/backend/app", "dns-client/bins"]
+files = ["dns-server/app", "manager/backend/app", "squawk-client/bins"]
 exclude = [
     "venv",
     ".venv",
@@ -63,7 +63,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests", "dns-server/tests", "dns-client/tests", "manager/backend/tests"]
+testpaths = ["tests", "dns-server/tests", "squawk-client/tests", "manager/backend/tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -97,7 +97,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["dns-server/app", "manager/backend/app", "dns-client/bins"]
+source = ["dns-server/app", "manager/backend/app", "squawk-client/bins"]
 omit = [
     "*/venv/*",
     "*/.venv/*",

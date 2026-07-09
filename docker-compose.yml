@@ -95,13 +95,13 @@ services:
     depends_on:
       - flask-api
 
-  # DNS Client Forwarder
-  dns-client:
+  # Squawk Client Forwarder (DNS, DHCP, NTP)
+  squawk-client:
     build:
-      context: ./dns-client
+      context: ./squawk-client
       dockerfile: Dockerfile
-    image: squawk-dns-client:latest
-    container_name: squawk-dns-client
+    image: squawk-client:latest
+    container_name: squawk-client
     restart: unless-stopped
     ports:
       - "5353:53/udp"
@@ -114,9 +114,9 @@ services:
       - LOG_LEVEL=INFO
       - SQUAWK_VERIFY_SSL=false
     volumes:
-      - ./dns-client/data:/app/data
-      - ./dns-client/logs:/app/logs
-      - ./dns-client/certs:/app/certs
+      - ./squawk-client/data:/app/data
+      - ./squawk-client/logs:/app/logs
+      - ./squawk-client/certs:/app/certs
     networks:
       - squawk-network
     depends_on:
@@ -134,6 +134,69 @@ services:
     networks:
       - squawk-network
     command: ["valkey-server", "--appendonly", "yes"]
+
+  # DHCP-over-HTTPS Server (optional)
+  dhcp-server:
+    build:
+      context: ./dhcp-server
+      dockerfile: Dockerfile
+    image: squawk-dhcp-server:latest
+    container_name: squawk-dhcp-server
+    restart: unless-stopped
+    ports:
+      - "8081:8081"  # DHCP-over-HTTPS API
+    environment:
+      - DHCP_PORT=8081
+      - AUTH_REQUIRED=true
+      - SHARED_AUTH_URL=http://172.25.0.10:8080
+      - DHCP_POOL_SUBNET=192.168.1.0/24
+      - DHCP_POOL_START=192.168.1.100
+      - DHCP_POOL_END=192.168.1.200
+      - DHCP_GATEWAY=192.168.1.1
+      - DHCP_DNS_SERVERS=8.8.8.8,8.8.4.4
+      - DHCP_LEASE_TIME=86400
+    networks:
+      squawk-network:
+        ipv4_address: 172.25.0.11
+    depends_on:
+      - dns-server
+    profiles:
+      - dhcp  # Only start with --profile dhcp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NTP/NTS Server (optional)
+  ntp-server:
+    build:
+      context: ./ntp-server
+      dockerfile: Dockerfile
+    image: squawk-ntp-server:latest
+    container_name: squawk-ntp-server
+    restart: unless-stopped
+    ports:
+      - "8082:8082"  # NTP-over-HTTPS API
+      - "4460:4460"  # NTS Key Establishment
+    environment:
+      - NTP_PORT=8082
+      - NTS_KE_PORT=4460
+      - AUTH_REQUIRED=true
+      - SHARED_AUTH_URL=http://172.25.0.10:8080
+      - UPSTREAM_NTP=pool.ntp.org
+    networks:
+      squawk-network:
+        ipv4_address: 172.25.0.12
+    depends_on:
+      - dns-server
+    profiles:
+      - ntp  # Only start with --profile ntp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # PostgreSQL Database (optional - for enterprise deployments)
   postgres:

@@ -123,8 +123,8 @@ jobs:
         id: build
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
-          context: dns-client-go
-          file: dns-client-go/Dockerfile
+          context: squawk-client-go
+          file: squawk-client-go/Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.DNS_CLIENT_IMAGE }},push-by-digest=true,name-canonical=true,push=true
@@ -213,8 +213,8 @@ jobs:
         id: build
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
-          context: dns-client-go
-          file: dns-client-go/Dockerfile.k8s-dns
+          context: squawk-client-go
+          file: squawk-client-go/Dockerfile.k8s-dns
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.K8S_DNS_IMAGE }},push-by-digest=true,name-canonical=true,push=true

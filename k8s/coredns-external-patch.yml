@@ -20,7 +20,7 @@ data:
            ttl 30
         }
         prometheus :9153
-        forward . dns-client.squawk.svc.cluster.local {
+        forward . squawk-client.squawk.svc.cluster.local {
            max_concurrent 1000
         }
         cache 30 {

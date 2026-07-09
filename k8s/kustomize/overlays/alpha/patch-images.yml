@@ -14,13 +14,13 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dns-client
+  name: squawk-client
   namespace: squawk
 spec:
   template:
     spec:
       containers:
-      - name: dns-client
+      - name: squawk-client
         image: localhost:32000/squawk-dns-client:latest
         imagePullPolicy: Always
 ---

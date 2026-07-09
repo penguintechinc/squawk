@@ -1,9 +1,9 @@
 # Public-facing DNS resolver policies.
 #
 # Labels sourced from the actual workloads (verified in
-# k8s/kustomize/base/dns-server-deployment.yml and dns-client-deployment.yml):
+# k8s/kustomize/base/dns-server-deployment.yml and squawk-client-deployment.yml):
 #   app.kubernetes.io/name: squawk
-#   app.kubernetes.io/component: dns-server | dns-client
+#   app.kubernetes.io/component: dns-server | squawk-client
 #
 # dns-server (Quart app, dns-server/app/main.py) serves DoH, /health and the
 # Prometheus /metrics endpoint all on the SAME port (8080/DOH_PORT).
@@ -11,8 +11,8 @@
 # this port — port 8080 is treated as fully public per product requirement
 # (dns-server is the external resolver).
 #
-# dns-client is the actual public UDP/TCP:53 listener today; it proxies
-# queries to dns-server over HTTP (see dns-client-deployment.yml args/env).
+# squawk-client is the actual public UDP/TCP:53 listener today; it proxies
+# queries to dns-server over HTTP (see squawk-client-deployment.yml args/env).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -64,16 +64,16 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-dns-client-public
+  name: allow-ingress-squawk-client-public
   namespace: squawk
   labels:
     app.kubernetes.io/name: squawk
-    app.kubernetes.io/component: dns-client
+    app.kubernetes.io/component: squawk-client
 spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: squawk
-      app.kubernetes.io/component: dns-client
+      app.kubernetes.io/component: squawk-client
   policyTypes:
     - Ingress
   ingress:

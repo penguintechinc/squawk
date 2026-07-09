@@ -17,4 +17,4 @@ flags:
   unittests:
     paths:
       - dns-server/app/
-      - dns-client/bins/
+      - squawk-client/bins/

@@ -28,7 +28,7 @@ readonly DEFAULT_TAG="beta-$(date +%s)"
 declare -A SERVICES=(
   ["dns-server"]="./dns-server"
   ["dns-webui"]="./services/dns-webui"
-  ["dns-client"]="./dns-client"
+  ["dns-client"]="./squawk-client"
 )
 
 # Track script parameters

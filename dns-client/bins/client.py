@@ -37,6 +37,12 @@ try:
     PROTOBUF_AVAILABLE = True
 except ImportError:
     PROTOBUF_AVAILABLE = False
+    # Provide fallbacks so tests can mock
+    DNSQueryServiceStub = None
+    QueryRequest = None
+    BatchQueryRequest = None
+    QueryResponse = None
+    HealthCheckRequest = None
 
 
 class DNSOverHTTPSClient:

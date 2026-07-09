@@ -203,8 +203,7 @@ func (t *HTTP2Transport) getGRPCCredentials() grpc.DialOption {
 		// Keep the channel encrypted and only skip certificate verification
 		// (parity with the HTTP transports' verify=false). Never fall through to
 		// plaintext gRPC — that would leak the bearer token on the wire.
-		//nolint:gosec // G402: intentional opt-in InsecureSkipVerify when VerifySSL=false
-		return grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))
+		return grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})) // #nosec G402 -- intentional opt-in when VerifySSL=false
 	}
 	// Default to system certificates
 	return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))

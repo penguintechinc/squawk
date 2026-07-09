@@ -227,7 +227,7 @@ func (w *Watcher) updateServiceRecords(svc *corev1.Service) {
 					},
 					Priority: 10,
 					Weight:   100,
-					Port:     uint16(port.Port), //nolint:gosec // G115: port.Port is guaranteed to be a valid port number (0-65535)
+					Port:     uint16(port.Port), // #nosec G115 -- port.Port is a valid port number (0-65535)
 					Target:   targetName,
 				},
 			}

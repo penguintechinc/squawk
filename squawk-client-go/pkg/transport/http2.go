@@ -2,13 +2,13 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // HTTP2Transport implements Transport using HTTP/2 gRPC.
@@ -204,7 +204,10 @@ func (t *HTTP2Transport) getGRPCCredentials() grpc.DialOption {
 		return grpc.WithTransportCredentials(credentials.NewTLS(t.config.TLSConfig))
 	}
 	if !t.config.VerifySSL {
-		return grpc.WithTransportCredentials(insecure.NewCredentials())
+		// Keep the channel encrypted and only skip certificate verification
+		// (parity with the HTTP transports' verify=false). Never fall through to
+		// plaintext gRPC — that would leak the bearer token on the wire.
+		return grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))
 	}
 	// Default to system certificates
 	return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))

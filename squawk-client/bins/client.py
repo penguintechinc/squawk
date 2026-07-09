@@ -386,7 +386,8 @@ class DNSOverHTTPSClient:
 class SquawkDNSGrpcClient:
     """gRPC DNS Query Client for Squawk DNS Server"""
 
-    def __init__(self, server_url, token=None, use_grpc=True, timeout=30):
+    def __init__(self, server_url, token=None, use_grpc=True, timeout=30,
+                 verify_ssl=True, ca_cert=None):
         """
         Initialize gRPC DNS client
 
@@ -395,11 +396,15 @@ class SquawkDNSGrpcClient:
             token: Optional authentication token
             use_grpc: Whether to use gRPC (if False, falls back to REST)
             timeout: Request timeout in seconds
+            verify_ssl: Verify the server TLS certificate (default True)
+            ca_cert: Optional path to a CA bundle for TLS verification
         """
         self.server_url = server_url
         self.token = token
         self.use_grpc = use_grpc and GRPC_AVAILABLE and PROTOBUF_AVAILABLE
         self.timeout = timeout
+        self.verify_ssl = verify_ssl
+        self.ca_cert = ca_cert
         self.channel = None
         self.stub = None
         self.rest_client = None
@@ -426,10 +431,27 @@ class SquawkDNSGrpcClient:
             target = f"{host}:{port}"
             logging.debug(f"Connecting to gRPC server at {target}")
 
-            # Create gRPC channel
-            self.channel = grpc.insecure_channel(target)
+            # Create gRPC channel. Loopback targets may use a plaintext channel
+            # for local development; every other target MUST use TLS so the bearer
+            # token is never transmitted in the clear. The token is attached as
+            # per-call credentials, which gRPC only permits over a secure channel.
+            is_loopback = host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+            if is_loopback:
+                self.channel = grpc.insecure_channel(target)
+            else:
+                if self.ca_cert:
+                    with open(self.ca_cert, "rb") as ca:
+                        ssl_creds = grpc.ssl_channel_credentials(root_certificates=ca.read())
+                else:
+                    ssl_creds = grpc.ssl_channel_credentials()
+                if self.token:
+                    call_creds = grpc.access_token_call_credentials(self.token)
+                    channel_creds = grpc.composite_channel_credentials(ssl_creds, call_creds)
+                else:
+                    channel_creds = ssl_creds
+                self.channel = grpc.secure_channel(target, channel_creds)
             self.stub = DNSQueryServiceStub(self.channel)
-            logging.info(f"gRPC client initialized for {target}")
+            logging.info(f"gRPC client initialized for {target} (tls={not is_loopback})")
         except Exception as e:
             logging.warning(f"Failed to initialize gRPC: {e}, falling back to REST")
             self.use_grpc = False
@@ -471,8 +493,8 @@ class SquawkDNSGrpcClient:
                 name=domain, type=record_type, token=self.token or ""
             )
 
-            # Set timeout for the call
-            call_credentials = grpc.access_token_call_credentials(self.token or "")
+            # Token travels as channel call-credentials over TLS (see _init_grpc)
+            # and in the request body for the loopback plaintext case.
             response = self.stub.Query(request, timeout=self.timeout)
 
             return self._convert_grpc_response(response)

@@ -36,10 +36,7 @@ from OpenSSL import SSL
 import posthog
 
 # Structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -78,6 +75,7 @@ NTP_EPOCH_OFFSET = 2208988800
 
 class NTSKERecordType(IntEnum):
     """NTS-KE record types (RFC 8915 §4.1.1)."""
+
     END_OF_MESSAGE = 0
     NEXT_PROTOCOL = 1
     ERROR = 2
@@ -90,6 +88,7 @@ class NTSKERecordType(IntEnum):
 
 class AEADAlgorithm(IntEnum):
     """AEAD algorithms (RFC 8915 §4.1.3)."""
+
     AEAD_AES_SIV_CMAC_256 = 15
     AEAD_AES_SIV_CMAC_384 = 16
     AEAD_AES_SIV_CMAC_512 = 17
@@ -97,6 +96,7 @@ class AEADAlgorithm(IntEnum):
 
 class NTPExtensionField(IntEnum):
     """NTP extension field types (RFC 8915 §5.7)."""
+
     UNIQUE_IDENTIFIER = 0x0104
     NTS_COOKIE = 0x0204
     COOKIE_PLACEHOLDER = 0x0304
@@ -112,6 +112,7 @@ class NTPExtensionField(IntEnum):
 @dataclass(slots=True, frozen=True)
 class KeyMaterial:
     """Derived key material from TLS exporter."""
+
     c2s_key: bytes
     s2c_key: bytes
     aead_id: int
@@ -121,6 +122,7 @@ class KeyMaterial:
 @dataclass(slots=True)
 class NTSCookie:
     """Sealed NTS cookie with plaintext metadata."""
+
     sealed: bytes  # AEAD-encrypted key material
     version: int  # Master key version for rotation
     created_at: float = field(default_factory=time.time)
@@ -133,6 +135,7 @@ class NTSCookie:
 @dataclass(slots=True)
 class NTSSession:
     """In-memory NTS session (temporary, ephemeral)."""
+
     c2s_key: bytes
     s2c_key: bytes
     aead_id: int
@@ -146,6 +149,7 @@ class NTSSession:
 @dataclass(slots=True)
 class NTPPacket:
     """Parsed NTP packet with extension fields."""
+
     version: int
     mode: int
     stratum: int
@@ -264,9 +268,7 @@ class CookieManager:
 
     def __init__(self):
         self.master_key_version = 0
-        self.master_keys: Dict[int, bytes] = {
-            0: secrets.token_bytes(32)  # Current AES-SIV key (32 bytes)
-        }
+        self.master_keys: Dict[int, bytes] = {0: secrets.token_bytes(32)}  # Current AES-SIV key (32 bytes)
         self.previous_key_expires_at = time.time() + 3600  # Grace period: 1 hour
 
     def seal_cookie(self, c2s_key: bytes, s2c_key: bytes, aead_id: int) -> NTSCookie:
@@ -284,11 +286,7 @@ class CookieManager:
         # Note: AESSIV.encrypt(plaintext, associated_data) - AAD is required for the tag
         sealed = cipher.encrypt(plaintext, [aad])
 
-        return NTSCookie(
-            sealed=sealed,
-            version=self.master_key_version,
-            expiry=float(expiry)
-        )
+        return NTSCookie(sealed=sealed, version=self.master_key_version, expiry=float(expiry))
 
     def unseal_cookie(self, cookie: NTSCookie) -> Optional[Tuple[bytes, bytes, int]]:
         """
@@ -464,7 +462,9 @@ class NTSKEServer:
                 s2c_key = conn.export_keying_material(label, keylen, s2c_context)
 
                 if not c2s_key or not s2c_key or len(c2s_key) != keylen or len(s2c_key) != keylen:
-                    logger.error(f"Key exporter returned invalid key length: c2s={len(c2s_key) if c2s_key else 0}, s2c={len(s2c_key) if s2c_key else 0}")
+                    logger.error(
+                        f"Key exporter returned invalid key length: c2s={len(c2s_key) if c2s_key else 0}, s2c={len(s2c_key) if s2c_key else 0}"
+                    )
                     conn.send(b"ERROR: Key export failed")
                     return
 
@@ -583,10 +583,17 @@ class NTPUDPServer:
             # 4B(RootDelay) + 4B(RootDisp) + 4B(RefID) + 8B(RefTS) + 8B(OriginTS) + 8B(ReceiveTS) + 8B(TransmitTS)
             header = struct.unpack("!BBBbIIIQQQQ", data[:48])
             (
-                byte0, stratum, poll, precision,
-                root_delay_int, root_dispersion_int,
+                byte0,
+                stratum,
+                poll,
+                precision,
+                root_delay_int,
+                root_dispersion_int,
                 reference_id,
-                reference_ts, origin_ts, receive_ts, transmit_ts
+                reference_ts,
+                origin_ts,
+                receive_ts,
+                transmit_ts,
             ) = header
 
             version = (byte0 >> 3) & 0x07
@@ -594,7 +601,7 @@ class NTPUDPServer:
 
             # Convert NTP timestamps
             def ntp_to_float(ts: int) -> float:
-                return (ts >> 32) + ((ts & 0xffffffff) / (2**32))
+                return (ts >> 32) + ((ts & 0xFFFFFFFF) / (2**32))
 
             packet = NTPPacket(
                 version=version,
@@ -619,7 +626,7 @@ class NTPUDPServer:
                 if offset + 4 > len(data):
                     break
 
-                ef_header = struct.unpack("!HH", data[offset:offset + 4])
+                ef_header = struct.unpack("!HH", data[offset : offset + 4])
                 ef_type, ef_len = ef_header
 
                 if ef_len < 4 or ef_len % 4 != 0:
@@ -629,7 +636,7 @@ class NTPUDPServer:
                 if offset + ef_len > len(data):
                     break
 
-                ef_data = data[offset + 4:offset + ef_len]
+                ef_data = data[offset + 4 : offset + ef_len]
                 packet.extension_fields[ef_type] = ef_data
 
                 offset += ef_len
@@ -719,9 +726,7 @@ class NTPUDPServer:
         if aead_id != AEADAlgorithm.AEAD_AES_SIV_CMAC_256:
             # Only AES-SIV-CMAC-256 is negotiated by NTS-KE (RFC 8915). Never
             # silently downgrade to a weaker MAC — fail closed instead.
-            raise ValueError(
-                f"Unsupported AEAD algorithm {aead_id}; only AES-SIV-CMAC-256 supported"
-            )
+            raise ValueError(f"Unsupported AEAD algorithm {aead_id}; only AES-SIV-CMAC-256 supported")
 
         # AES-SIV MAC: encrypt empty plaintext with the packet bytes as the sole
         # associated-data element; AES-SIV returns the 16-byte SIV as the tag.
@@ -826,12 +831,14 @@ async def ntp_time():
     ntp_secs = int(now) + NTP_EPOCH_OFFSET
     ntp_frac = int((now % 1) * (2**32))
 
-    return jsonify({
-        "unix_timestamp": now,
-        "ntp_seconds": ntp_secs,
-        "ntp_fraction": ntp_frac,
-        "iso8601": datetime.now(timezone.utc).isoformat(),
-    })
+    return jsonify(
+        {
+            "unix_timestamp": now,
+            "ntp_seconds": ntp_secs,
+            "ntp_fraction": ntp_frac,
+            "iso8601": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
 
 @app.route("/ntp/status", methods=["GET"])
@@ -847,46 +854,55 @@ async def ntp_status():
     if not verify_jwt(token, required_scope="ntp:admin"):
         return jsonify({"error": "Unauthorized"}), 403
 
-    return jsonify({
-        "service": "NTP/NTS",
-        "version": "2.0.0",
-        "rfc": "RFC 8915",
-        "master_key_version": getattr(nts_ke_server, 'cookie_manager', None).master_key_version if nts_ke_server else None,
-    })
+    return jsonify(
+        {
+            "service": "NTP/NTS",
+            "version": "2.0.0",
+            "rfc": "RFC 8915",
+            "master_key_version": (
+                getattr(nts_ke_server, "cookie_manager", None).master_key_version if nts_ke_server else None
+            ),
+        }
+    )
 
 
 @app.route("/health", methods=["GET"])
 async def health():
     """GET /health: Health check endpoint (no auth)."""
     ntp_secs = int(time.time()) + NTP_EPOCH_OFFSET
-    return jsonify({
-        "status": "healthy",
-        "service": "ntp",
-        "ntp_time": ntp_secs,
-    })
+    return jsonify(
+        {
+            "status": "healthy",
+            "service": "ntp",
+            "ntp_time": ntp_secs,
+        }
+    )
 
 
 @app.route("/", methods=["GET"])
 async def root():
     """Root endpoint."""
-    return jsonify({
-        "service": "Squawk NTP/NTS Server (RFC 8915)",
-        "version": "2.0.0",
-        "endpoints": {
-            "plain": [
-                "GET /ntp/time - Current server time",
-                "GET /ntp/status - Server status (requires ntp:admin scope)",
-                "GET /health - Health check",
-            ],
-            "nts-ke": "TLS on port 4460 (RFC 5705 exporter, requires ntp:client scope)",
-            "ntp-udp": "UDP port 123 (NTS-authenticated queries)",
-        },
-    })
+    return jsonify(
+        {
+            "service": "Squawk NTP/NTS Server (RFC 8915)",
+            "version": "2.0.0",
+            "endpoints": {
+                "plain": [
+                    "GET /ntp/time - Current server time",
+                    "GET /ntp/status - Server status (requires ntp:admin scope)",
+                    "GET /health - Health check",
+                ],
+                "nts-ke": "TLS on port 4460 (RFC 5705 exporter, requires ntp:client scope)",
+                "ntp-udp": "UDP port 123 (NTS-authenticated queries)",
+            },
+        }
+    )
 
 
 # ============================================================================
 # Periodic Tasks
 # ============================================================================
+
 
 async def master_key_rotation_task(cookie_manager: CookieManager):
     """Rotate master key daily (grace period: 1 hour)."""

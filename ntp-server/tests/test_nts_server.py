@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 # Import the server module
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "bins"))
 
 from server import (
@@ -43,10 +44,10 @@ from server import (
     NTP_EPOCH_OFFSET,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def jwt_secret():
@@ -64,6 +65,7 @@ def cookie_manager():
 def test_keys():
     """Generate test keys."""
     import secrets
+
     c2s = secrets.token_bytes(32)
     s2c = secrets.token_bytes(32)
     return c2s, s2c
@@ -72,6 +74,7 @@ def test_keys():
 # ============================================================================
 # Cookie AEAD Tests
 # ============================================================================
+
 
 class TestCookieAEAD:
     """Test suite for AEAD cookie encryption/decryption."""
@@ -108,10 +111,7 @@ class TestCookieAEAD:
         tampered_sealed = bytearray(cookie.sealed)
         if tampered_sealed:
             tampered_sealed[0] ^= 0x01  # Flip a bit
-        tampered_cookie = NTSCookie(
-            sealed=bytes(tampered_sealed),
-            version=cookie.version
-        )
+        tampered_cookie = NTSCookie(sealed=bytes(tampered_sealed), version=cookie.version)
 
         # Attempt unseal (should fail)
         result = cookie_manager.unseal_cookie(tampered_cookie)
@@ -155,6 +155,7 @@ class TestCookieAEAD:
 # JWT Validation Tests
 # ============================================================================
 
+
 class TestJWTValidation:
     """Test suite for JWT validation."""
 
@@ -164,11 +165,7 @@ class TestJWTValidation:
         os.environ["JWT_SECRET_KEY"] = jwt_secret
 
         # Create token
-        payload = {
-            "sub": "test_user",
-            "scope": "ntp:client",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
-        }
+        payload = {"sub": "test_user", "scope": "ntp:client", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
         # Verify
@@ -179,10 +176,7 @@ class TestJWTValidation:
         os.environ["JWT_SECRET_KEY"] = jwt_secret
 
         # Create expired token
-        payload = {
-            "sub": "test_user",
-            "exp": datetime.now(timezone.utc) - timedelta(hours=1)
-        }
+        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) - timedelta(hours=1)}
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
         # Verify (should fail)
@@ -193,11 +187,7 @@ class TestJWTValidation:
         os.environ["JWT_SECRET_KEY"] = jwt_secret
 
         # Token with correct scope
-        payload = {
-            "sub": "test_user",
-            "scope": "ntp:client",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
-        }
+        payload = {"sub": "test_user", "scope": "ntp:client", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
         # Should pass with ntp:client scope
@@ -210,10 +200,7 @@ class TestJWTValidation:
         os.environ["JWT_SECRET_KEY"] = jwt_secret
 
         # Token without scope
-        payload = {
-            "sub": "test_user",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
-        }
+        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
         token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
         # Should fail when scope is required
@@ -225,10 +212,7 @@ class TestJWTValidation:
 
         # Create token with different secret
         wrong_secret = "wrong-secret"
-        payload = {
-            "sub": "test_user",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
-        }
+        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
         token = jwt.encode(payload, wrong_secret, algorithm="HS256")
 
         # Verify with correct secret (should fail)
@@ -238,6 +222,7 @@ class TestJWTValidation:
 # ============================================================================
 # NTP Packet Tests
 # ============================================================================
+
 
 class TestNTPPacket:
     """Test suite for NTP packet parsing and building."""
@@ -278,9 +263,17 @@ class TestNTPPacket:
         byte0 = (4 << 3) | 3
         base_packet = struct.pack(
             "!BBBbIIIQQQQ",
-            byte0, 2, 3, -20,
-            int(0.001 * (2**16)), int(0.001 * (2**16)), 0,
-            0, 0, 0, 0,
+            byte0,
+            2,
+            3,
+            -20,
+            int(0.001 * (2**16)),
+            int(0.001 * (2**16)),
+            0,
+            0,
+            0,
+            0,
+            0,
         )
 
         # Add extension field: Unique Identifier
@@ -312,17 +305,23 @@ class TestNTPPacket:
         byte0 = (4 << 3) | 3
         request_data = struct.pack(
             "!BBBbIIIQQQQ",
-            byte0, 2, 3, -20,
-            int(0.001 * (2**16)), int(0.001 * (2**16)), 0,
-            0, 0, 0, 0,
+            byte0,
+            2,
+            3,
+            -20,
+            int(0.001 * (2**16)),
+            int(0.001 * (2**16)),
+            0,
+            0,
+            0,
+            0,
+            0,
         )
         request_packet = server.parse_ntp_packet(request_data)
 
         # Build response
         unique_id = b"test-unique-id"
-        response = server.build_ntp_response(
-            request_packet, c2s, s2c, aead_id, unique_id
-        )
+        response = server.build_ntp_response(request_packet, c2s, s2c, aead_id, unique_id)
 
         # Verify response is valid NTP packet
         assert len(response) > 48
@@ -336,6 +335,7 @@ class TestNTPPacket:
 # ============================================================================
 # Master Key Rotation Tests
 # ============================================================================
+
 
 class TestMasterKeyRotation:
     """Test suite for master key rotation."""
@@ -392,6 +392,7 @@ class TestMasterKeyRotation:
 # ============================================================================
 # TLS Exporter Key Derivation (RFC 5705) - Integration Test
 # ============================================================================
+
 
 class TestTLSExporter:
     """Test suite for RFC 5705 TLS exporter key derivation."""
@@ -510,18 +511,14 @@ class TestNTSKERecordFormat:
         """Test: NTS-KE record critical bit is preserved."""
         # Encode with critical=True
         body = b"test"
-        encoded_critical = NTSKERecord.encode(
-            NTSKERecordType.END_OF_MESSAGE, b"", critical=True
-        )
+        encoded_critical = NTSKERecord.encode(NTSKERecordType.END_OF_MESSAGE, b"", critical=True)
         result = NTSKERecord.decode(encoded_critical, 0)
         assert result is not None
         _, _, _, critical = result
         assert critical is True
 
         # Encode with critical=False
-        encoded_not_critical = NTSKERecord.encode(
-            NTSKERecordType.AEAD_ALGORITHM, body, critical=False
-        )
+        encoded_not_critical = NTSKERecord.encode(NTSKERecordType.AEAD_ALGORITHM, body, critical=False)
         result = NTSKERecord.decode(encoded_not_critical, 0)
         assert result is not None
         _, _, _, critical = result
@@ -539,17 +536,13 @@ class TestNTSKERecordFormat:
         """Test: Parse multiple records from stream."""
         # Build response with multiple records
         response = b""
-        response += NTSKERecord.encode(
-            NTSKERecordType.NEXT_PROTOCOL, struct.pack("!H", 0), critical=False
-        )
+        response += NTSKERecord.encode(NTSKERecordType.NEXT_PROTOCOL, struct.pack("!H", 0), critical=False)
         response += NTSKERecord.encode(
             NTSKERecordType.AEAD_ALGORITHM,
             struct.pack("!H", AEADAlgorithm.AEAD_AES_SIV_CMAC_256),
             critical=False,
         )
-        response += NTSKERecord.encode(
-            NTSKERecordType.END_OF_MESSAGE, b"", critical=True
-        )
+        response += NTSKERecord.encode(NTSKERecordType.END_OF_MESSAGE, b"", critical=True)
 
         # Parse all
         records = NTSKERecord.parse_all(response)

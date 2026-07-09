@@ -2,6 +2,7 @@
 Data Models for DHCP Server
 Slotted dataclasses for memory efficiency and type safety.
 """
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
@@ -10,6 +11,7 @@ from typing import List, Optional
 @dataclass(slots=True, frozen=True)
 class DHCPOffer:
     """DHCP Discover response (offer)."""
+
     status: str
     offered_ip: str
     subnet_mask: str
@@ -23,6 +25,7 @@ class DHCPOffer:
 @dataclass(slots=True, frozen=True)
 class DHCPAck:
     """DHCP Request response (acknowledgment)."""
+
     status: str
     assigned_ip: str
     subnet_mask: str
@@ -36,6 +39,7 @@ class DHCPAck:
 @dataclass(slots=True, frozen=True)
 class DHCPLease:
     """Active or historical DHCP lease."""
+
     mac_address: str
     ip_address: str
     hostname: Optional[str]
@@ -53,6 +57,7 @@ class DHCPLease:
 @dataclass(slots=True)
 class DHCPReservation:
     """Static IP reservation (MAC -> IP mapping)."""
+
     mac_address: str
     ip_address: str
     hostname: Optional[str] = None
@@ -62,6 +67,7 @@ class DHCPReservation:
 @dataclass(slots=True)
 class DHCPPoolConfig:
     """DHCP pool configuration snapshot."""
+
     name: str
     network: str
     range_start: str
@@ -69,4 +75,4 @@ class DHCPPoolConfig:
     gateway: str
     dns_servers: List[str]
     lease_duration: int
-    subnet_mask: str = '255.255.255.0'
+    subnet_mask: str = "255.255.255.0"

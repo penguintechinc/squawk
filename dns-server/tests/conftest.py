@@ -14,24 +14,31 @@ from typing import Any
 from sqlalchemy.engine import Engine
 from penguin_dal import DB
 
-# Add the manager backend app dir to path so the shared SQLAlchemy schema
-# (manager/backend/app/schema.py) is importable — this is the canonical schema
-# authority now that the legacy flask_app tree has been removed.
+# Resolve the shared SQLAlchemy schema. In the repo the canonical authority is
+# manager/backend/app/schema.py; inside the dns-server container image that tree
+# is NOT present (the image ships dns-server/ only), so fall back to an empty
+# MetaData — these dns-server unit tests exercise app/services logic and do not
+# depend on manager-owned tables.
 manager_app_path = os.path.join(
     os.path.dirname(__file__), "..", "..", "manager", "backend", "app"
 )
 if manager_app_path not in sys.path:
     sys.path.insert(0, manager_app_path)
 
+try:
+    from schema import metadata as _schema_metadata
+except ImportError:
+    from sqlalchemy import MetaData
+    _schema_metadata = MetaData()
+
 # Create a temp SQLite file for this test session
 _fd, _test_db_tmp = tempfile.mkstemp(suffix=".db", prefix="squawk_test_")
 os.close(_fd)
 os.environ["DATABASE_URI"] = f"sqlite:///{_test_db_tmp}"
 
-# Create schema so penguin-dal can reflect tables
-from schema import metadata
+# Create schema so penguin-dal can reflect tables (no-op if metadata is empty)
 _engine = create_engine(f"sqlite:///{_test_db_tmp}")
-metadata.create_all(_engine)
+_schema_metadata.create_all(_engine)
 _engine.dispose()
 
 
@@ -63,12 +70,11 @@ def db(db_engine: Engine) -> Generator[DB, None, None]:
 def clean_db_tables(db: DB) -> Generator[None, None, None]:
     """Truncate all tables before each test for isolation."""
     yield
-    from schema import metadata
     from sqlalchemy import text
 
     with db.engine.connect() as conn:
         conn.execute(text("PRAGMA foreign_keys = OFF"))
-        for table in reversed(metadata.sorted_tables):
+        for table in reversed(_schema_metadata.sorted_tables):
             conn.execute(table.delete())
         conn.execute(text("PRAGMA foreign_keys = ON"))
         conn.commit()

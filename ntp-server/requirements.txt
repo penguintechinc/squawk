@@ -5,11 +5,15 @@
 quart>=0.19.0
 hypercorn>=0.17.0
 
-# HTTP client for auth validation
-aiohttp>=3.9.0
-
-# Cryptography for NTS AEAD
+# Cryptography for NTS AEAD and RFC 5705 key exporter
 cryptography>=42.0.0
+pyOpenSSL>=26.3.0
+
+# JWT validation (HS256)
+PyJWT>=2.8.0
+
+# Feature flags and license
+posthog>=3.0.0
 
 # Utilities
 python-dotenv>=1.0.0

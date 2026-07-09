@@ -1,59 +1,78 @@
-# NTP/NTS Server Dockerfile
-# Based on Ubuntu 24.04 LTS with Python 3.13 from deadsnakes PPA
+# NTP/NTS Server Dockerfile (RFC 8915 Compliant)
+# Production-grade NTS with real AEAD encryption and RFC 5705 TLS exporter
+FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc
 
-FROM ubuntu:24.04
+LABEL company="Penguin Tech Group LLC"
+LABEL org.opencontainers.image.authors="info@penguintech.io"
+LABEL license="GNU AGPL3"
+LABEL description="Squawk NTP/NTS Server (RFC 8915) with AEAD Encryption"
 
-# Prevent interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
+# Build-time environment selector
+ARG SQUAWK_ENV=production
 
-# Install system dependencies and Python 3.13
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    SQUAWK_ENV=${SQUAWK_ENV:-production}
+
+# Install build dependencies and openssl development files (needed for pyOpenSSL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libssl-dev \
+    libffi-dev \
+    pkg-config \
     curl \
     ca-certificates \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y \
-    python3.13 \
-    python3.13-venv \
-    python3.13-dev \
-    libffi-dev \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Create app user (rootless)
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /bin/bash appuser
+
+# Create directories
+RUN mkdir -p /app /app/certs && \
+    chown -R appuser:appuser /app
+
 WORKDIR /app
 
-# Create virtual environment
-RUN python3.13 -m venv /app/venv
-ENV PATH="/app/venv/bin:$PATH"
+# Copy requirements
+COPY requirements*.txt ./
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Create virtual environment and install dependencies
+RUN python3.13 -m venv /app/venv && \
+    /app/venv/bin/pip install --upgrade pip wheel setuptools && \
+    /app/venv/bin/pip install -r requirements.txt && \
+    if [ "$SQUAWK_ENV" = "development" ] || [ "$SQUAWK_ENV" = "test" ]; then \
+    /app/venv/bin/pip install pytest pytest-cov pytest-asyncio; \
+    fi && \
+    echo "✓ Python dependencies installed"
+
+# Set venv as default
+ENV PATH="/app/venv/bin:$PATH"
 
 # Copy application code
 COPY bins/ ./bins/
-COPY managers/ ./managers/
 
-# Create empty __init__.py files for Python packages
-RUN touch bins/__init__.py managers/__init__.py
+# Set permissions
+RUN chown -R appuser:appuser /app && \
+    chmod 755 /app/bins/server.py
 
-# Environment variables with defaults
-ENV NTP_PORT=8082
-ENV NTS_KE_PORT=4460
-ENV AUTH_REQUIRED=true
-ENV SHARED_AUTH_URL=http://localhost:8080
-ENV UPSTREAM_NTP=pool.ntp.org
+# Switch to non-root user
+USER appuser
 
-# Expose NTP server ports
-EXPOSE 8082
-EXPOSE 4460
-
-# Health check
+# Health check (native Python, no curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8082/health || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8082/health',timeout=5).status==200 else 1)" || exit 1
 
-# Run the server
-CMD ["python", "bins/server.py"]
+# Expose ports
+# 8082: HTTP API (plain endpoints)
+# 4460: NTS-KE TLS server
+# 123/udp: NTP UDP server
+EXPOSE 8082 4460 123/udp
+
+# Launch server
+CMD ["python3", "bins/server.py"]

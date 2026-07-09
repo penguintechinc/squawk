@@ -1,0 +1,35 @@
+# ntp-server exposes 8082/tcp (HTTP status/health), 4460/tcp (NTS-KE, RFC
+# 8915 — TLS terminated IN-APP, so any fronting Gateway/Ingress MUST use
+# TLS/SNI passthrough, see ntp-server-service.yml), and NTP UDP.
+# NetworkPolicy `ports` matches the packet's destination port as it actually
+# arrives at the pod (i.e. AFTER kube-proxy/CNI DNAT rewrites Service port ->
+# targetPort) — NOT the externally-visible Service port. The ntp-server
+# Service remaps 123/udp -> targetPort 11123 (container is rootless, cannot
+# bind <1024/udp), so this policy must allow 11123/udp, not 123/udp.
+# NTP/NTS-KE are inherently client-facing protocols; ingress is left open to
+# any source (not restricted to podSelector {}) since external clients query
+# time directly, matching the dns-server/squawk-client "public resolver"
+# pattern.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-ntp-server
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: ntp-server
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: ntp-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 4460
+        - protocol: UDP
+          port: 11123

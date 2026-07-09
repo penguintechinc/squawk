@@ -113,6 +113,38 @@ app.kubernetes.io/component: dns-agent
 {{- end }}
 
 {{/*
+DHCP Server labels
+*/}}
+{{- define "squawk.dhcpServer.labels" -}}
+{{ include "squawk.labels" . }}
+app.kubernetes.io/component: dhcp-server
+{{- end }}
+
+{{/*
+DHCP Server selector labels
+*/}}
+{{- define "squawk.dhcpServer.selectorLabels" -}}
+{{ include "squawk.selectorLabels" . }}
+app.kubernetes.io/component: dhcp-server
+{{- end }}
+
+{{/*
+NTP Server labels
+*/}}
+{{- define "squawk.ntpServer.labels" -}}
+{{ include "squawk.labels" . }}
+app.kubernetes.io/component: ntp-server
+{{- end }}
+
+{{/*
+NTP Server selector labels
+*/}}
+{{- define "squawk.ntpServer.selectorLabels" -}}
+{{ include "squawk.selectorLabels" . }}
+app.kubernetes.io/component: ntp-server
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "squawk.serviceAccountName" -}}

@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntp-server
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: ntp-server
+        image: ghcr.io/penguintechinc/squawk/ntp-server:latest
+        imagePullPolicy: IfNotPresent

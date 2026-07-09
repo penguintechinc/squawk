@@ -72,6 +72,46 @@ k8sDns:
     clusterDomain: "cluster.local"
     logLevel: "info"
 
+dhcpServer:
+  enabled: true
+  image:
+    repository: penguintechinc/squawk/dhcp-server
+    tag: latest
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    logLevel: "info"
+    poolSubnet: "192.168.1.0/24"
+    poolStart: "192.168.1.100"
+    poolEnd: "192.168.1.200"
+    gateway: "192.168.1.1"
+    dnsServers: "8.8.8.8,8.8.4.4"
+    leaseTime: "86400"
+    posthogHost: "https://license.penguintech.io"
+
+ntpServer:
+  enabled: true
+  image:
+    repository: penguintechinc/squawk/ntp-server
+    tag: latest
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    udpPort: "11123"
+    posthogHost: "https://license.penguintech.io"
+
 serviceAccount:
   create: false
   name: ""

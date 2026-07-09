@@ -129,6 +129,65 @@ spec:
         - protocol: TCP
           port: 53
 ---
+# dhcp-server serves DHCP-over-HTTPS REST (/dhcp/*) and /health all on the
+# same port (8081) — see dhcp-server/bins/server.py. Manager/webui and any
+# in-cluster DHCP relay/agent reach it over this port; treated as
+# namespace-internal only (not world-exposed) unless a Gateway/Ingress is
+# added later.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-dhcp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dhcpServer.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.dhcpServer.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8081
+---
+# ntp-server exposes 8082/tcp (HTTP status/health), 4460/tcp (NTS-KE, RFC
+# 8915 — TLS terminated IN-APP, so any fronting Gateway/Ingress MUST use
+# TLS/SNI passthrough, see templates/ntp-server-service.yml), and NTP UDP.
+# NetworkPolicy `ports` matches the packet's destination port as it actually
+# arrives at the pod (i.e. AFTER kube-proxy/CNI DNAT rewrites Service port ->
+# targetPort) — NOT the externally-visible Service port. The ntp-server
+# Service remaps 123/udp -> targetPort 11123 (container is rootless, cannot
+# bind <1024/udp), so this policy must allow 11123/udp, not 123/udp.
+# NTP/NTS-KE are inherently client-facing protocols; ingress is left open to
+# any source (not restricted to podSelector {}) since external clients query
+# time directly, matching the dns-server/squawk-client "public resolver"
+# pattern.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-ntp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.ntpServer.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "squawk.ntpServer.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 4460
+        - protocol: UDP
+          port: 11123
+---
 # k8s-dns: internal cluster DNS plugin (CoreDNS stub-domain forward target,
 # see templates/k8s-dns-deployment.yml). Cluster-reachable, not
 # public-internet-facing — same treatment as squawk-client but without a

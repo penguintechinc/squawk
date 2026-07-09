@@ -1,0 +1,104 @@
+{{- if .Values.dhcpServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhcp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dhcpServer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.dhcpServer.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.dhcpServer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.dhcpServer.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: dhcp-server
+        image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dhcpServer.image.repository }}:{{ .Values.dhcpServer.image.tag }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: dhcp-http
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: DHCP_PORT
+          value: "8081"
+        # Shared JWT signing secret — MUST match manager's JWT_SECRET_KEY so
+        # tokens issued by manager verify here (dhcp-server/app/auth.py).
+        # Provision out-of-band: kubectl create secret generic squawk-jwt-secret
+        #   -n squawk --from-literal=jwt-secret-key=<value>
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-jwt-secret
+              key: jwt-secret-key
+        # Per-service DB account (dhcp-server-rw), scoped to dhcp_lease /
+        # dhcp_pool / dhcp_reservation tables only — see backend-database.md.
+        # Provision out-of-band: kubectl create secret generic dhcp-server-db
+        #   -n squawk --from-literal=url=postgresql://dhcp-server-rw:<pass>@<host>:5432/<db>
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dhcp-server-db
+              key: url
+        - name: DHCP_POOL_SUBNET
+          value: {{ .Values.dhcpServer.env.poolSubnet | quote }}
+        - name: DHCP_POOL_START
+          value: {{ .Values.dhcpServer.env.poolStart | quote }}
+        - name: DHCP_POOL_END
+          value: {{ .Values.dhcpServer.env.poolEnd | quote }}
+        - name: DHCP_GATEWAY
+          value: {{ .Values.dhcpServer.env.gateway | quote }}
+        - name: DHCP_DNS_SERVERS
+          value: {{ .Values.dhcpServer.env.dnsServers | quote }}
+        - name: DHCP_LEASE_TIME
+          value: {{ .Values.dhcpServer.env.leaseTime | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.dhcpServer.env.logLevel | quote }}
+        # PostHog feature-flag key (squawkdns.dhcp-server flag) — optional;
+        # app disables PostHog when unset. secretKeyRef optional:true means
+        # the pod still starts if squawk-posthog-secret is never provisioned.
+        - name: POSTHOG_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-posthog-secret
+              key: posthog-key
+              optional: true
+        - name: POSTHOG_HOST
+          value: {{ .Values.dhcpServer.env.posthogHost | quote }}
+        resources:
+          {{- toYaml .Values.dhcpServer.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+{{- end }}

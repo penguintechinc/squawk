@@ -10,7 +10,13 @@ resources:
   - squawk-client-service.yml
   - manager-deployment.yml
   - manager-scheduler-deployment.yml
+  - dhcp-server-deployment.yml
+  - dhcp-server-service.yml
+  - ntp-server-deployment.yml
+  - ntp-server-service.yml
   - networkpolicy-default-deny.yml
   - networkpolicy-dns.yml
   - networkpolicy-manager.yml
   - networkpolicy-data.yml
+  - networkpolicy-dhcp.yml
+  - networkpolicy-ntp.yml

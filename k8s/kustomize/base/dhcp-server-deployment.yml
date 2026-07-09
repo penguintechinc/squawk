@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhcp-server
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: dhcp-server
+    app.kubernetes.io/instance: dhcp-server
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: dhcp-server
+      app.kubernetes.io/instance: dhcp-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: dhcp-server
+        app.kubernetes.io/instance: dhcp-server
+    spec:
+      containers:
+      - name: dhcp-server
+        image: ghcr.io/penguintechinc/squawk/dhcp-server:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: dhcp-http
+          containerPort: 8081
+          protocol: TCP
+        env:
+        - name: DHCP_PORT
+          value: "8081"
+        # Shared JWT signing secret — MUST match manager's JWT_SECRET_KEY so
+        # tokens issued by manager verify here (dhcp-server/app/auth.py).
+        # Provision out-of-band: kubectl create secret generic squawk-jwt-secret
+        #   -n squawk --from-literal=jwt-secret-key=<value>
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-jwt-secret
+              key: jwt-secret-key
+        # Per-service DB account (dhcp-server-rw), scoped to dhcp_lease /
+        # dhcp_pool / dhcp_reservation tables only — see backend-database.md.
+        # Provision out-of-band: kubectl create secret generic dhcp-server-db
+        #   -n squawk --from-literal=url=postgresql://dhcp-server-rw:<pass>@<host>:5432/<db>
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dhcp-server-db
+              key: url
+        - name: DHCP_POOL_SUBNET
+          value: "192.168.1.0/24"
+        - name: DHCP_POOL_START
+          value: "192.168.1.100"
+        - name: DHCP_POOL_END
+          value: "192.168.1.200"
+        - name: DHCP_GATEWAY
+          value: "192.168.1.1"
+        - name: DHCP_DNS_SERVERS
+          value: "8.8.8.8,8.8.4.4"
+        - name: DHCP_LEASE_TIME
+          value: "86400"
+        - name: LOG_LEVEL
+          value: "info"
+        # PostHog feature-flag key (squawkdns.dhcp-server flag) — optional;
+        # app disables PostHog when unset. secretKeyRef optional:true means
+        # the pod still starts if squawk-posthog-secret is never provisioned.
+        - name: POSTHOG_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-posthog-secret
+              key: posthog-key
+              optional: true
+        - name: POSTHOG_HOST
+          value: "https://license.penguintech.io"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL

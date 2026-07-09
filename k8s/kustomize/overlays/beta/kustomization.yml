@@ -12,4 +12,12 @@ patches:
     target:
       kind: Deployment
       name: squawk-client
+  - path: patch-dhcp-server-image.yml
+    target:
+      kind: Deployment
+      name: dhcp-server
+  - path: patch-ntp-server-image.yml
+    target:
+      kind: Deployment
+      name: ntp-server
   - path: patch-replicas.yml

@@ -124,7 +124,10 @@ func (w *Watcher) Stop() {
 
 // handleServiceAdd processes a new Service.
 func (w *Watcher) handleServiceAdd(obj interface{}) {
-	svc := obj.(*corev1.Service)
+	svc, ok := obj.(*corev1.Service)
+	if !ok {
+		return
+	}
 	w.updateServiceRecords(svc)
 	if w.metrics != nil {
 		w.metrics.K8sWatcherEventsTotal.WithLabelValues("service", "add").Inc()
@@ -134,7 +137,10 @@ func (w *Watcher) handleServiceAdd(obj interface{}) {
 
 // handleServiceUpdate processes an updated Service.
 func (w *Watcher) handleServiceUpdate(oldObj, newObj interface{}) {
-	svc := newObj.(*corev1.Service)
+	svc, ok := newObj.(*corev1.Service)
+	if !ok {
+		return
+	}
 	w.updateServiceRecords(svc)
 	if w.metrics != nil {
 		w.metrics.K8sWatcherEventsTotal.WithLabelValues("service", "update").Inc()
@@ -144,7 +150,10 @@ func (w *Watcher) handleServiceUpdate(oldObj, newObj interface{}) {
 
 // handleServiceDelete removes records for a deleted Service.
 func (w *Watcher) handleServiceDelete(obj interface{}) {
-	svc := obj.(*corev1.Service)
+	svc, ok := obj.(*corev1.Service)
+	if !ok {
+		return
+	}
 	svcName := svc.Name
 	namespace := svc.Namespace
 
@@ -231,7 +240,10 @@ func (w *Watcher) updateServiceRecords(svc *corev1.Service) {
 
 // handleEndpointAdd processes a new Endpoints object.
 func (w *Watcher) handleEndpointAdd(obj interface{}) {
-	ep := obj.(*corev1.Endpoints)
+	ep, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	w.updateEndpointRecords(ep)
 	if w.metrics != nil {
 		w.metrics.K8sWatcherEventsTotal.WithLabelValues("endpoints", "add").Inc()
@@ -241,7 +253,10 @@ func (w *Watcher) handleEndpointAdd(obj interface{}) {
 
 // handleEndpointUpdate processes an updated Endpoints object.
 func (w *Watcher) handleEndpointUpdate(oldObj, newObj interface{}) {
-	ep := newObj.(*corev1.Endpoints)
+	ep, ok := newObj.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	w.updateEndpointRecords(ep)
 	if w.metrics != nil {
 		w.metrics.K8sWatcherEventsTotal.WithLabelValues("endpoints", "update").Inc()
@@ -251,7 +266,10 @@ func (w *Watcher) handleEndpointUpdate(oldObj, newObj interface{}) {
 
 // handleEndpointDelete removes records for deleted Endpoints.
 func (w *Watcher) handleEndpointDelete(obj interface{}) {
-	ep := obj.(*corev1.Endpoints)
+	ep, ok := obj.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	epName := ep.Name
 	namespace := ep.Namespace
 

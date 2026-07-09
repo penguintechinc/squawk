@@ -569,8 +569,8 @@ func (pm *DNSPerformanceMonitor) uploadStats() {
 
 // generateClientID generates a unique client identifier
 func (pm *DNSPerformanceMonitor) generateClientID() string {
-	hostname, _ := os.Hostname()
-	if hostname == "" {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
 	

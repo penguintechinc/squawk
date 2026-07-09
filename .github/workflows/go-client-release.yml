@@ -51,7 +51,10 @@ jobs:
       - name: Run linter
         working-directory: squawk-client-go
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          # v1.64.8 is the last golangci-lint v1 (v2 requires go1.25 to build;
+          # CI runs go1.24). Pinned to avoid @latest drift. Migrate to v2 when
+          # the repo moves to go1.25.
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           make lint
 
       - name: Security scan

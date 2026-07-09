@@ -280,7 +280,11 @@ func runClient(cmd *cobra.Command, args []string) {
 				if i < len(results) {
 					result := results[i]
 					if jsonOutput {
-						jsonData, _ := json.MarshalIndent(result, "", "  ")
+						jsonData, err := json.MarshalIndent(result, "", "  ")
+						if err != nil {
+							log.Printf("failed to marshal result for %s: %v", domain, err)
+							continue
+						}
 						fmt.Printf("%s: %s\n", domain, string(jsonData))
 					} else {
 						fmt.Printf("%s: Status %d\n", domain, result.Status)
@@ -306,7 +310,11 @@ func runClient(cmd *cobra.Command, args []string) {
 				}
 
 				if jsonOutput {
-					jsonData, _ := json.MarshalIndent(response, "", "  ")
+					jsonData, err := json.MarshalIndent(response, "", "  ")
+					if err != nil {
+						log.Printf("failed to marshal response for %s: %v", domain, err)
+						continue
+					}
 					fmt.Printf("%s: %s\n", domain, string(jsonData))
 				} else {
 					printDNSResponse(response)
@@ -327,7 +335,10 @@ func runClient(cmd *cobra.Command, args []string) {
 		}
 
 		if jsonOutput {
-			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			jsonData, err := json.MarshalIndent(response, "", "  ")
+			if err != nil {
+				log.Fatalf("failed to marshal response: %v", err)
+			}
 			fmt.Println(string(jsonData))
 		} else {
 			fmt.Printf("Query: %s (%s)\n", cfg.Domain, cfg.RecordType)
@@ -347,7 +358,10 @@ func runClient(cmd *cobra.Command, args []string) {
 
 		// Output results
 		if jsonOutput {
-			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			jsonData, err := json.MarshalIndent(response, "", "  ")
+			if err != nil {
+				log.Fatalf("failed to marshal response: %v", err)
+			}
 			fmt.Println(string(jsonData))
 		} else {
 			printDNSResponse(response)
@@ -815,7 +829,10 @@ var timeQueryCmd = &cobra.Command{
 
 		// Output results
 		if jsonOutput {
-			jsonData, _ := json.MarshalIndent(response, "", "  ")
+			jsonData, err := json.MarshalIndent(response, "", "  ")
+			if err != nil {
+				log.Fatalf("failed to marshal response: %v", err)
+			}
 			fmt.Println(string(jsonData))
 		} else {
 			fmt.Printf("NTP Time Query Results:\n")

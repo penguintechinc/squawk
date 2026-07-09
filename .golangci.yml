@@ -1,21 +1,15 @@
-version: 2
-
+# golangci-lint v1 config (CI runs v1.64.8 under go1.24; v2 needs go1.25).
 run:
   timeout: 5m
   go: "1.24"
-  skip-dirs:
-    - vendor
-    - .git
-    - build
-    - bin
 
 linters:
   enable:
     - staticcheck      # Static analysis
-    - gosec           # Security
-    - errcheck        # Error handling
-    - ineffassign     # Unused assignments
-    - unused          # Unused code
+    - gosec            # Security
+    - errcheck         # Error handling
+    - ineffassign      # Unused assignments
+    - unused           # Unused code
 
 linters-settings:
   staticcheck:
@@ -32,12 +26,12 @@ linters-settings:
     check-type-assertions: true
     check-blank: true
 
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-
 issues:
+  exclude-dirs:
+    - vendor
+    - .git
+    - build
+    - bin
   exclude-rules:
     - path: _test\.go$
       linters:

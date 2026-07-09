@@ -1,10 +1,7 @@
 # Multi-stage build for Squawk DNS Client (Go)
-# 
+#
 # Build stage
 FROM golang:1.24-bookworm@sha256:1a6d4452c65dea36aac2e2d606b01b4a029ec90cc1ae53890540ce6173ea77ac AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git make
 
 # Set working directory
 WORKDIR /app
@@ -18,31 +15,31 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (static binary, no CGO)
 ARG VERSION=docker
 ARG BUILD_TIME
 ARG GIT_COMMIT
 
-RUN BUILD_TIME=$(date -u +%Y-%m-%d_%H:%M:%S) && 
-    CGO_ENABLED=0 GOOS=linux go build 
-    -ldflags "-X 'main.version=${VERSION}' -X 'main.buildTime=${BUILD_TIME}' -X 'main.gitCommit=${GIT_COMMIT}'" 
-    -o bin/squawk-dns-client 
-    ./cmd/squawk-dns-client
+RUN BUILD_TIME=$(date -u +%Y-%m-%d_%H:%M:%S) && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X 'main.version=${VERSION}' -X 'main.buildTime=${BUILD_TIME}' -X 'main.gitCommit=${GIT_COMMIT}'" \
+    -o bin/squawk-dns-client \
+    ./cmd/squawk-client
 
 # Runtime stage
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends 
-    ca-certificates tzdata && 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tzdata && \
     rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN groupadd -g 1001 squawk && 
-    useradd -D -u 1001 -G squawk squawk
+RUN groupadd -g 1001 squawk && \
+    useradd -r -u 1001 -g squawk squawk
 
 # Create directories
-RUN mkdir -p /etc/squawk /var/log/squawk && 
+RUN mkdir -p /etc/squawk /var/log/squawk && \
     chown -R squawk:squawk /etc/squawk /var/log/squawk
 
 # Copy binary from builder
@@ -57,8 +54,8 @@ USER squawk
 # Set working directory
 WORKDIR /etc/squawk
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 
+# Health check (native binary, no curl)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD squawk-dns-client -d google.com -s https://dns.google/resolve || exit 1
 
 # Default command

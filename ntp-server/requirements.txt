@@ -1,20 +1,29 @@
 # NTP/NTS Server Requirements
 # Squawk Project - Python 3.13
+# Pin exact versions for reproducibility (proven-good web stack)
 
 # Web framework
-quart>=0.19.0
-hypercorn>=0.17.0
+# Quart depends on Flask's sansio package. Flask 3.1+ requires the
+# PROVIDE_AUTOMATIC_OPTIONS config key that this Quart line does not set,
+# so Flask/Werkzeug are pinned <3.1 to keep route registration working.
+quart==0.20.0
+flask==3.0.0
+werkzeug==3.1.4
+hypercorn==0.18.0
 
-# Cryptography for NTS AEAD and RFC 5705 key exporter
-cryptography>=42.0.0
-pyOpenSSL>=26.3.0
+# Cryptography for NTS AEAD (AES-SIV) and RFC 5705 key exporter
+# cryptography>=45 required: RFC 8915 authenticator seals empty plaintext
+# (no encrypted extension fields), which <45 rejects ("data must not be zero
+# length"). 48.0.1 permits it and clears CVE-2026-26007 / GHSA-537c-gmf6-5ccf.
+cryptography==48.0.1
+pyOpenSSL==26.2.0
 
-# JWT validation (HS256)
-PyJWT>=2.8.0
+# JWT validation (HS256) - 2.13.0 clears CVE-2026-32597/48526 (HIGH)
+PyJWT==2.13.0
 
 # Feature flags and license
-posthog>=3.0.0
+posthog==3.6.0
 
-# Utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.0
+# Utilities (python-dotenv 1.2.2 clears CVE-2026-28684)
+python-dotenv==1.2.2
+pyyaml==6.0.1

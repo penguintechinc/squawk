@@ -19,7 +19,7 @@
     "@mui/x-data-grid": "6.18.0",
     "@emotion/react": "11.11.0",
     "@emotion/styled": "11.11.0",
-    "axios": "1.6.0",
+    "axios": "1.18.1",
     "zustand": "4.4.0",
     "recharts": "2.10.0",
     "@penguintechinc/react-libs": "file:../../../penguin-libs/packages/react-libs"
@@ -33,7 +33,7 @@
     "@vitejs/plugin-react": "4.2.0",
     "eslint": "9.39.2",
     "typescript": "5.9.3",
-    "vite": "5.0.0",
+    "vite": "5.4.21",
     "vitest": "4.0.18",
     "@vitest/coverage-v8": "4.0.18",
     "@testing-library/react": "16.3.2",

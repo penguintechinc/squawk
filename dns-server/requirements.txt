@@ -17,7 +17,7 @@ alembic>=1.13.0
 dnspython>=2.7.0
 requests>=2.32.3
 PyYAML>=6.0.2
-cryptography==44.0.0
+cryptography==48.0.1
 gunicorn>=23.0.0
 prometheus-client==0.21.1
 hypercorn[h3]==0.18.0

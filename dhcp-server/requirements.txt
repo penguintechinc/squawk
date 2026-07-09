@@ -3,12 +3,17 @@
 # Pin exact versions for reproducibility
 
 # Web framework
-quart==0.19.4
+# Flask/Werkzeug pinned <3.1: Quart depends on Flask's sansio package, and
+# Flask 3.1+ requires a PROVIDE_AUTOMATIC_OPTIONS config key this Quart line
+# does not set, breaking route registration.
+quart==0.20.0
+flask==3.0.0
+werkzeug==3.1.4
 hypercorn==0.17.3
 
 # Database (penguin-dal for runtime, never raw SQLAlchemy for queries)
 penguin-dal==0.3.0
-PyJWT==2.10.1
+PyJWT==2.13.0
 
 # Feature flags & licensing
 posthog==3.6.0
@@ -17,5 +22,5 @@ posthog==3.6.0
 structlog==24.1.0
 
 # Utilities
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 pyyaml==6.0.1

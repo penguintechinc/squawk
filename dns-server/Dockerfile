@@ -6,6 +6,11 @@ LABEL org.opencontainers.image.authors="info@penguintech.io"
 LABEL license="GNU AGPL3"
 LABEL description="Squawk DNS-over-HTTPS Server with Enterprise Features"
 
+# Build-time environment selector (production | development | test).
+# Must be declared as ARG so `--build-arg SQUAWK_ENV=test` reaches the ENV below;
+# without it $SQUAWK_ENV is undefined and dev deps (pytest) are never installed.
+ARG SQUAWK_ENV=production
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -58,10 +63,9 @@ COPY requirements*.txt ./
 RUN python3.13 -m venv /app/venv && \
     /app/venv/bin/pip install --upgrade pip wheel setuptools && \
     /app/venv/bin/pip install -r requirements.txt && \
-    if [ "$SQUAWK_ENV" = "development" ] || [ "$SQUAWK_ENV" = "test" ] || [ -f requirements-dev.txt ]; then \
-    echo "Installing development dependencies..." && \
-    /app/venv/bin/pip install -r requirements-dev.txt 2>/dev/null || \
-    echo "No dev requirements found or installation failed - continuing with production setup"; \
+    if [ "$SQUAWK_ENV" = "development" ] || [ "$SQUAWK_ENV" = "test" ]; then \
+    echo "Installing development dependencies (strict — build fails if these don't install)..." && \
+    /app/venv/bin/pip install -r requirements-dev.txt; \
     fi && \
     /app/venv/bin/python -c "import sys; print(f'Python {sys.version}')" && \
     echo "✓ Python dependencies installed successfully"

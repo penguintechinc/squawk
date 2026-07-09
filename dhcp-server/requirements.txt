@@ -1,16 +1,21 @@
 # DHCP-over-HTTPS Server Requirements
 # Squawk Project - Python 3.13
+# Pin exact versions for reproducibility
 
 # Web framework
-quart>=0.19.0
-hypercorn>=0.17.0
+quart==0.19.4
+hypercorn==0.17.3
 
-# HTTP client for auth validation
-aiohttp>=3.9.0
+# Database (penguin-dal for runtime, never raw SQLAlchemy for queries)
+penguin-dal>=1.0.0
+PyJWT==2.8.1
 
-# Database (optional, for persistent leases)
-asyncpg>=0.29.0
+# Feature flags & licensing
+posthog==3.1.0
+
+# Structured logging
+structlog==24.1.0
 
 # Utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.0
+python-dotenv==1.0.1
+pyyaml==6.0.1

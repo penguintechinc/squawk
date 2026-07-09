@@ -1,61 +1,60 @@
-# DHCP-over-HTTPS Server Dockerfile
-# Based on Ubuntu 24.04 LTS with Python 3.13 from deadsnakes PPA
+# DHCP-over-HTTPS Server - Production Dockerfile
+# Base: Debian 12 (bookworm), Python 3.13
 
-FROM ubuntu:24.04
+FROM python:3.13-slim-bookworm@sha256:fcbd8dfc2605ba7c2eca646846c5e892b2931e41f6227985154a596f26ab8ed7
 
-# Prevent interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies and Python 3.13
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
+# Install minimal system dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y \
-    python3.13 \
-    python3.13-venv \
-    python3.13-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Create non-root user for application
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Create application directory
 WORKDIR /app
 
-# Create virtual environment
-RUN python3.13 -m venv /app/venv
-ENV PATH="/app/venv/bin:$PATH"
-
-# Copy requirements and install dependencies
+# Copy requirements and install dependencies as root
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY bins/ ./bins/
-COPY managers/ ./managers/
+COPY app ./app
+COPY bins ./bins
 
-# Create empty __init__.py files for Python packages
-RUN touch bins/__init__.py managers/__init__.py
+# Create empty __init__.py for packages
+RUN touch app/__init__.py bins/__init__.py
+
+# Switch to non-root user
+USER appuser
 
 # Environment variables with defaults
-ENV DHCP_PORT=8081
-ENV AUTH_REQUIRED=true
-ENV SHARED_AUTH_URL=http://localhost:8080
-ENV DHCP_POOL_SUBNET=192.168.1.0/24
-ENV DHCP_POOL_START=192.168.1.100
-ENV DHCP_POOL_END=192.168.1.200
-ENV DHCP_GATEWAY=192.168.1.1
-ENV DHCP_DNS_SERVERS=8.8.8.8,8.8.4.4
-ENV DHCP_LEASE_TIME=86400
+ENV DHCP_PORT=8081 \
+    DATABASE_URL=sqlite:///dhcp.db \
+    JWT_SECRET_KEY= \
+    DHCP_POOL_SUBNET=192.168.1.0/24 \
+    DHCP_POOL_START=192.168.1.100 \
+    DHCP_POOL_END=192.168.1.200 \
+    DHCP_GATEWAY=192.168.1.1 \
+    DHCP_DNS_SERVERS=8.8.8.8,8.8.4.4 \
+    DHCP_LEASE_TIME=86400 \
+    LOG_LEVEL=INFO \
+    POSTHOG_KEY= \
+    POSTHOG_HOST=https://license.penguintech.io
 
 # Expose DHCP server port
 EXPOSE 8081
 
-# Health check
+# Health check using native Python (no curl required)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8081/health || exit 1
+    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/health').read()" || exit 1
 
-# Run the server
-CMD ["python", "bins/server.py"]
+# Run the DHCP server
+CMD ["python3", "bins/server.py"]

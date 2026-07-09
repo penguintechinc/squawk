@@ -84,6 +84,14 @@ jobs:
             target: dns-client
           - service: dns-testing
             target: testing
+          - service: dhcp-server
+            context: dhcp-server
+            dockerfile: dhcp-server/Dockerfile
+            image: squawk/dhcp-server
+          - service: ntp-server
+            context: ntp-server
+            dockerfile: ntp-server/Dockerfile
+            image: squawk/ntp-server
         platform: [linux/amd64, linux/arm64]
     permissions:
       contents: write
@@ -125,13 +133,14 @@ jobs:
       - name: Build and push ${{ matrix.service }} Docker image for ${{ matrix.platform }}
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
-          context: .
+          context: ${{ matrix.context || '.' }}
+          file: ${{ matrix.dockerfile || './Dockerfile' }}
           target: ${{ matrix.target }}
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            ghcr.io/penguintechinc/squawk-${{ matrix.service }}:${{ steps.version.outputs.VERSION }}-${{ steps.platform_tag.outputs.tag }}
-            ghcr.io/penguintechinc/squawk-${{ matrix.service }}:latest-${{ steps.platform_tag.outputs.tag }}
+            ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}:${{ steps.version.outputs.VERSION }}-${{ steps.platform_tag.outputs.tag }}
+            ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}:latest-${{ steps.platform_tag.outputs.tag }}
           labels: |
             org.opencontainers.image.title=Squawk ${{ matrix.service }}
             org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}

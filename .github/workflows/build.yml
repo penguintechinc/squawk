@@ -53,6 +53,19 @@ jobs:
       run: |
         docker run --rm -w /app/dns-server squawk-dns-server:test python3.13 -m pytest tests/ -v --tb=short
 
+    - name: Test DHCP server (penguin-dal persistence + JWT auth)
+      run: |
+        pip install -r dhcp-server/requirements.txt pytest
+        python3 -m pytest dhcp-server/tests -v --tb=short
+
+    - name: Test NTP server (RFC 8915 NTS)
+      run: |
+        pip install -r ntp-server/requirements.txt pytest
+        openssl req -x509 -newkey rsa:2048 -keyout /tmp/ntp_test.key -out /tmp/ntp_test.crt -days 1 -nodes -subj "/CN=localhost"
+        JWT_SECRET_KEY=ci-test-secret-32-bytes-minimum-len \
+          TLS_CERT_FILE=/tmp/ntp_test.crt TLS_KEY_FILE=/tmp/ntp_test.key \
+          python3 -m pytest ntp-server/tests -v --tb=short
+
     - name: Clean up Playwright artifacts
       if: always()
       run: rm -rf /tmp/playwright-squawk
@@ -108,6 +121,16 @@ jobs:
         docker run --rm squawk-dns-client-unified:test python3.13 --version
         docker run --rm squawk-dns-client-unified:test python -c "import sys; print(f'Virtual env: {sys.prefix}')"
         docker run --rm squawk-dns-client-unified:test python -c "import dns.resolver; print('DNS Client OK')"
+
+    - name: Build + smoke DHCP server image
+      run: |
+        docker build -f dhcp-server/Dockerfile -t squawk-dhcp-server:test dhcp-server/
+        docker run --rm squawk-dhcp-server:test python3 -c "import penguin_dal, jwt, quart; print('DHCP server deps OK')"
+
+    - name: Build + smoke NTP server image
+      run: |
+        docker build -f ntp-server/Dockerfile -t squawk-ntp-server:test ntp-server/
+        docker run --rm squawk-ntp-server:test python3 -c "from OpenSSL import SSL; from cryptography.hazmat.primitives.ciphers.aead import AESSIV; print('NTP server deps OK')"
 
   security-scanning:
     runs-on: ubuntu-latest

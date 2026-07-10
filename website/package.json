@@ -11,13 +11,18 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^15.1.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "next": "15.5.18",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "eslint": "^9.0.0",
-    "eslint-config-next": "^15.1.0"
+    "eslint": "9.0.0",
+    "eslint-config-next": "15.5.18"
+  },
+  "overrides": {
+    "flatted": "3.4.2",
+    "minimatch": "9.0.7",
+    "picomatch": "4.0.4"
   },
   "keywords": [
     "dns",

@@ -20,6 +20,9 @@ spec:
       labels:
         {{- include "squawk.dnsClient.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: squawk-client
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsClient.image.repository }}:{{ .Values.dnsClient.image.tag }}

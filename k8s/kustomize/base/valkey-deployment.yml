@@ -29,6 +29,8 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: valkey
         image: valkey/valkey:8-bookworm@sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704

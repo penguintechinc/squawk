@@ -21,6 +21,9 @@ spec:
       labels:
         {{- include "squawk.dhcpServer.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: dhcp-server
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dhcpServer.image.repository }}:{{ .Values.dhcpServer.image.tag }}

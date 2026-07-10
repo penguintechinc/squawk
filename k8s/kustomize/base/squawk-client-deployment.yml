@@ -26,6 +26,9 @@ spec:
         app.kubernetes.io/component: squawk-client
         app.kubernetes.io/instance: squawk-client
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: squawk-client
         image: ghcr.io/penguintechinc/squawk-dns-client:latest

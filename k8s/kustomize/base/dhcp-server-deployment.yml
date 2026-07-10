@@ -26,6 +26,9 @@ spec:
         app.kubernetes.io/component: dhcp-server
         app.kubernetes.io/instance: dhcp-server
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: dhcp-server
         image: ghcr.io/penguintechinc/squawk/dhcp-server:latest

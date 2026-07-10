@@ -23,6 +23,9 @@ spec:
         {{- include "squawk.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: manager-scheduler
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: manager-scheduler
         image: {{ include "squawk.manager.image" . }}

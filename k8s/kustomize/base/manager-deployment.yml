@@ -26,6 +26,9 @@ spec:
         app.kubernetes.io/component: manager
         app.kubernetes.io/instance: manager
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: manager
         image: ghcr.io/penguintechinc/squawk/manager:latest

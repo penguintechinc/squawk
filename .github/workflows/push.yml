@@ -37,6 +37,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -87,12 +88,41 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-server-${{ env.PLATFORM_PAIR }}.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-server-${{ env.PLATFORM_PAIR }}
+          path: sbom-server-${{ env.PLATFORM_PAIR }}.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          SBOM_FILE: sbom-server-${{ env.PLATFORM_PAIR }}.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
+
   build-dns-client:
     needs: generate-tag
     runs-on: ubuntu-latest
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -144,6 +174,34 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.DNS_CLIENT_IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-dns-client-${{ env.PLATFORM_PAIR }}.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-dns-client-${{ env.PLATFORM_PAIR }}
+          path: sbom-dns-client-${{ env.PLATFORM_PAIR }}.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.DNS_CLIENT_IMAGE }}@${{ steps.build.outputs.digest }}
+          SBOM_FILE: sbom-dns-client-${{ env.PLATFORM_PAIR }}.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
+
   merge:
     needs: [generate-tag, build]
     runs-on: ubuntu-latest
@@ -183,6 +241,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -233,6 +292,34 @@ jobs:
           path: /tmp/k8s-dns-digests/*
           if-no-files-found: error
           retention-days: 1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.K8S_DNS_IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-k8s-dns-${{ env.PLATFORM_PAIR }}.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-k8s-dns-${{ env.PLATFORM_PAIR }}
+          path: sbom-k8s-dns-${{ env.PLATFORM_PAIR }}.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.K8S_DNS_IMAGE }}@${{ steps.build.outputs.digest }}
+          SBOM_FILE: sbom-k8s-dns-${{ env.PLATFORM_PAIR }}.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
 
   merge-k8s-dns:
     needs: [generate-tag, build-k8s-dns]

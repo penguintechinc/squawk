@@ -26,6 +26,9 @@ spec:
         app.kubernetes.io/component: manager-scheduler
         app.kubernetes.io/instance: manager-scheduler
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: manager-scheduler
         image: ghcr.io/penguintechinc/squawk/manager:latest

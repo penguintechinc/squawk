@@ -26,6 +26,9 @@ spec:
         app.kubernetes.io/component: ntp-server
         app.kubernetes.io/instance: ntp-server
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: ntp-server
         image: ghcr.io/penguintechinc/squawk/ntp-server:latest

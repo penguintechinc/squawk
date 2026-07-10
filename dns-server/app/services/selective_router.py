@@ -4,9 +4,14 @@ Implements per-user/group zone access control.
 """
 import logging
 import jwt as pyjwt
-from jwt.exceptions import InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError
+from jwt.exceptions import (
+    InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError,
+    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
+)
 from typing import Dict, List, Optional
-from app.config import JWT_SECRET_KEY
+from app.config import (
+    JWT_PUBLIC_KEY, JWT_ISSUER, JWT_AUDIENCE
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +73,27 @@ class SelectiveRouter:
 
         # Verify JWT signature and extract payload
         try:
-            # Fail closed: JWT_SECRET_KEY must be configured for non-public zones
-            if not JWT_SECRET_KEY:
-                logger.error("JWT_SECRET_KEY not configured; denying access to non-public zone")
+            # Fail closed: JWT_PUBLIC_KEY must be configured for non-public zones
+            if not JWT_PUBLIC_KEY:
+                logger.error("JWT_PUBLIC_KEY not configured; denying access to non-public zone")
                 return False
 
-            payload = pyjwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
-            user_teams = payload.get('teams', [])
+            # Verify with public key (ES256/RS256), require tenant claim
+            payload = pyjwt.decode(
+                token,
+                JWT_PUBLIC_KEY,
+                algorithms=['ES256', 'RS256'],
+                audience=JWT_AUDIENCE,
+                issuer=JWT_ISSUER,
+                options={'require': ['exp', 'iat', 'tenant']}
+            )
+
+            # Fail closed: tenant claim must be present and non-empty
+            if not payload.get('tenant'):
+                logger.debug(f"Access denied: token missing or empty tenant claim")
+                return False
+
+            user_teams = payload.get('team_roles', {}).keys() if payload.get('team_roles') else []
             user_id = payload.get('user_id')
 
             # Check if user's teams are in allowed teams
@@ -111,6 +130,9 @@ class SelectiveRouter:
 
         except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
             logger.warning(f"Invalid JWT token for zone access: {e}")
+            return False
+        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
+            logger.warning(f"JWT claim validation failed: {e}")
             return False
         except Exception as e:
             logger.error(f"Token parsing error: {e}")

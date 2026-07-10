@@ -44,6 +44,16 @@ spec:
             secretKeyRef:
               name: squawk-jwt-secret
               key: jwt-secret-key
+        # Asymmetric JWT verification (ES256/RS256) — dhcp-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: {{ .Values.jwt.algorithm | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.jwt.issuer | quote }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.jwt.audience | quote }}
         # Per-service DB account (dhcp-server-rw), scoped to dhcp_lease /
         # dhcp_pool / dhcp_reservation tables only — see backend-database.md.
         # Provision out-of-band: kubectl create secret generic dhcp-server-db
@@ -78,6 +88,10 @@ spec:
               optional: true
         - name: POSTHOG_HOST
           value: {{ .Values.dhcpServer.env.posthogHost | quote }}
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: {{ .Values.jwt.mountPath }}
+          readOnly: true
         resources:
           {{- toYaml .Values.dhcpServer.resources | nindent 10 }}
         securityContext:
@@ -104,4 +118,14 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
+      volumes:
+      # dhcp-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: {{ include "squawk.jwt.secretName" . }}
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440
 {{- end }}

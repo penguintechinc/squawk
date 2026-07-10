@@ -49,6 +49,16 @@ spec:
             secretKeyRef:
               name: squawk-jwt-secret
               key: jwt-secret-key
+        # Asymmetric JWT verification (ES256/RS256) — dhcp-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "/etc/squawk/jwt/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: "ES256"
+        - name: JWT_ISSUER
+          value: "squawk-manager"
+        - name: JWT_AUDIENCE
+          value: "squawk"
         # Per-service DB account (dhcp-server-rw), scoped to dhcp_lease /
         # dhcp_pool / dhcp_reservation tables only — see backend-database.md.
         # Provision out-of-band: kubectl create secret generic dhcp-server-db
@@ -83,6 +93,10 @@ spec:
               optional: true
         - name: POSTHOG_HOST
           value: "https://license.penguintech.io"
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: /etc/squawk/jwt
+          readOnly: true
         resources:
           requests:
             cpu: 500m
@@ -116,3 +130,13 @@ spec:
           capabilities:
             drop:
             - ALL
+      volumes:
+      # dhcp-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: squawk-jwt-keys
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440

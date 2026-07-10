@@ -48,6 +48,20 @@ spec:
           value: "8080"
         - name: DOH_PORT
           value: "8080"
+        # Asymmetric JWT verification (ES256/RS256) — dns-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "/etc/squawk/jwt/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: "ES256"
+        - name: JWT_ISSUER
+          value: "squawk-manager"
+        - name: JWT_AUDIENCE
+          value: "squawk"
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: /etc/squawk/jwt
+          readOnly: true
         resources:
           requests:
             cpu: 200m
@@ -81,3 +95,13 @@ spec:
           capabilities:
             drop:
             - ALL
+      volumes:
+      # dns-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: squawk-jwt-keys
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440

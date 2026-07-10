@@ -22,6 +22,8 @@ from pathlib import Path
 import pytest
 import jwt
 from cryptography.hazmat.primitives.ciphers.aead import AESSIV
+from cryptography.hazmat.primitives.asymmetric import ec as _ec
+from cryptography.hazmat.primitives import serialization as _ser
 from OpenSSL import SSL, crypto
 
 logger = logging.getLogger(__name__)
@@ -156,66 +158,82 @@ class TestCookieAEAD:
 # ============================================================================
 
 
+def _es256_token(private_pem: str, scope=None, tenant: str = "default",
+                 expired: bool = False) -> str:
+    """Build an ES256-signed NTP JWT with mandatory iss/aud/tenant/exp/iat."""
+    now = datetime.now(timezone.utc)
+    exp = now - timedelta(hours=1) if expired else now + timedelta(hours=1)
+    payload = {
+        "sub": "test_user",
+        "iss": "squawk-manager",
+        "aud": "squawk",
+        "tenant": tenant,
+        "iat": now,
+        "exp": exp,
+    }
+    if scope is not None:
+        payload["scope"] = scope
+    return jwt.encode(payload, private_pem, algorithm="ES256")
+
+
+def _wrong_es256_private() -> str:
+    """A separate ES256 private key used to forge tokens the server must reject."""
+    key = _ec.generate_private_key(_ec.SECP256R1())
+    return key.private_bytes(
+        _ser.Encoding.PEM, _ser.PrivateFormat.PKCS8, _ser.NoEncryption()
+    ).decode()
+
+
 class TestJWTValidation:
-    """Test suite for JWT validation."""
+    """Test suite for JWT validation (asymmetric ES256 + mandatory tenant)."""
 
-    def test_valid_jwt_accepted(self, jwt_secret):
-        """Test: Valid JWT with correct signature is accepted."""
-        # Set JWT secret
-        os.environ["JWT_SECRET_KEY"] = jwt_secret
-
-        # Create token
-        payload = {"sub": "test_user", "scope": "ntp:client", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-        token = jwt.encode(payload, jwt_secret, algorithm="HS256")
-
-        # Verify
+    def test_valid_jwt_accepted(self, jwt_keypair):
+        """Test: Valid ES256 JWT with correct signature + tenant is accepted."""
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(jwt_keypair["private"], scope="ntp:client")
         assert verify_jwt(token) is True
 
-    def test_expired_jwt_rejected(self, jwt_secret):
+    def test_expired_jwt_rejected(self, jwt_keypair):
         """Test: Expired JWT is rejected."""
-        os.environ["JWT_SECRET_KEY"] = jwt_secret
-
-        # Create expired token
-        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) - timedelta(hours=1)}
-        token = jwt.encode(payload, jwt_secret, algorithm="HS256")
-
-        # Verify (should fail)
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(jwt_keypair["private"], expired=True)
         assert verify_jwt(token) is False
 
-    def test_jwt_scope_check(self, jwt_secret):
+    def test_missing_tenant_rejected(self, jwt_keypair):
+        """Test: A validly-signed token WITHOUT a tenant claim is rejected (fail-closed)."""
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(jwt_keypair["private"], scope="ntp:client", tenant="")
+        assert verify_jwt(token) is False
+
+    def test_jwt_scope_check(self, jwt_keypair):
         """Test: JWT scope requirement validation."""
-        os.environ["JWT_SECRET_KEY"] = jwt_secret
-
-        # Token with correct scope
-        payload = {"sub": "test_user", "scope": "ntp:client", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-        token = jwt.encode(payload, jwt_secret, algorithm="HS256")
-
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(jwt_keypair["private"], scope="ntp:client")
         # Should pass with ntp:client scope
         assert verify_jwt(token, required_scope="ntp:client") is True
         # Should fail with ntp:admin scope
         assert verify_jwt(token, required_scope="ntp:admin") is False
 
-    def test_jwt_missing_scope(self, jwt_secret):
+    def test_jwt_missing_scope(self, jwt_keypair):
         """Test: JWT without required scope is rejected."""
-        os.environ["JWT_SECRET_KEY"] = jwt_secret
-
-        # Token without scope
-        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-        token = jwt.encode(payload, jwt_secret, algorithm="HS256")
-
-        # Should fail when scope is required
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(jwt_keypair["private"])  # no scope claim
         assert verify_jwt(token, required_scope="ntp:client") is False
 
-    def test_invalid_signature_rejected(self, jwt_secret):
-        """Test: JWT with invalid signature is rejected."""
-        os.environ["JWT_SECRET_KEY"] = jwt_secret
+    def test_invalid_signature_rejected(self, jwt_keypair):
+        """Test: JWT signed with the WRONG key is rejected."""
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        token = _es256_token(_wrong_es256_private(), scope="ntp:client")
+        assert verify_jwt(token) is False
 
-        # Create token with different secret
-        wrong_secret = "wrong-secret"
-        payload = {"sub": "test_user", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-        token = jwt.encode(payload, wrong_secret, algorithm="HS256")
-
-        # Verify with correct secret (should fail)
+    def test_hs256_token_rejected(self, jwt_keypair):
+        """Test: An HS256 token (alg-confusion attempt) is rejected."""
+        os.environ["JWT_PUBLIC_KEY"] = jwt_keypair["public"]
+        now = datetime.now(timezone.utc)
+        payload = {"sub": "test_user", "iss": "squawk-manager", "aud": "squawk",
+                   "tenant": "default", "scope": "ntp:client",
+                   "iat": now, "exp": now + timedelta(hours=1)}
+        token = jwt.encode(payload, "some-shared-secret", algorithm="HS256")
         assert verify_jwt(token) is False
 
 

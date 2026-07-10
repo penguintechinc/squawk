@@ -40,6 +40,9 @@ id_rsa*
 */*.pcapng
 */*.pcapng.gz
 */*.pem
+*.pem
+jwt_private_key_*.pem
+jwt_public_key_*.pem
 */*.pfx
 */*.pgp
 */*.rar

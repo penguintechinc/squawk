@@ -42,12 +42,27 @@ spec:
           value: {{ .Values.dnsServer.env.dnsPort | quote }}
         - name: DOH_PORT
           value: {{ .Values.dnsServer.env.dohPort | quote }}
+        # Asymmetric JWT verification (ES256/RS256) — dns-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: {{ .Values.jwt.algorithm | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.jwt.issuer | quote }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.jwt.audience | quote }}
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: {{ .Values.jwt.mountPath }}
+          readOnly: true
         resources:
           {{- toYaml .Values.dnsServer.resources | nindent 10 }}
         securityContext:
           runAsNonRoot: true
           runAsUser: 1000
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
@@ -67,3 +82,13 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
+      volumes:
+      # dns-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: {{ include "squawk.jwt.secretName" . }}
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440

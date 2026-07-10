@@ -70,6 +70,16 @@ spec:
             secretKeyRef:
               name: squawk-jwt-secret
               key: jwt-secret-key
+        # Asymmetric JWT verification (ES256/RS256) — ntp-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: {{ .Values.jwt.algorithm | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.jwt.issuer | quote }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.jwt.audience | quote }}
         # PostHog feature-flag key — optional; app disables PostHog if unset.
         - name: POSTHOG_KEY
           valueFrom:
@@ -82,6 +92,9 @@ spec:
         volumeMounts:
         - name: ntp-tls
           mountPath: /etc/ntp-tls
+          readOnly: true
+        - name: jwt-public-key
+          mountPath: {{ .Values.jwt.mountPath }}
           readOnly: true
         resources:
           {{- toYaml .Values.ntpServer.resources | nindent 10 }}
@@ -117,4 +130,13 @@ spec:
       - name: ntp-tls
         secret:
           secretName: ntp-server-tls
+      # ntp-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: {{ include "squawk.jwt.secretName" . }}
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440
 {{- end }}

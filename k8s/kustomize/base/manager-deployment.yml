@@ -52,6 +52,26 @@ spec:
           value: "6379"
         - name: LOG_LEVEL
           value: "info"
+        # Asymmetric JWT signing keys (ES256/RS256) — manager is the sole
+        # signer. Mounted read-only from the squawk-jwt-keys Secret; see
+        # k8s/squawk-jwt-keys.example.yml (placeholder shape) and
+        # scripts/gen-jwt-keys.sh. Never commit real key material.
+        - name: JWT_PRIVATE_KEY_FILE
+          value: "/etc/squawk/jwt/jwt-private-key"
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "/etc/squawk/jwt/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: "ES256"
+        - name: JWT_ISSUER
+          value: "squawk-manager"
+        - name: JWT_AUDIENCE
+          value: "squawk"
+        - name: TENANT_ID
+          value: "default"
+        volumeMounts:
+        - name: jwt-keys
+          mountPath: /etc/squawk/jwt
+          readOnly: true
         resources:
           requests:
             cpu: 100m
@@ -85,3 +105,13 @@ spec:
           capabilities:
             drop:
             - ALL
+      volumes:
+      # Manager reads both jwt-private-key (signs) and jwt-public-key.
+      # Provision out-of-band:
+      #   kubectl create secret generic squawk-jwt-keys -n squawk \
+      #     --from-file=jwt-private-key=<path>.pem \
+      #     --from-file=jwt-public-key=<path>.pem
+      - name: jwt-keys
+        secret:
+          secretName: squawk-jwt-keys
+          defaultMode: 0440

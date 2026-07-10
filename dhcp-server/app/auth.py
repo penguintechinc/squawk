@@ -1,13 +1,19 @@
 """
 Authentication and Authorization Module
-JWT HS256 verification with scope-based access control.
+JWT ES256/RS256 verification with scope-based access control.
 """
 
 import logging
 from typing import Optional, Tuple
 import jwt
+from jwt.exceptions import (
+    InvalidSignatureError, ExpiredSignatureError, InvalidTokenError,
+    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
+)
 
-from app.config import JWT_SECRET_KEY
+from app.config import (
+    JWT_ISSUER, JWT_AUDIENCE, _load_key_from_env_or_file
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +35,8 @@ def extract_token(auth_header: str) -> Optional[str]:
 
 def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
     """
-    Verify JWT token signature and expiration.
-    Fail closed: returns (False, None) if JWT_SECRET_KEY not configured.
+    Verify JWT token signature and expiration (ES256/RS256).
+    Fail closed: returns (False, None) if JWT_PUBLIC_KEY not configured.
 
     Args:
         token: JWT token string
@@ -38,8 +44,11 @@ def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
     Returns:
         (is_valid, payload) where payload is None if invalid
     """
-    if not JWT_SECRET_KEY:
-        logger.error("JWT_SECRET_KEY not configured; denying all auth")
+    # Read the public key at call time (supports key rotation without restart
+    # and keeps verification testable via env override).
+    public_key = _load_key_from_env_or_file("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")
+    if not public_key:
+        logger.error("JWT_PUBLIC_KEY not configured; denying all auth")
         return False, None
 
     if not token:
@@ -48,16 +57,30 @@ def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
 
     try:
         payload = jwt.decode(
-            token, JWT_SECRET_KEY, algorithms=["HS256"], options={"verify_aud": False}  # Don't verify audience claim
+            token,
+            public_key,
+            algorithms=["ES256", "RS256"],
+            audience=JWT_AUDIENCE,
+            issuer=JWT_ISSUER,
+            options={"require": ["exp", "iat", "tenant"]}
         )
+
+        # Fail closed: tenant claim must be present and non-empty
+        if not payload.get('tenant'):
+            logger.warning("Token missing or empty tenant claim")
+            return False, None
+
         return True, payload
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         logger.warning("Token expired")
         return False, None
-    except jwt.InvalidSignatureError:
+    except InvalidSignatureError:
         logger.warning("Invalid token signature")
         return False, None
-    except jwt.InvalidTokenError as e:
+    except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
+        logger.warning(f"JWT claim validation failed: {e}")
+        return False, None
+    except InvalidTokenError as e:
         logger.warning(f"Invalid token: {e}")
         return False, None
     except Exception as e:

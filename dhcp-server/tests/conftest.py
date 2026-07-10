@@ -25,6 +25,9 @@ from sqlalchemy import (
     JSON,
 )
 from sqlalchemy.sql import func
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 # Setup paths
 manager_models_path = os.path.join(os.path.dirname(__file__), "..", "..", "manager", "backend", "app", "models")
@@ -46,10 +49,12 @@ def event_loop():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def setup_env(monkeypatch):
+def setup_env(monkeypatch, jwt_keypair):
     """Setup environment variables for all tests."""
     # Set defaults so modules can import without error
     monkeypatch.setenv("JWT_SECRET_KEY", "test-jwt-secret-key-do-not-use-in-production")
+    # Public key for asymmetric user-token verification (read at call time by auth.py)
+    monkeypatch.setenv("JWT_PUBLIC_KEY", jwt_keypair["public"])
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     monkeypatch.setenv("POSTHOG_KEY", "")
@@ -148,69 +153,96 @@ def temp_db():
         logging.warning(f"Failed to clean up temp db: {e}")
 
 
+@pytest.fixture(scope="session")
+def jwt_keypair():
+    """Generate an ephemeral ES256 keypair for testing."""
+    # Generate EC private key (P-256)
+    private_key = ec.generate_private_key(
+        ec.SECP256R1(), default_backend()
+    )
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode('utf-8')
+
+    # Extract public key
+    public_key = private_key.public_key()
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode('utf-8')
+
+    return {
+        'private': private_pem,
+        'public': public_pem
+    }
+
+
 @pytest.fixture
 def jwt_secret_key():
-    """JWT secret key for test tokens."""
+    """JWT secret key for test tokens (legacy server tokens)."""
     return "test-jwt-secret-key-do-not-use-in-production"
 
 
 @pytest.fixture
-def test_token_read(jwt_secret_key):
-    """Create valid test JWT with dhcp:read scope."""
+def test_token_read(jwt_keypair):
+    """Create valid test JWT with dhcp:read scope (ES256)."""
     payload = {
         "sub": "test-user-id",
-        "iss": "test-issuer",
-        "aud": "test-audience",
+        "iss": "squawk-manager",
+        "aud": "squawk",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
         "scope": "dhcp:read",
         "tenant": "test-tenant",
-        "teams": ["test-team"],
-        "roles": ["viewer"],
+        "team_roles": {"test-team": "Member"},
+        "global_role": "Viewer",
     }
-    return jwt.encode(payload, jwt_secret_key, algorithm="HS256")
+    return jwt.encode(payload, jwt_keypair['private'], algorithm="ES256")
 
 
 @pytest.fixture
-def test_token_admin(jwt_secret_key):
-    """Create valid test JWT with dhcp:admin scope."""
+def test_token_admin(jwt_keypair):
+    """Create valid test JWT with dhcp:admin scope (ES256)."""
     payload = {
         "sub": "test-admin-id",
-        "iss": "test-issuer",
-        "aud": "test-audience",
+        "iss": "squawk-manager",
+        "aud": "squawk",
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=1),
         "scope": "dhcp:admin",
         "tenant": "test-tenant",
-        "teams": ["test-team"],
-        "roles": ["admin"],
+        "team_roles": {"test-team": "Admin"},
+        "global_role": "SystemAdmin",
     }
-    return jwt.encode(payload, jwt_secret_key, algorithm="HS256")
+    return jwt.encode(payload, jwt_keypair['private'], algorithm="ES256")
 
 
 @pytest.fixture
-def test_token_expired(jwt_secret_key):
-    """Create expired test JWT."""
+def test_token_expired(jwt_keypair):
+    """Create expired test JWT (ES256)."""
     payload = {
         "sub": "test-user-id",
-        "iss": "test-issuer",
-        "aud": "test-audience",
+        "iss": "squawk-manager",
+        "aud": "squawk",
         "iat": datetime.utcnow() - timedelta(hours=2),
         "exp": datetime.utcnow() - timedelta(hours=1),
         "scope": "dhcp:read",
         "tenant": "test-tenant",
-        "teams": ["test-team"],
-        "roles": ["viewer"],
+        "team_roles": {"test-team": "Member"},
+        "global_role": "Viewer",
     }
-    return jwt.encode(payload, jwt_secret_key, algorithm="HS256")
+    return jwt.encode(payload, jwt_keypair['private'], algorithm="ES256")
 
 
 @pytest.fixture
-async def app_client(monkeypatch, temp_db, jwt_secret_key):
-    """Create Quart test client with mocked database and JWT secret."""
+async def app_client(monkeypatch, temp_db, jwt_keypair, jwt_secret_key):
+    """Create Quart test client with mocked database and JWT keys."""
     # Set environment variables BEFORE importing app
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{temp_db}")
-    monkeypatch.setenv("JWT_SECRET_KEY", jwt_secret_key)
+    monkeypatch.setenv("JWT_PUBLIC_KEY", jwt_keypair['public'])  # For user token verification
+    monkeypatch.setenv("JWT_SECRET_KEY", jwt_secret_key)  # Legacy: for server tokens only
     monkeypatch.setenv("POSTHOG_KEY", "")  # Disable PostHog in tests
     monkeypatch.setenv("DHCP_PORT", "8081")
     monkeypatch.setenv("DHCP_POOL_START", "192.168.1.100")

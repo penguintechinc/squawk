@@ -274,3 +274,10 @@ DNS Client selector labels
 {{ include "squawk.selectorLabels" . }}
 app.kubernetes.io/component: squawk-client
 {{- end }}
+
+{{/*
+JWT keys secret name (asymmetric signing/verification keys)
+*/}}
+{{- define "squawk.jwt.secretName" -}}
+{{- .Values.jwt.secretName | default "squawk-jwt-keys" }}
+{{- end }}

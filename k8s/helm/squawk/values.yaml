@@ -78,6 +78,7 @@ manager:
     tag: latest
   replicas: 1
   logLevel: "info"
+  tenantId: "default"
   resources:
     requests:
       cpu: 100m
@@ -132,3 +133,21 @@ serviceAccount:
 
 networkPolicy:
   enabled: true
+
+# Asymmetric JWT keys (ES256/RS256) for user-token auth.
+# manager (signer) reads jwt-private-key + jwt-public-key.
+# dns-server, dhcp-server, ntp-server (verifiers) read ONLY jwt-public-key.
+#
+# The Secret is NOT created by this chart — provision it before install:
+#   ./scripts/gen-jwt-keys.sh --output /tmp/squawk-jwt-keys
+#   kubectl create secret generic squawk-jwt-keys -n squawk \
+#     --from-file=jwt-private-key=/tmp/squawk-jwt-keys/jwt_private_key_es256.pem \
+#     --from-file=jwt-public-key=/tmp/squawk-jwt-keys/jwt_public_key_es256.pem
+# See k8s/squawk-jwt-keys.example.yml for the Secret shape (placeholder only,
+# REPLACE — never commit real key material).
+jwt:
+  secretName: squawk-jwt-keys
+  algorithm: ES256
+  issuer: squawk-manager
+  audience: squawk
+  mountPath: /etc/squawk/jwt

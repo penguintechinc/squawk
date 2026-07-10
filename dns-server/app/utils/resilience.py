@@ -6,10 +6,13 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import jwt as pyjwt
-from jwt.exceptions import InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError
+from jwt.exceptions import (
+    InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError,
+    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
+)
 
 from app.services.manager_client import ManagerClient
-from app.config import JWT_SECRET_KEY
+from app.config import JWT_PUBLIC_KEY, JWT_ISSUER, JWT_AUDIENCE
 
 logger = logging.getLogger(__name__)
 
@@ -115,14 +118,27 @@ class ResilienceManager:
             return False
 
         try:
-            # Fail closed: JWT_SECRET_KEY must be configured for non-public zones
-            if not JWT_SECRET_KEY:
-                logger.error("JWT_SECRET_KEY not configured; denying access to non-public zone")
+            # Fail closed: JWT_PUBLIC_KEY must be configured for non-public zones
+            if not JWT_PUBLIC_KEY:
+                logger.error("JWT_PUBLIC_KEY not configured; denying access to non-public zone")
                 return False
 
-            # Verify JWT signature and extract payload
-            payload = pyjwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
-            user_teams = payload.get('teams', [])
+            # Verify JWT signature and extract payload (ES256/RS256), require tenant
+            payload = pyjwt.decode(
+                token,
+                JWT_PUBLIC_KEY,
+                algorithms=['ES256', 'RS256'],
+                audience=JWT_AUDIENCE,
+                issuer=JWT_ISSUER,
+                options={'require': ['exp', 'iat', 'tenant']}
+            )
+
+            # Fail closed: tenant claim must be present and non-empty
+            if not payload.get('tenant'):
+                logger.debug(f"Access denied: token missing or empty tenant claim")
+                return False
+
+            user_teams = list(payload.get('team_roles', {}).keys()) if payload.get('team_roles') else []
             allowed_teams = zone.get('allowed_teams', [])
 
             # Check team membership
@@ -135,6 +151,9 @@ class ResilienceManager:
 
         except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
             logger.warning(f"Invalid JWT token for zone access: {e}")
+            return False
+        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
+            logger.warning(f"JWT claim validation failed: {e}")
             return False
         except Exception as e:
             logger.error(f"Token validation error: {e}")

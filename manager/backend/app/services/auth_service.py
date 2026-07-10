@@ -1,6 +1,6 @@
 """
 Authentication service for Squawk DNS Manager.
-Handles JWT generation, token refresh, and password hashing.
+Handles JWT generation (asymmetric ES256/RS256), token refresh, and password hashing.
 """
 
 import jwt
@@ -8,6 +8,10 @@ import bcrypt
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 from flask import current_app
+from jwt.exceptions import (
+    ExpiredSignatureError, InvalidSignatureError, InvalidTokenError,
+    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
+)
 
 
 class AuthService:
@@ -28,7 +32,7 @@ class AuthService:
     def create_access_token(user_id: int, username: str, global_role: str,
                            team_roles: Optional[Dict] = None) -> str:
         """
-        Create JWT access token (15 minutes expiry).
+        Create JWT access token (15 minutes expiry) signed with ES256/RS256 private key.
 
         Args:
             user_id: User ID
@@ -36,7 +40,14 @@ class AuthService:
             global_role: Global role (SystemAdmin, OrgAdmin, UserManager, Viewer)
             team_roles: Dict of team_id -> role mappings
         """
+        # TODO: extract tenant from user.org if schema adds org/tenant column
+        tenant = current_app.config.get('TENANT_ID', 'default')
+
         payload = {
+            'sub': str(user_id),
+            'iss': current_app.config['JWT_ISSUER'],
+            'aud': current_app.config['JWT_AUDIENCE'],
+            'tenant': tenant,
             'user_id': user_id,
             'username': username,
             'global_role': global_role,
@@ -45,18 +56,32 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
+        return jwt.encode(
+            payload,
+            current_app.config['JWT_PRIVATE_KEY'],
+            algorithm=current_app.config['JWT_ALGORITHM']
+        )
 
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
-        """Create JWT refresh token (7 days expiry)."""
+        """Create JWT refresh token (7 days expiry) signed with ES256/RS256 private key."""
+        tenant = current_app.config.get('TENANT_ID', 'default')
+
         payload = {
+            'sub': str(user_id),
+            'iss': current_app.config['JWT_ISSUER'],
+            'aud': current_app.config['JWT_AUDIENCE'],
+            'tenant': tenant,
             'user_id': user_id,
             'type': 'refresh',
             'exp': datetime.utcnow() + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
+        return jwt.encode(
+            payload,
+            current_app.config['JWT_PRIVATE_KEY'],
+            algorithm=current_app.config['JWT_ALGORITHM']
+        )
 
     @staticmethod
     def create_server_jwt(server_id: int, jwt_secret: str) -> str:
@@ -79,15 +104,44 @@ class AuthService:
 
         Args:
             token: JWT token string
-            secret_key: Optional custom secret (for server tokens)
+            secret_key: Optional custom secret (for server tokens only; uses HS256)
+
+        Returns:
+            Decoded payload if valid, None otherwise.
+            For user tokens: verifies with public key (ES256/RS256), requires tenant claim.
+            For server tokens: verifies with server-specific secret (HS256).
         """
         try:
-            secret = secret_key or current_app.config['JWT_SECRET_KEY']
-            payload = jwt.decode(token, secret, algorithms=['HS256'])
+            # If a custom secret is provided, this is a server token (HS256)
+            if secret_key:
+                payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+                return payload
+
+            # User token: verify with public key (ES256/RS256), require tenant
+            public_key = current_app.config['JWT_PUBLIC_KEY']
+            if not public_key:
+                return None
+
+            payload = jwt.decode(
+                token,
+                public_key,
+                algorithms=['ES256', 'RS256'],
+                audience=current_app.config['JWT_AUDIENCE'],
+                issuer=current_app.config['JWT_ISSUER'],
+                options={'require': ['exp', 'iat', 'tenant']}
+            )
+
+            # Fail closed: tenant claim must be present and non-empty
+            if not payload.get('tenant'):
+                return None
+
             return payload
-        except jwt.ExpiredSignatureError:
+
+        except ExpiredSignatureError:
             return None
-        except jwt.InvalidTokenError:
+        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError):
+            return None
+        except (InvalidSignatureError, InvalidTokenError):
             return None
 
     @staticmethod

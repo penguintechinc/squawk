@@ -1,5 +1,6 @@
 """
 Minimal test configuration for working features only
+Includes ES256 JWT keypair fixtures for asymmetric token verification.
 """
 
 import pytest
@@ -13,6 +14,11 @@ from collections.abc import Generator
 from typing import Any
 from sqlalchemy.engine import Engine
 from penguin_dal import DB
+import jwt
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from datetime import datetime, timedelta
 
 # Resolve the shared SQLAlchemy schema. In the repo the canonical authority is
 # manager/backend/app/schema.py; inside the dns-server container image that tree
@@ -122,6 +128,65 @@ def valid_domains() -> list[str]:
         "localhost",
         "*.example.com",  # Wildcard
     ]
+
+
+@pytest.fixture(scope="session")
+def jwt_keypair():
+    """Generate an ephemeral ES256 keypair for testing."""
+    # Generate EC private key (P-256)
+    private_key = ec.generate_private_key(
+        ec.SECP256R1(), default_backend()
+    )
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode('utf-8')
+
+    # Extract public key
+    public_key = private_key.public_key()
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode('utf-8')
+
+    return {
+        'private': private_pem,
+        'public': public_pem
+    }
+
+
+@pytest.fixture
+def jwt_token_factory(jwt_keypair):
+    """Factory to create valid ES256 JWT tokens for testing."""
+    def _make_token(user_id: int = 1, username: str = "testuser",
+                    global_role: str = "Viewer", team_roles: dict = None,
+                    token_type: str = "access", tenant: str = "default",
+                    issuer: str = "squawk-manager", audience: str = "squawk",
+                    expired: bool = False) -> str:
+        """Create a valid JWT token with ES256 signature."""
+        now = datetime.utcnow()
+        if expired:
+            exp = now - timedelta(hours=1)
+        else:
+            exp = now + timedelta(hours=1)
+
+        payload = {
+            'sub': str(user_id),
+            'iss': issuer,
+            'aud': audience,
+            'tenant': tenant,
+            'user_id': user_id,
+            'username': username,
+            'global_role': global_role,
+            'team_roles': team_roles or {},
+            'type': token_type,
+            'exp': exp,
+            'iat': now
+        }
+        return jwt.encode(payload, jwt_keypair['private'], algorithm='ES256')
+
+    return _make_token
 
 
 def pytest_unconfigure(config: Any) -> None:

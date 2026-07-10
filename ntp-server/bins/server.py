@@ -55,6 +55,23 @@ if TLS_CERT_FILE and TLS_KEY_FILE:
 else:
     TLS_ENABLED = False
 
+# JWT configuration (asymmetric: ES256 default, RS256 fallback)
+def _load_jwt_public_key() -> Optional[str]:
+    """Load JWT public key from env var or file."""
+    key = os.getenv("JWT_PUBLIC_KEY")
+    if key:
+        return key
+    key_file = os.getenv("JWT_PUBLIC_KEY_FILE")
+    if key_file and os.path.isfile(key_file):
+        with open(key_file, 'r') as f:
+            return f.read().strip()
+    return None
+
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "ES256")
+JWT_ISSUER = os.getenv("JWT_ISSUER", "squawk-manager")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "squawk")
+JWT_PUBLIC_KEY = _load_jwt_public_key()
+
 POSTHOG_KEY = os.getenv("POSTHOG_KEY", "")
 POSTHOG_HOST = os.getenv("POSTHOG_HOST", "")
 
@@ -341,27 +358,41 @@ class CookieManager:
 
 def verify_jwt(token: str, required_scope: Optional[str] = None) -> bool:
     """
-    Verify HS256 JWT and optionally check scope.
+    Verify ES256/RS256 JWT and optionally check scope.
 
     Args:
         token: Bearer token
         required_scope: Optional scope (e.g., "ntp:client", "ntp:admin")
 
     Returns:
-        True if valid, False otherwise
+        True if valid, False otherwise. Fail closed if JWT_PUBLIC_KEY not configured.
     """
     try:
-        # Read secret at call time to support test override
-        secret = os.getenv("JWT_SECRET_KEY")
-        if not secret:
-            logger.warning("JWT_SECRET_KEY not configured")
+        # Read public key at call time to support test override
+        public_key = os.getenv("JWT_PUBLIC_KEY")
+        if not public_key:
+            # Try loading from file
+            key_file = os.getenv("JWT_PUBLIC_KEY_FILE")
+            if key_file and os.path.isfile(key_file):
+                with open(key_file, 'r') as f:
+                    public_key = f.read().strip()
+
+        if not public_key:
+            logger.warning("JWT_PUBLIC_KEY not configured")
             return False
 
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["ES256", "RS256"],
+            audience=JWT_AUDIENCE,
+            issuer=JWT_ISSUER,
+            options={"require": ["exp", "iat", "tenant"]}
+        )
 
-        # Check expiry
-        if "exp" in payload and payload["exp"] < time.time():
-            logger.warning("JWT verification: token expired")
+        # Fail closed: tenant claim must be present and non-empty
+        if not payload.get('tenant'):
+            logger.warning("JWT verification: token missing or empty tenant claim")
             return False
 
         # Check scope if required
@@ -372,6 +403,12 @@ def verify_jwt(token: str, required_scope: Optional[str] = None) -> bool:
                 return False
 
         return True
+    except jwt.ExpiredSignatureError:
+        logger.warning("JWT verification: token expired")
+        return False
+    except jwt.InvalidSignatureError:
+        logger.warning("JWT verification: invalid signature")
+        return False
     except Exception as e:
         logger.warning(f"JWT verification failed: {e}")
         return False

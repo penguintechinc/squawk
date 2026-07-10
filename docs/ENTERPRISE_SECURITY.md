@@ -1,0 +1,224 @@
+# Enterprise Security & Deployment Hardening
+
+This guide covers the enterprise-grade security controls added in the `v2.1.x`
+line and how to operate them: asymmetric JWT signing, tenant isolation,
+supply-chain verification (signed images + SBOM attestation), Kubernetes
+runtime hardening, and automated dependency pinning.
+
+> **Audience:** operators deploying Squawk to a production/enterprise cluster.
+> For a feature overview see [System Architecture](ARCHITECTURE.md); for the
+> auth model see [Token Management](TOKEN_MANAGEMENT.md).
+
+---
+
+## 1. Asymmetric JWT signing (ES256 default, RS256 fallback)
+
+Squawk uses **asymmetric** JWT signing. The **manager** holds a private key and
+signs user access/refresh tokens; every verifier service (**dns-server**,
+**dhcp-server**, **ntp-server**) holds only the **public** key and verifies
+signatures with it. A verifier can never mint a token — it has no private key.
+
+- **Default algorithm:** `ES256` (ECDSA, NIST P-256) — small keys, fast verify.
+- **Fallback algorithm:** `RS256` (RSA-2048) — use only where ES256 is not
+  available in a client/toolchain.
+- Verifiers accept **`ES256` and `RS256` only**. `HS256` and the `none` alg are
+  rejected, which blocks the classic *public-key-as-HMAC* algorithm-confusion
+  attack.
+
+### Mandatory claims
+
+Every user token carries and every verifier **requires**:
+
+| Claim    | Meaning                                  | Enforced |
+|----------|------------------------------------------|----------|
+| `sub`    | Subject (user UUID)                      | signed   |
+| `iss`    | Issuer — default `squawk-manager`        | verified |
+| `aud`    | Audience — default `squawk`              | verified |
+| `exp`    | Expiry                                   | required |
+| `iat`    | Issued-at                                | required |
+| `tenant` | Tenant id — **non-empty**                | required, fail-closed |
+| `scope`  | Space-delimited `resource:action` scopes | authz    |
+
+A token with a missing/empty `tenant`, a wrong `iss`/`aud`, an unexpected alg,
+or a bad signature is rejected. If a verifier has **no public key configured**
+it **fails closed** (denies everything) rather than falling through.
+
+### Generate a keypair
+
+Use the helper script (never commit the resulting `.pem` files — they are
+gitignored):
+
+```bash
+# ES256 (default)
+./scripts/gen-jwt-keys.sh --output /tmp/squawk-jwt-keys
+
+# RS256 fallback, or both
+./scripts/gen-jwt-keys.sh --rs256-only --output /tmp/squawk-jwt-keys
+./scripts/gen-jwt-keys.sh --both        --output /tmp/squawk-jwt-keys
+```
+
+Produces `jwt_private_key_es256.pem` (manager only) and
+`jwt_public_key_es256.pem` (manager + all verifiers).
+
+### Configuration reference
+
+| Env var                                 | Service         | Default          | Notes |
+|-----------------------------------------|-----------------|------------------|-------|
+| `JWT_ALGORITHM`                         | all             | `ES256`          | `ES256` or `RS256` |
+| `JWT_ISSUER`                            | all             | `squawk-manager` | must match across services |
+| `JWT_AUDIENCE`                          | all             | `squawk`         | must match across services |
+| `JWT_PRIVATE_KEY` / `JWT_PRIVATE_KEY_FILE` | manager      | —                | signer only; PEM inline or file path |
+| `JWT_PUBLIC_KEY` / `JWT_PUBLIC_KEY_FILE`   | all          | —                | verify key; PEM inline or file path |
+| `TENANT_ID`                             | manager         | `default`        | tenant stamped into issued tokens |
+| `SECRET_KEY`                            | manager         | — (required in prod) | Flask session secret |
+
+`*_FILE` variants win when set and are the recommended path in Kubernetes
+(compatible with `readOnlyRootFilesystem: true`). Public keys are read at
+**verification time**, so rotating the Secret does not require a pod restart.
+
+In **ProductionConfig** the manager fails fast at startup if `SECRET_KEY`,
+`JWT_PRIVATE_KEY`, or `JWT_PUBLIC_KEY` is unset — no insecure defaults ship.
+Development/Test configs generate an **ephemeral** ES256 keypair in-process so
+local runs work with zero setup (never use those in production).
+
+### Kubernetes deployment
+
+Both the Helm chart (`k8s/helm/squawk`) and the Kustomize base
+(`k8s/kustomize/base`) reference a single Secret named **`squawk-jwt-keys`** with
+two standardized data keys:
+
+```bash
+kubectl create secret generic squawk-jwt-keys -n squawk \
+  --from-file=jwt-private-key=/tmp/squawk-jwt-keys/jwt_private_key_es256.pem \
+  --from-file=jwt-public-key=/tmp/squawk-jwt-keys/jwt_public_key_es256.pem
+```
+
+- **Manager** mounts both keys at `/etc/squawk/jwt` and sets
+  `JWT_PRIVATE_KEY_FILE` + `JWT_PUBLIC_KEY_FILE`.
+- **Verifiers** mount the *same* Secret but use `items:` to project **only**
+  `jwt-public-key` into the pod — the private key never enters a verifier pod.
+
+Helm values (`k8s/helm/squawk/values.yaml`):
+
+```yaml
+jwt:
+  secretName: squawk-jwt-keys
+  algorithm: ES256
+  issuer: squawk-manager
+  audience: squawk
+  mountPath: /etc/squawk/jwt
+```
+
+See `k8s/squawk-jwt-keys.example.yml` for the Secret shape (placeholder only —
+for Sealed Secrets / External Secrets input). Prefer `kubectl create secret
+--from-file` so raw key material never lands in a YAML file on disk.
+
+### Key rotation
+
+1. Generate a new keypair.
+2. Update the `squawk-jwt-keys` Secret (`kubectl create secret ... --dry-run
+   -o yaml | kubectl apply -f -`).
+3. Verifiers pick up the new public key on next verification (no restart).
+4. Restart the **manager** so it signs with the new private key.
+
+For zero-downtime rotation, publish the new public key to verifiers first, then
+cut the manager over to the new private key.
+
+---
+
+## 2. Tenant isolation
+
+Every token must carry a non-empty `tenant` claim; verifiers reject tokens
+without one (fail-closed). The manager stamps `TENANT_ID` (default `default`)
+into every token it issues. This is the foundation for multi-tenant deployments —
+all downstream authorization and data access is expected to be scoped to the
+token's tenant. Single-tenant deployments simply run with `TENANT_ID=default`.
+
+> **Roadmap:** per-tenant data partitioning (an `org`/tenant column on
+> `auth_user` and tenant-scoped queries) is tracked as a follow-up. Today the
+> claim is issued, transported, and required end-to-end.
+
+---
+
+## 3. Supply-chain: signed images + SBOM attestation
+
+Release images are **keyless-signed** with [cosign](https://docs.sigstore.dev/)
+(Sigstore / GitHub OIDC — no long-lived signing keys) and ship an **SBOM**
+(SPDX-JSON via Syft) attached as a cosign attestation. Signing targets the
+**multi-arch image index digest**, so the signature covers every architecture.
+
+Signed on release: `dns-server`, `dhcp-server`, `ntp-server`, the Python
+dns-client, and the Go `squawk-dns-client`.
+
+### Verify a signature
+
+```bash
+IMAGE=ghcr.io/penguintechinc/squawk/dns-server:v2.1.1
+
+cosign verify "$IMAGE" \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp='^https://github.com/penguintechinc/squawk/\.github/workflows/.+'
+```
+
+### Verify the SBOM attestation
+
+```bash
+cosign verify-attestation "$IMAGE" --type spdxjson \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp='^https://github.com/penguintechinc/squawk/\.github/workflows/.+' \
+  | jq -r '.payload | @base64d | fromjson | .predicate.name'
+```
+
+Enterprises can enforce this at admission time (e.g. a Kyverno/Sigstore policy
+controller) so only cosign-verified Squawk images run in the cluster.
+
+---
+
+## 4. Kubernetes runtime hardening
+
+All first-party workloads (Helm + Kustomize) run with a restrictive
+`securityContext`:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+```
+
+`seccompProfile: RuntimeDefault` applies the container runtime's default syscall
+filter to every pod. Combined with the read-only root filesystem and dropped
+capabilities, this gives a minimal syscall/permission surface. JWT keys are the
+only secret material mounted, read-only, at `/etc/squawk/jwt`.
+
+---
+
+## 5. Automated dependency pinning (Renovate)
+
+`renovate.json` keeps dependencies immutable and current:
+
+- **`pinDigests: true`** — external container images are pinned to `@sha256:`
+  digests; Renovate opens PRs to bump them.
+- **`vulnerabilityAlerts`** — security-driven updates are surfaced as PRs.
+- First-party (PenguinTech) images are tracked by tag; external images always by
+  digest, matching the house dependency-pinning standard.
+
+Merging Renovate PRs keeps base images patched without manual digest edits.
+
+---
+
+## Quick operator checklist
+
+- [ ] Generate an ES256 keypair with `scripts/gen-jwt-keys.sh`.
+- [ ] Create the `squawk-jwt-keys` Secret (`--from-file`, never commit PEMs).
+- [ ] Set `SECRET_KEY` (manager) from your secrets manager.
+- [ ] Confirm `JWT_ISSUER`/`JWT_AUDIENCE` match across all services.
+- [ ] Set `TENANT_ID` for the deployment (or leave `default`).
+- [ ] `cosign verify` the images you deploy (optionally enforce at admission).
+- [ ] Confirm pods report `runAsNonRoot` + `seccompProfile: RuntimeDefault`.
+- [ ] Enable Renovate PRs for digest/vulnerability updates.

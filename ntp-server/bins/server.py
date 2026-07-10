@@ -544,10 +544,13 @@ class NTSKEServer:
         """
         response = b""
 
-        # Record 1: NTS Next Protocol Negotiation (type 1, not critical)
+        # Record 1: NTS Next Protocol Negotiation (type 1, CRITICAL).
+        # RFC 8915 §4.1.5: the Critical Bit of this record MUST be set. Strict
+        # clients (ntpsec, chrony) reject a response whose Next Protocol record
+        # is non-critical, so this bit is required for wire interop.
         # Body: 16-bit protocol ID (0 = NTPv4)
         next_proto_body = struct.pack("!H", 0)  # NTPv4
-        response += NTSKERecord.encode(NTSKERecordType.NEXT_PROTOCOL, next_proto_body, critical=False)
+        response += NTSKERecord.encode(NTSKERecordType.NEXT_PROTOCOL, next_proto_body, critical=True)
 
         # Record 2: AEAD Algorithm Negotiation (type 4, not critical)
         # Body: 16-bit algorithm ID

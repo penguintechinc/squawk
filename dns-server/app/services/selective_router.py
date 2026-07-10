@@ -3,15 +3,9 @@ Selective DNS Routing Service
 Implements per-user/group zone access control.
 """
 import logging
-import jwt as pyjwt
-from jwt.exceptions import (
-    InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError,
-    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
-)
 from typing import Dict, List, Optional
-from app.config import (
-    JWT_PUBLIC_KEY, JWT_ISSUER, JWT_AUDIENCE
-)
+from app.config import JWT_PUBLIC_KEY
+from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
 
@@ -71,71 +65,47 @@ class SelectiveRouter:
             logger.debug(f"Access denied to {visibility} zone {zone['name']}: no token provided")
             return False
 
-        # Verify JWT signature and extract payload
-        try:
-            # Fail closed: JWT_PUBLIC_KEY must be configured for non-public zones
-            if not JWT_PUBLIC_KEY:
-                logger.error("JWT_PUBLIC_KEY not configured; denying access to non-public zone")
-                return False
-
-            # Verify with public key (ES256/RS256), require tenant claim
-            payload = pyjwt.decode(
-                token,
-                JWT_PUBLIC_KEY,
-                algorithms=['ES256', 'RS256'],
-                audience=JWT_AUDIENCE,
-                issuer=JWT_ISSUER,
-                options={'require': ['exp', 'iat', 'tenant']}
+        # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
+        # exp/iat/tenant, fail closed) — authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        if payload is None:
+            logger.debug(
+                f"Access denied to {visibility} zone {zone['name']}: token verification failed"
             )
+            return False
 
-            # Fail closed: tenant claim must be present and non-empty
-            if not payload.get('tenant'):
-                logger.debug(f"Access denied: token missing or empty tenant claim")
-                return False
+        user_teams = payload.get('team_roles', {}).keys() if payload.get('team_roles') else []
 
-            user_teams = payload.get('team_roles', {}).keys() if payload.get('team_roles') else []
-            user_id = payload.get('user_id')
+        # Check if user's teams are in allowed teams
+        allowed_teams = zone.get('allowed_teams', [])
 
-            # Check if user's teams are in allowed teams
-            allowed_teams = zone.get('allowed_teams', [])
-
-            if visibility == 'internal':
-                # Internal: must be member of allowed teams
-                if not allowed_teams or any(team in allowed_teams for team in user_teams):
-                    return True
-                else:
-                    logger.debug(f"Access denied to internal zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
-                    return False
-
-            elif visibility == 'restricted':
-                # Restricted: must be in specific allowed teams
-                if any(team in allowed_teams for team in user_teams):
-                    return True
-                else:
-                    logger.debug(f"Access denied to restricted zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
-                    return False
-
-            elif visibility == 'private':
-                # Private: admin only (check for admin role in token)
-                is_admin = payload.get('role') == 'admin'
-                if is_admin:
-                    return True
-                else:
-                    logger.debug(f"Access denied to private zone {zone['name']}: user is not admin")
-                    return False
-
+        if visibility == 'internal':
+            # Internal: must be member of allowed teams
+            if not allowed_teams or any(team in allowed_teams for team in user_teams):
+                return True
             else:
-                # Unknown visibility, deny
+                logger.debug(f"Access denied to internal zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
                 return False
 
-        except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
-            logger.warning(f"Invalid JWT token for zone access: {e}")
-            return False
-        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
-            logger.warning(f"JWT claim validation failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Token parsing error: {e}")
+        elif visibility == 'restricted':
+            # Restricted: must be in specific allowed teams
+            if any(team in allowed_teams for team in user_teams):
+                return True
+            else:
+                logger.debug(f"Access denied to restricted zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
+                return False
+
+        elif visibility == 'private':
+            # Private: admin only (check for admin role in token)
+            is_admin = payload.get('role') == 'admin'
+            if is_admin:
+                return True
+            else:
+                logger.debug(f"Access denied to private zone {zone['name']}: user is not admin")
+                return False
+
+        else:
+            # Unknown visibility, deny
             return False
 
     def get_zone_records(self, domain: str) -> Optional[List[Dict]]:

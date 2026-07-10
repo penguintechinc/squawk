@@ -5,14 +5,10 @@ Implements graceful degradation strategy: normal → cached → degraded.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-import jwt as pyjwt
-from jwt.exceptions import (
-    InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError,
-    InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError
-)
 
 from app.services.manager_client import ManagerClient
-from app.config import JWT_PUBLIC_KEY, JWT_ISSUER, JWT_AUDIENCE
+from app.config import JWT_PUBLIC_KEY
+from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
 
@@ -117,47 +113,22 @@ class ResilienceManager:
         if not token:
             return False
 
-        try:
-            # Fail closed: JWT_PUBLIC_KEY must be configured for non-public zones
-            if not JWT_PUBLIC_KEY:
-                logger.error("JWT_PUBLIC_KEY not configured; denying access to non-public zone")
-                return False
-
-            # Verify JWT signature and extract payload (ES256/RS256), require tenant
-            payload = pyjwt.decode(
-                token,
-                JWT_PUBLIC_KEY,
-                algorithms=['ES256', 'RS256'],
-                audience=JWT_AUDIENCE,
-                issuer=JWT_ISSUER,
-                options={'require': ['exp', 'iat', 'tenant']}
-            )
-
-            # Fail closed: tenant claim must be present and non-empty
-            if not payload.get('tenant'):
-                logger.debug(f"Access denied: token missing or empty tenant claim")
-                return False
-
-            user_teams = list(payload.get('team_roles', {}).keys()) if payload.get('team_roles') else []
-            allowed_teams = zone.get('allowed_teams', [])
-
-            # Check team membership
-            if not allowed_teams:
-                # No team restrictions
-                return True
-
-            # User must be in at least one allowed team
-            return any(team in allowed_teams for team in user_teams)
-
-        except (InvalidSignatureError, ExpiredSignatureError, DecodeError, InvalidTokenError) as e:
-            logger.warning(f"Invalid JWT token for zone access: {e}")
+        # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
+        # exp/iat/tenant, fail closed) — team authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        if payload is None:
             return False
-        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
-            logger.warning(f"JWT claim validation failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Token validation error: {e}")
-            return False
+
+        user_teams = list(payload.get('team_roles', {}).keys()) if payload.get('team_roles') else []
+        allowed_teams = zone.get('allowed_teams', [])
+
+        # Check team membership
+        if not allowed_teams:
+            # No team restrictions
+            return True
+
+        # User must be in at least one allowed team
+        return any(team in allowed_teams for team in user_teams)
 
     def get_mode(self) -> str:
         """Get current operational mode."""

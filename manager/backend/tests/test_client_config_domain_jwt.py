@@ -12,25 +12,9 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.services.client_config_service import ClientConfigManager
-
-
-def _gen_es256_pem() -> tuple[str, str]:
-    key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-    priv = key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).decode()
-    pub = key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
-    return priv, pub
+from app.utils.crypto import generate_ephemeral_es256_keypair as _gen_es256_pem
 
 
 class _FakeField:

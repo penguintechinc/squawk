@@ -96,7 +96,6 @@ jobs:
     permissions:
       contents: write
       packages: write
-      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -132,7 +131,6 @@ jobs:
           echo "tag=$PLATFORM_TAG" >> $GITHUB_OUTPUT
 
       - name: Build and push ${{ matrix.service }} Docker image for ${{ matrix.platform }}
-        id: build
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
           context: ${{ matrix.context || '.' }}
@@ -151,34 +149,6 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.platform }}
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
-
-      - name: Generate SBOM (SPDX-JSON)
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
-        with:
-          image: ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}@${{ steps.build.outputs.digest }}
-          format: spdx-json
-          output-file: sbom-${{ matrix.service }}-${{ steps.platform_tag.outputs.tag }}.spdx.json
-          upload-artifact: false
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          name: sbom-${{ matrix.service }}-${{ steps.platform_tag.outputs.tag }}
-          path: sbom-${{ matrix.service }}-${{ steps.platform_tag.outputs.tag }}.spdx.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Sign image and attest SBOM (keyless)
-        env:
-          COSIGN_YES: "true"
-          IMAGE_REF: ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}@${{ steps.build.outputs.digest }}
-          SBOM_FILE: sbom-${{ matrix.service }}-${{ steps.platform_tag.outputs.tag }}.spdx.json
-        run: |
-          cosign sign --yes "${IMAGE_REF}"
-          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
-
   merge-manifests:
     name: Merge Docker manifests
     runs-on: ubuntu-latest
@@ -187,6 +157,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -246,6 +217,117 @@ jobs:
           docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-testing:latest \
             ghcr.io/penguintechinc/squawk-dns-testing:latest-amd64 \
             ghcr.io/penguintechinc/squawk-dns-testing:latest-arm64
+
+      - name: Merge DHCP Server manifests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          docker buildx imagetools create -t "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}" \
+            "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}-amd64" \
+            "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}-arm64"
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk/dhcp-server:latest \
+            ghcr.io/penguintechinc/squawk/dhcp-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk/dhcp-server:latest-arm64
+
+      - name: Merge NTP Server manifests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          docker buildx imagetools create -t "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}" \
+            "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}-amd64" \
+            "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}-arm64"
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk/ntp-server:latest \
+            ghcr.io/penguintechinc/squawk/ntp-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk/ntp-server:latest-arm64
+
+      - name: Capture multi-arch manifest digests
+        id: digests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          for pair in \
+            "dns_server:ghcr.io/penguintechinc/squawk-dns-server" \
+            "dns_server_prod:ghcr.io/penguintechinc/squawk-dns-server-prod" \
+            "dns_client_python:ghcr.io/penguintechinc/squawk-dns-client-python" \
+            "dns_testing:ghcr.io/penguintechinc/squawk-dns-testing" \
+            "dhcp_server:ghcr.io/penguintechinc/squawk/dhcp-server" \
+            "ntp_server:ghcr.io/penguintechinc/squawk/ntp-server"; do
+            key="${pair%%:*}"; img="${pair#*:}"
+            digest=$(docker buildx imagetools inspect "${img}:${VERSION}" --format '{{.Manifest.Digest}}')
+            echo "${key}=${digest}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM for DNS Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-server@${{ steps.digests.outputs.dns_server }}
+          format: spdx-json
+          output-file: sbom-dns-server.spdx.json
+          artifact-name: sbom-dns-server.spdx.json
+
+      - name: Generate SBOM for DNS Server Prod (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-server-prod@${{ steps.digests.outputs.dns_server_prod }}
+          format: spdx-json
+          output-file: sbom-dns-server-prod.spdx.json
+          artifact-name: sbom-dns-server-prod.spdx.json
+
+      - name: Generate SBOM for DNS Client Python (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-client-python@${{ steps.digests.outputs.dns_client_python }}
+          format: spdx-json
+          output-file: sbom-dns-client-python.spdx.json
+          artifact-name: sbom-dns-client-python.spdx.json
+
+      - name: Generate SBOM for DNS Testing (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-testing@${{ steps.digests.outputs.dns_testing }}
+          format: spdx-json
+          output-file: sbom-dns-testing.spdx.json
+          artifact-name: sbom-dns-testing.spdx.json
+
+      - name: Generate SBOM for DHCP Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk/dhcp-server@${{ steps.digests.outputs.dhcp_server }}
+          format: spdx-json
+          output-file: sbom-dhcp-server.spdx.json
+          artifact-name: sbom-dhcp-server.spdx.json
+
+      - name: Generate SBOM for NTP Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk/ntp-server@${{ steps.digests.outputs.ntp_server }}
+          format: spdx-json
+          output-file: sbom-ntp-server.spdx.json
+          artifact-name: sbom-ntp-server.spdx.json
+
+      - name: Sign images and attest SBOMs (keyless)
+        env:
+          COSIGN_YES: "true"
+          REF_DNS_SERVER: ghcr.io/penguintechinc/squawk-dns-server@${{ steps.digests.outputs.dns_server }}
+          REF_DNS_SERVER_PROD: ghcr.io/penguintechinc/squawk-dns-server-prod@${{ steps.digests.outputs.dns_server_prod }}
+          REF_DNS_CLIENT_PYTHON: ghcr.io/penguintechinc/squawk-dns-client-python@${{ steps.digests.outputs.dns_client_python }}
+          REF_DNS_TESTING: ghcr.io/penguintechinc/squawk-dns-testing@${{ steps.digests.outputs.dns_testing }}
+          REF_DHCP_SERVER: ghcr.io/penguintechinc/squawk/dhcp-server@${{ steps.digests.outputs.dhcp_server }}
+          REF_NTP_SERVER: ghcr.io/penguintechinc/squawk/ntp-server@${{ steps.digests.outputs.ntp_server }}
+        run: |
+          sign_attest() {
+            cosign sign --yes "$1"
+            cosign attest --yes --predicate "$2" --type spdxjson "$1"
+          }
+          sign_attest "${REF_DNS_SERVER}" sbom-dns-server.spdx.json
+          sign_attest "${REF_DNS_SERVER_PROD}" sbom-dns-server-prod.spdx.json
+          sign_attest "${REF_DNS_CLIENT_PYTHON}" sbom-dns-client-python.spdx.json
+          sign_attest "${REF_DNS_TESTING}" sbom-dns-testing.spdx.json
+          sign_attest "${REF_DHCP_SERVER}" sbom-dhcp-server.spdx.json
+          sign_attest "${REF_NTP_SERVER}" sbom-ntp-server.spdx.json
 
   # Extract release notes and create release
   release:

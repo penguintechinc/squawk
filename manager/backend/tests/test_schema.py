@@ -29,6 +29,8 @@ def test_schema_creates_all_tables():
         "dns_group", "user_group_assignment", "dns_routing_zone", "group_zone_access",
         # mTLS certificate lifecycle (migration)
         "mtls_certificate", "mtls_revocation",
+        # refresh-token rotation/revocation
+        "revoked_token",
     }
     assert expected == tables
     engine.dispose()

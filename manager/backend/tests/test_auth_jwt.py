@@ -246,7 +246,7 @@ class TestAlgorithmConfusionPrevention:
             result = AuthService.decode_token(hs256_token)
             assert result is None, "HS256 tokens must be rejected to prevent algorithm confusion"
 
-    def test_rs256_token_accepted_when_configured(self, app, jwt_keypair):
+    def test_rs256_token_accepted_when_configured(self, app, jwt_keypair, monkeypatch):
         """Test that RS256 token is accepted (fallback algorithm support)."""
         with app.app_context():
             # Generate RS256 keypair
@@ -266,7 +266,9 @@ class TestAlgorithmConfusionPrevention:
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             ).decode('utf-8')
 
-            app.config['JWT_PUBLIC_KEY'] = rs256_public_pem
+            # monkeypatch: the app fixture is session-scoped — a bare
+            # assignment would leak the RSA key into every later test.
+            monkeypatch.setitem(app.config, 'JWT_PUBLIC_KEY', rs256_public_pem)
 
             # Create RS256 token
             rs256_private_pem = rs256_key.private_bytes(

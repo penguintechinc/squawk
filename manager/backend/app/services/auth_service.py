@@ -3,6 +3,7 @@ Authentication service for Squawk DNS Manager.
 Handles JWT generation (asymmetric ES256/RS256), token refresh, and password hashing.
 """
 
+import uuid
 import jwt
 import bcrypt
 from datetime import datetime, timedelta
@@ -80,6 +81,8 @@ class AuthService:
             'tenant': tenant,
             'user_id': user_id,
             'type': 'refresh',
+            # Unique token id enables one-time-use rotation and revocation.
+            'jti': str(uuid.uuid4()),
             'exp': datetime.utcnow() + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
@@ -185,18 +188,68 @@ class AuthService:
         }
 
     @staticmethod
-    def refresh_access_token(refresh_token: str) -> Optional[str]:
+    def _revoke_jti(jti: str, user_id: Optional[int], expires_at: datetime,
+                    reason: str) -> None:
+        """Add a refresh-token jti to the revocation denylist.
+
+        Also purges denylist rows whose tokens have already expired (they can
+        never be presented again), keeping the table small.
         """
-        Generate new access token from refresh token.
+        db = current_app.db
+        now = datetime.utcnow()
+        db(db.revoked_token.expires_at < now).delete()
+        # Idempotent: a jti already on the denylist stays revoked.
+        if not db(db.revoked_token.jti == jti).count():
+            db.revoked_token.insert(
+                jti=jti, user_id=user_id, reason=reason, expires_at=expires_at
+            )
+        db.commit()
 
-        Args:
-            refresh_token: Valid refresh token
+    @staticmethod
+    def is_refresh_token_revoked(jti: str) -> bool:
+        """True if the refresh-token jti has been revoked (rotation/logout)."""
+        db = current_app.db
+        return bool(db(db.revoked_token.jti == jti).count())
 
-        Returns:
-            New access token if valid, None otherwise
+    @staticmethod
+    def revoke_refresh_token(refresh_token: str, reason: str = 'logout') -> bool:
+        """Revoke a refresh token (e.g. on logout). Returns True if revoked.
+
+        Invalid/expired/legacy (no-jti) tokens are ignored — they can't be
+        used to mint access tokens anyway.
         """
         payload = AuthService.decode_token(refresh_token)
         if not payload or payload.get('type') != 'refresh':
+            return False
+        jti = payload.get('jti')
+        if not jti:
+            return False
+        expires_at = datetime.utcfromtimestamp(payload['exp'])
+        AuthService._revoke_jti(jti, payload.get('user_id'), expires_at, reason)
+        return True
+
+    @staticmethod
+    def refresh_access_token(refresh_token: str) -> Optional[Dict[str, str]]:
+        """
+        Rotate a refresh token: validate, check revocation, then issue a new
+        access token AND a new refresh token, revoking the presented one
+        (one-time use). Reuse of a rotated/revoked token fails.
+
+        Args:
+            refresh_token: Valid, unrevoked refresh token
+
+        Returns:
+            {'access_token': ..., 'refresh_token': ...} if valid, None otherwise
+        """
+        payload = AuthService.decode_token(refresh_token)
+        if not payload or payload.get('type') != 'refresh':
+            return None
+
+        # Fail closed: rotation requires a jti. Legacy jti-less refresh tokens
+        # cannot be revoked, so they are no longer accepted (forces one
+        # re-login after upgrade).
+        jti = payload.get('jti')
+        if not jti or AuthService.is_refresh_token_revoked(jti):
             return None
 
         db = current_app.db
@@ -213,9 +266,16 @@ class AuthService:
         for membership in memberships:
             team_roles[membership.team_id] = membership.role
 
-        return AuthService.create_access_token(
-            user.id, user.username, user.global_role, team_roles
-        )
+        # Rotate: the presented token is single-use.
+        expires_at = datetime.utcfromtimestamp(payload['exp'])
+        AuthService._revoke_jti(jti, user.id, expires_at, reason='rotated')
+
+        return {
+            'access_token': AuthService.create_access_token(
+                user.id, user.username, user.global_role, team_roles
+            ),
+            'refresh_token': AuthService.create_refresh_token(user.id),
+        }
 
     @staticmethod
     def validate_dns_token(token: str, domain: Optional[str] = None) -> Dict:

@@ -182,12 +182,12 @@ def handle_db_errors(f):
         try:
             return f(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Database error in {f.__name__}: {str(e)}")
+            # Log detail server-side; never echo exception text to clients.
+            logger.exception(f"Database error in {f.__name__}: {str(e)}")
             db = current_app.db
             db.rollback()
             return jsonify({
-                'error': 'Database operation failed',
-                'message': str(e)
+                'error': 'Database operation failed'
             }), 500
     return decorated_function
 

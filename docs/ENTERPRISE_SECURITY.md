@@ -137,6 +137,30 @@ plus a database cross-check; HS256/none are rejected.
 > This also fixes a latent multi-replica bug where a per-process random secret
 > made tokens unverifiable across manager replicas/restarts.
 
+### Refresh-token rotation and revocation
+
+Refresh tokens are **single-use**: every call to `/api/v1/auth/refresh` revokes
+the presented token (by its `jti`) and issues a new access + refresh pair —
+reuse of a rotated token returns 401, which also surfaces token theft (a stolen
+token dies the moment either party refreshes). Logout (`/api/v1/auth/logout`
+with the `refreshToken` in the body) revokes the refresh token server-side, so
+it can no longer mint access tokens; the 15-minute access token simply ages
+out. Revocations live in the `revoked_token` denylist (Alembic `007`); rows for
+already-expired tokens are purged opportunistically.
+
+> **Upgrade note:** refresh tokens minted before `v2.1.x` rotation carry no
+> `jti` and are no longer accepted — users re-login once after upgrade.
+
+### API response hygiene
+
+- **Security headers on every response** (including errors): `X-Content-Type-
+  Options: nosniff`, `X-Frame-Options: DENY`, `Content-Security-Policy:
+  default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer`,
+  and HSTS (`max-age=31536000; includeSubDomains`).
+- **No internal detail in error responses** — exception text (paths, DB
+  errors) is logged server-side with full tracebacks; clients receive generic
+  messages only.
+
 ### Scope-based authorization (roles are scope bundles)
 
 Authorization decisions are made on **scopes only** — never role names. A user's

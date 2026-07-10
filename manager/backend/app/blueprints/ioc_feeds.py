@@ -8,7 +8,7 @@ from functools import wraps
 from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
-from app.middleware.rbac import requires_system_admin, requires_role
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 
 ioc_feeds_bp = Blueprint('ioc_feeds', __name__)
@@ -131,7 +131,7 @@ def list_ioc_feeds():
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds', methods=['POST'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
 @validate_json('name', 'url', 'feed_type')
 @_check_ioc_flag_and_license()
 @audit_log('ioc_feed_created')
@@ -221,7 +221,7 @@ def get_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['PUT'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
 @_check_ioc_flag_and_license()
 @audit_log('ioc_feed_updated')
 def update_ioc_feed(feed_id):
@@ -271,7 +271,7 @@ def update_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['DELETE'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
 @_check_ioc_flag_and_license()
 @audit_log('ioc_feed_deleted')
 def delete_ioc_feed(feed_id):
@@ -292,7 +292,7 @@ def delete_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>/sync', methods=['POST'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
 @_check_ioc_flag_and_license()
 @audit_log('ioc_feed_sync_triggered')
 def trigger_ioc_feed_sync(feed_id):

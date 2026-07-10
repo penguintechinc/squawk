@@ -5,7 +5,7 @@ Handles DHCP pools, reservations, and leases.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
-from app.middleware.rbac import requires_role, check_team_access
+from app.middleware.rbac import requires_scope, check_team_access
 from app.utils.decorators import validate_json, audit_log
 from datetime import datetime
 
@@ -96,7 +96,7 @@ def list_dhcp_pools():
 
 @dhcp_bp.route('/api/v1/dhcp/pools', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('dhcp:write')
 @validate_json('name', 'network', 'rangeStart', 'rangeEnd')
 @audit_log('dhcp_pool_created')
 def create_dhcp_pool():
@@ -205,7 +205,7 @@ def get_dhcp_pool(pool_id):
 
 @dhcp_bp.route('/api/v1/dhcp/pools/<int:pool_id>', methods=['PUT'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('dhcp:write')
 @audit_log('dhcp_pool_updated')
 def update_dhcp_pool(pool_id):
     """Update DHCP pool configuration."""
@@ -255,7 +255,7 @@ def update_dhcp_pool(pool_id):
 
 @dhcp_bp.route('/api/v1/dhcp/pools/<int:pool_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin')
+@requires_scope('dhcp:admin')
 @audit_log('dhcp_pool_deleted')
 def delete_dhcp_pool(pool_id):
     """Delete DHCP pool and all associated leases/reservations."""
@@ -327,7 +327,7 @@ def list_pool_leases(pool_id):
 
 @dhcp_bp.route('/api/v1/dhcp/pools/<int:pool_id>/leases/<int:lease_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('dhcp:write')
 @audit_log('dhcp_lease_released')
 def release_lease(pool_id, lease_id):
     """Manually release a DHCP lease."""
@@ -388,7 +388,7 @@ def list_reservations():
 
 @dhcp_bp.route('/api/v1/dhcp/reservations', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('dhcp:write')
 @validate_json('poolId', 'macAddress', 'ipAddress')
 @audit_log('dhcp_reservation_created')
 def create_reservation():
@@ -435,7 +435,7 @@ def create_reservation():
 
 @dhcp_bp.route('/api/v1/dhcp/reservations/<int:reservation_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('dhcp:write')
 @audit_log('dhcp_reservation_deleted')
 def delete_reservation(reservation_id):
     """Delete a DHCP reservation."""

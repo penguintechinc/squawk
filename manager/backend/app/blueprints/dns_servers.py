@@ -8,7 +8,7 @@ from app.services.join_key_service import JoinKeyService
 from app.services.auth_service import AuthService
 from app.services.config_service import ConfigService
 from app.middleware.auth import token_required, server_token_required, get_current_server
-from app.middleware.rbac import requires_role
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 
 dns_servers_bp = Blueprint('dns_servers', __name__)
@@ -16,7 +16,7 @@ dns_servers_bp = Blueprint('dns_servers', __name__)
 
 @dns_servers_bp.route('/api/v1/dns-servers', methods=['GET'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('servers:write')
 def list_dns_servers():
     """
     List all DNS servers.
@@ -55,7 +55,7 @@ def list_dns_servers():
 
 @dns_servers_bp.route('/api/v1/dns-servers', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('servers:write')
 @validate_json('name')
 @audit_log('dns_server_created')
 def create_dns_server():
@@ -89,7 +89,7 @@ def create_dns_server():
 
 @dns_servers_bp.route('/api/v1/dns-servers/<int:server_id>', methods=['GET'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('servers:write')
 def get_dns_server(server_id):
     """Get DNS server details."""
     server = JoinKeyService.get_server_by_id(server_id)
@@ -102,7 +102,7 @@ def get_dns_server(server_id):
 
 @dns_servers_bp.route('/api/v1/dns-servers/<int:server_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin')
+@requires_scope('servers:admin')
 @audit_log('dns_server_deleted')
 def delete_dns_server(server_id):
     """Delete DNS server."""
@@ -123,7 +123,7 @@ def delete_dns_server(server_id):
 
 @dns_servers_bp.route('/api/v1/dns-servers/<int:server_id>/regenerate-key', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin')
+@requires_scope('servers:admin')
 @audit_log('dns_server_key_regenerated')
 def regenerate_join_key(server_id):
     """
@@ -308,7 +308,7 @@ def refresh_server_token(server_id):
 
 @dns_servers_bp.route('/api/v1/dns-servers/<int:server_id>/metrics', methods=['GET'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('servers:write')
 def get_dns_server_metrics(server_id):
     """
     Get historical metrics for DNS server.

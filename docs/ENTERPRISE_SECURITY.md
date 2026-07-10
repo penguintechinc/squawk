@@ -137,6 +137,27 @@ plus a database cross-check; HS256/none are rejected.
 > This also fixes a latent multi-replica bug where a per-process random secret
 > made tokens unverifiable across manager replicas/restarts.
 
+### Scope-based authorization (roles are scope bundles)
+
+Authorization decisions are made on **scopes only** — never role names. A user's
+role is a convenience bundle that the manager **expands into concrete
+`resource:action` scopes at token issuance**, emitting them in the token's
+`scope` claim. Middleware checks the `scope` claim; `global_role`/`team_roles`
+remain on the token for audit and per-team membership checks.
+
+| Global role  | Scope bundle (summary)                                             |
+|--------------|-------------------------------------------------------------------|
+| SystemAdmin  | every `*:write` / `*:admin` scope + `admin:super` + all `*:read`   |
+| OrgAdmin     | `servers:write` `teams:write` `time:write` `dhcp:write` + reads    |
+| UserManager  | `users:write` + reads                                             |
+| Viewer       | `*:read` only                                                     |
+
+Endpoints declare the scope they need (e.g. `@requires_scope('servers:write')`);
+the super-admin bypass for team/zone access checks the `admin:super` scope, not
+the `SystemAdmin` role name. Bundle definitions live in one place
+(`app/services/scopes.py`), so entitlements are auditable and adjustable
+centrally.
+
 ---
 
 ## 2. Tenant isolation

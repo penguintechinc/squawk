@@ -5,7 +5,7 @@ Handles team CRUD and member management.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
-from app.middleware.rbac import requires_role, requires_team_role, can_access_team, filter_teams_by_access
+from app.middleware.rbac import requires_scope, requires_team_role, can_access_team, filter_teams_by_access
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_team_role
 
@@ -58,7 +58,7 @@ def list_teams():
 
 @teams_bp.route('/api/v1/teams', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('teams:write')
 @validate_json('name')
 @audit_log('team_created')
 def create_team():
@@ -170,7 +170,7 @@ def update_team(team_id):
 
 @teams_bp.route('/api/v1/teams/<int:team_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('teams:write')
 @audit_log('team_deleted')
 def delete_team(team_id):
     """Delete team and all memberships."""

@@ -6,7 +6,7 @@ RBAC protected - SystemAdmin and UserManager only.
 from flask import Blueprint, request, jsonify, current_app
 from app.services.auth_service import AuthService
 from app.middleware.auth import token_required
-from app.middleware.rbac import requires_role
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_email, validate_username, validate_global_role
 
@@ -15,7 +15,7 @@ users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/api/v1/users', methods=['GET'])
 @token_required
-@requires_role('SystemAdmin', 'UserManager')
+@requires_scope('users:write')
 def list_users():
     """
     List all users.
@@ -67,7 +67,7 @@ def list_users():
 
 @users_bp.route('/api/v1/users', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'UserManager')
+@requires_scope('users:write')
 @validate_json('username', 'email', 'password', 'global_role')
 @audit_log('user_created')
 def create_user():
@@ -139,7 +139,7 @@ def create_user():
 
 @users_bp.route('/api/v1/users/<int:user_id>', methods=['GET'])
 @token_required
-@requires_role('SystemAdmin', 'UserManager')
+@requires_scope('users:write')
 def get_user(user_id):
     """Get user by ID."""
     db = current_app.db
@@ -178,7 +178,7 @@ def get_user(user_id):
 
 @users_bp.route('/api/v1/users/<int:user_id>', methods=['PUT'])
 @token_required
-@requires_role('SystemAdmin', 'UserManager')
+@requires_scope('users:write')
 @audit_log('user_updated')
 def update_user(user_id):
     """
@@ -228,7 +228,7 @@ def update_user(user_id):
 
 @users_bp.route('/api/v1/users/<int:user_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin')
+@requires_scope('users:admin')
 @audit_log('user_deleted')
 def delete_user(user_id):
     """

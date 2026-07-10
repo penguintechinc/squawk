@@ -273,12 +273,16 @@ static-secret path was used.
 
 | Env var               | Default            | Purpose                                   |
 |-----------------------|--------------------|-------------------------------------------|
-| `SPIFFE_ENABLED`      | `true`             | Enable SPIFFE/mTLS server auth            |
+| `SPIFFE_ENABLED`      | `false`            | Enable SPIFFE/mTLS server auth (opt-in)   |
 | `SPIFFE_TRUST_DOMAIN` | `penguintech.io`   | Accepted trust domain                     |
 | `SPIFFE_XFCC_HEADER`  | `X-Forwarded-Client-Cert` | Mesh-injected peer-identity header |
 
-> **Trust boundary:** XFCC is only trustworthy when injected by the mesh sidecar
-> and the manager is **not** directly reachable by clients. Never trust XFCC on a
+> **Trust boundary (why it defaults off):** XFCC is a client-supplied header.
+> Trusting it is safe **only** when the mesh sidecar injects it, **strips any
+> inbound copy**, and the manager is not directly reachable by clients.
+> Otherwise a caller could forge the header and impersonate any server — an
+> auth bypass. `SPIFFE_ENABLED` therefore defaults to `false`; turn it on only
+> in a deployment that meets those conditions. Never enable it on a
 > directly-exposed listener.
 
 **Operational follow-up (SPIRE):** deploy a SPIRE server + agents to issue the

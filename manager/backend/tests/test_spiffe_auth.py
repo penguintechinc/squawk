@@ -144,6 +144,7 @@ def _dummy_view():
 def test_server_auth_prefers_spiffe(app, monkeypatch):
     from app.middleware import auth as auth_mod
 
+    monkeypatch.setitem(app.config, "SPIFFE_ENABLED", True)  # opt-in required
     monkeypatch.setattr(app, "db", _FakeDB(), raising=False)
     view = auth_mod.server_token_required(_dummy_view)
     hdr = {"X-Forwarded-Client-Cert": "URI=spiffe://penguintech.io/beta/dns-server/5"}
@@ -152,6 +153,18 @@ def test_server_auth_prefers_spiffe(app, monkeypatch):
         assert result == ("reached", 200)
         assert g.current_server["auth_method"] == "spiffe"
         assert g.current_server["server_id"] == 5
+
+
+def test_spiffe_off_by_default_ignores_xfcc(app, monkeypatch):
+    """Fail-safe: with SPIFFE disabled (the default), a spoofed XFCC header is
+    ignored — the caller cannot forge a server identity via the header alone."""
+    from app.middleware import auth as auth_mod
+
+    assert app.config.get("SPIFFE_ENABLED") is False  # default off
+    monkeypatch.setattr(app, "db", _FakeDB(), raising=False)
+    hdr = {"X-Forwarded-Client-Cert": "URI=spiffe://penguintech.io/beta/dns-server/5"}
+    with app.test_request_context(headers=hdr):
+        assert auth_mod._authenticate_server_via_spiffe() is None
 
 
 def test_server_auth_falls_back_to_jwt_when_no_spiffe(app, monkeypatch):

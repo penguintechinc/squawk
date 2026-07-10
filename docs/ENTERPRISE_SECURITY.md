@@ -124,6 +124,19 @@ for Sealed Secrets / External Secrets input). Prefer `kubectl create secret
 For zero-downtime rotation, publish the new public key to verifiers first, then
 cut the manager over to the new private key.
 
+### Deployment-domain tokens
+
+Long-lived **deployment-domain** tokens (used by the client-config pull flow) are
+signed with the *same* asymmetric scheme — the manager's private key (ES256/RS256),
+standard `iat`/`exp` claims, and `iss`/`aud`. They are verified with the public key
+plus a database cross-check; HS256/none are rejected.
+
+> **Upgrade note:** deployment-domain tokens minted before `v2.1.x` were HS256.
+> After upgrading, roll each domain's token over (Domain-Admin `rollover_jwt`
+> permission / `rollover_domain_jwt`) to re-issue it under the asymmetric key.
+> This also fixes a latent multi-replica bug where a per-process random secret
+> made tokens unverifiable across manager replicas/restarts.
+
 ---
 
 ## 2. Tenant isolation

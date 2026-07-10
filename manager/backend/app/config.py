@@ -39,6 +39,15 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 
+    # SPIFFE/mTLS service-to-service identity (preferred over per-server JWTs).
+    # The service mesh / gateway terminates mTLS and forwards the verified peer
+    # SPIFFE ID in the XFCC header; the app trusts XFCC only when it is not
+    # directly reachable (mesh-injected sidecar). When a valid SPIFFE identity
+    # is present, it supersedes the legacy static-secret server JWT.
+    SPIFFE_ENABLED = os.getenv('SPIFFE_ENABLED', 'true').lower() == 'true'
+    SPIFFE_TRUST_DOMAIN = os.getenv('SPIFFE_TRUST_DOMAIN', 'penguintech.io')
+    SPIFFE_XFCC_HEADER = os.getenv('SPIFFE_XFCC_HEADER', 'X-Forwarded-Client-Cert')
+
     # Database
     DB_URL = os.getenv('DB_URL', 'sqlite://storage.db')
 

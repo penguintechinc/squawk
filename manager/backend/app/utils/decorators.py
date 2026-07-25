@@ -192,30 +192,140 @@ def handle_db_errors(f):
     return decorated_function
 
 
-def audit_log(action: str):
+def audit_log(action: str, resource_type: str | None = None):
     """
-    Decorator to log actions for audit trail.
+    Decorator to log actions for durable audit trail.
+
+    Writes audit events to the database and emits structured JSON logs.
+    Never emits PII (no username, email, etc.) — only user_id.
+    Audit write failures are logged but never fail the request (fail-open).
 
     Args:
-        action: Description of the action
+        action: Action name (e.g., 'user_created', 'token_deleted')
+        resource_type: Optional resource type (auto-extracted from route kwargs if not provided)
 
     Example:
-        @audit_log('user_created')
-        def create_user():
+        @audit_log('user_created', resource_type='user')
+        def create_user(user_id):
+            ...
+
+        @audit_log('token_deleted')  # resource_type inferred from context
+        def delete_token(token_id):
             ...
     """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            import json
+            from datetime import datetime
             from app.middleware.auth import get_current_user
 
             user = get_current_user()
-            user_id = user.get('user_id') if user else None
-            username = user.get('username') if user else 'anonymous'
+            actor_id = user.get('user_id') if user else None
+            source_ip = request.remote_addr
 
-            logger.info(f"AUDIT: {action} by {username} (user_id={user_id})")
+            # Attempt to infer resource_id from route kwargs
+            resource_id = None
+            inferred_resource_type = resource_type
+            for key_pattern in ['_id', 'id']:
+                for key in kwargs:
+                    if key.endswith(key_pattern):
+                        resource_id = kwargs[key]
+                        if not inferred_resource_type:
+                            # Extract type from key: 'token_id' -> 'token', 'server_id' -> 'server'
+                            inferred_resource_type = key.rsplit('_id' if key.endswith('_id') else 'id', 1)[0]
+                        break
 
-            result = f(*args, **kwargs)
+            try:
+                # Execute the wrapped function
+                result = f(*args, **kwargs)
+
+                # Extract outcome from result
+                outcome = 'success'
+                status_code = 200
+                if isinstance(result, tuple) and len(result) >= 2:
+                    # Flask route returned (response, status_code)
+                    _, status_code = result[0:2]
+                    outcome = 'success' if status_code < 400 else 'failure'
+                elif isinstance(result, dict):
+                    status_code = 200
+
+                # Extract request_id if present in headers or response
+                request_id = request.headers.get('X-Request-ID')
+
+            except Exception as e:
+                # Audit the failure, log the error, re-raise
+                outcome = 'failure'
+                status_code = 500
+                request_id = request.headers.get('X-Request-ID')
+
+                # Attempt to write failure audit record
+                try:
+                    db = current_app.db
+                    db.audit_event.insert(
+                        action=action,
+                        actor_id=actor_id,
+                        resource_type=inferred_resource_type,
+                        resource_id=resource_id,
+                        outcome=outcome,
+                        status_code=status_code,
+                        request_id=request_id,
+                        source_ip=source_ip,
+                    )
+                    db.commit()
+                except Exception as audit_err:
+                    # Log audit write failure but don't fail the request
+                    logger.error(f"Audit write failed for {action}: {audit_err}")
+
+                # Emit structured JSON log (no PII)
+                log_entry = {
+                    'event_type': 'audit',
+                    'action': action,
+                    'actor_id': actor_id,
+                    'resource_type': inferred_resource_type,
+                    'resource_id': resource_id,
+                    'outcome': outcome,
+                    'status_code': status_code,
+                    'request_id': request_id,
+                    'source_ip': source_ip,
+                    'timestamp': datetime.utcnow().isoformat(),
+                }
+                logger.error(f"AUDIT_EVENT {json.dumps(log_entry)}")
+
+                raise
+
+            # Write audit event to database
+            try:
+                db = current_app.db
+                db.audit_event.insert(
+                    action=action,
+                    actor_id=actor_id,
+                    resource_type=inferred_resource_type,
+                    resource_id=resource_id,
+                    outcome=outcome,
+                    status_code=status_code,
+                    request_id=request_id,
+                    source_ip=source_ip,
+                )
+                db.commit()
+            except Exception as e:
+                # Log audit write failure but don't fail the request
+                logger.error(f"Audit write failed for {action}: {e}")
+
+            # Emit structured JSON log (no PII — only user_id, no username/email)
+            log_entry = {
+                'event_type': 'audit',
+                'action': action,
+                'actor_id': actor_id,
+                'resource_type': inferred_resource_type,
+                'resource_id': resource_id,
+                'outcome': outcome,
+                'status_code': status_code,
+                'request_id': request_id,
+                'source_ip': source_ip,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+            logger.info(f"AUDIT_EVENT {json.dumps(log_entry)}")
 
             return result
         return decorated_function

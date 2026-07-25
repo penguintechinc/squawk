@@ -27,7 +27,7 @@ SUPERADMIN_SCOPE = "admin:super"
 _READ_SCOPES: List[str] = [
     "users:read", "servers:read", "teams:read", "time:read",
     "dhcp:read", "ioc:read", "zones:read", "tokens:read",
-    "analytics:read", "whois:read",
+    "analytics:read", "whois:read", "audit:read",
 ]
 
 # Global role → concrete scope bundle.

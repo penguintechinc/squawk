@@ -581,3 +581,41 @@ revoked_token = Table(
     Column("expires_at", DateTime, nullable=False),
 )
 Index("idx_revoked_token_expires", revoked_token.c.expires_at)
+
+# ── Machine Identities (OAuth2 client_credentials) ─────────────────────────────
+
+machine_client = Table(
+    "machine_client",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("client_id", String(64), unique=True, nullable=False, index=True),
+    Column("client_secret_hash", String(255), nullable=False),
+    Column("tenant", String(255), nullable=False, server_default="default"),
+    Column("scopes", String(1024), nullable=False),  # Space-separated scope list
+    Column("description", Text),
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("last_used_at", DateTime),
+)
+Index("idx_machine_client_active", machine_client.c.client_id,
+      machine_client.c.active)
+
+# ── OIDC Trust Anchors (Token Exchange) ──────────────────────────────────────
+
+oidc_trust_anchor = Table(
+    "oidc_trust_anchor",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("issuer", String(1024), nullable=False, unique=True, index=True),
+    Column("audience", String(512), nullable=False),
+    Column("jwks_url", String(1024)),  # For dynamic JWKS; if NULL, use static_jwks_pem
+    Column("static_jwks_pem", Text),  # Static PEM-encoded JWKS (alternative to jwks_url)
+    Column("tenant", String(255), nullable=False, server_default="default"),
+    Column("allowed_scopes", String(1024), nullable=False),  # Space-separated
+    Column("subject_pattern", String(255)),  # Glob pattern for subject claim
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_oidc_trust_anchor_active", oidc_trust_anchor.c.issuer,
+      oidc_trust_anchor.c.active)

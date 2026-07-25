@@ -26,6 +26,11 @@ dnsServer:
     logLevel: "info"
     dnsPort: "8080"
     dohPort: "8080"
+  # Only takes effect when top-level autoscaling.enabled is true (prod only).
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
 
 dnsClient:
   image:
@@ -40,6 +45,10 @@ dnsClient:
       cpu: 200m
       memory: 128Mi
   listenPort: 5300
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
 
 valkey:
   image: valkey/valkey
@@ -71,6 +80,10 @@ k8sDns:
     squawkServerUrl: "http://dns-server.squawk.svc.cluster.local:8080/dns-query"
     clusterDomain: "cluster.local"
     logLevel: "info"
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
 
 manager:
   image:
@@ -109,6 +122,10 @@ dhcpServer:
     dnsServers: "8.8.8.8,8.8.4.4"
     leaseTime: "86400"
     posthogHost: "https://license.penguintech.io"
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
 
 ntpServer:
   enabled: true
@@ -126,6 +143,10 @@ ntpServer:
   env:
     udpPort: "11123"
     posthogHost: "https://license.penguintech.io"
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
 
 serviceAccount:
   create: false
@@ -133,6 +154,20 @@ serviceAccount:
 
 networkPolicy:
   enabled: true
+
+# PodDisruptionBudget — applies only to Deployments with configured replicas
+# >= 2 (see templates/poddisruptionbudget.yml); minAvailable overridable per
+# service via <service>.pdb.minAvailable.
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# HorizontalPodAutoscaler — off by default everywhere; enabled ONLY in
+# production values (alpha/beta/gamma stay fixed-replica, no autoscale) per
+# the house resource-tier standard. Per-service min/max/target live under
+# each service's `autoscaling` block above.
+autoscaling:
+  enabled: false
 
 # Asymmetric JWT keys (ES256/RS256) for user-token auth.
 # manager (signer) reads jwt-private-key + jwt-public-key.

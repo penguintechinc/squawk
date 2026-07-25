@@ -27,6 +27,10 @@ auth_user = Table(
     Column("password_hash", String(255), nullable=False),
     Column("global_role", String(50), nullable=False, server_default="Viewer"),
     Column("active", Boolean, nullable=False, server_default="1"),
+    Column("mfa_enabled", Boolean, nullable=False, server_default="0"),
+    Column("mfa_secret", String(255)),  # Encrypted TOTP secret (Fernet)
+    Column("mfa_recovery_codes", Text),  # JSON array of hashed recovery codes
+    Column("mfa_last_totp_counter", Integer, default=0),  # Tracks last used TOTP counter for replay prevention
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )

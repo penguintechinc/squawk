@@ -3,6 +3,7 @@ flask-cors==5.0.0
 python-dotenv==1.0.1
 PyJWT==2.10.1
 bcrypt==4.2.1
+pyotp==2.9.0
 gunicorn==23.0.0
 penguin-dal>=0.2.0
 penguin-utils>=0.2.0

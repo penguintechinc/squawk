@@ -189,6 +189,21 @@ class PrometheusMetrics:
             }
         )
 
+        # Rate limiting metrics
+        self.rate_limit_requests_total = Counter(
+            "squawk_rate_limit_requests_total",
+            "Total requests checked for rate limiting",
+            ["result", "identity_type"],
+            registry=self.registry,
+        )
+
+        self.rate_limit_exceeded_total = Counter(
+            "squawk_rate_limit_exceeded_total",
+            "Total requests exceeding rate limit",
+            ["identity_type"],
+            registry=self.registry,
+        )
+
     def record_query(
         self,
         domain: str,
@@ -200,11 +215,18 @@ class PrometheusMetrics:
         source: str = "client",
         blocked: bool = False,
         block_reason: str = None,
+        identity_type: str = None,
     ):
         """Record a DNS query with all relevant metrics"""
 
         with self.lock:
             try:
+                # Track rate limit allowed (identity_type indicates it was checked)
+                if identity_type:
+                    self.rate_limit_requests_total.labels(
+                        result="allowed", identity_type=identity_type
+                    ).inc()
+
                 # Basic query counter
                 self.dns_queries_total.labels(
                     record_type=record_type, status=status, source=source
@@ -251,6 +273,25 @@ class PrometheusMetrics:
     def record_authentication_failure(self, failure_type: str):
         """Record authentication failure"""
         self.dns_authentication_failures.labels(failure_type=failure_type).inc()
+
+    def record_rate_limited_query(
+        self,
+        domain: str,
+        record_type: str,
+        identity_type: str = "ip",
+        source: str = "unknown"
+    ):
+        """Record a rate-limited query (identity_type: 'token' or 'ip')"""
+        try:
+            with self.lock:
+                self.rate_limit_requests_total.labels(
+                    result="limited", identity_type=identity_type
+                ).inc()
+                self.rate_limit_exceeded_total.labels(
+                    identity_type=identity_type
+                ).inc()
+        except Exception as e:
+            logger.error(f"Failed to record rate limit metrics: {e}")
 
     def record_upstream_query(self, upstream_server: str, response_time: float):
         """Record upstream DNS query timing"""

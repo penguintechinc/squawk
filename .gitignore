@@ -122,6 +122,10 @@ storage.db
 # Track the pre-commit hook config despite the broad *.yaml ignore
 !.pre-commit-config.yaml
 
+# Track OpenAPI specs and Spectral config despite the broad *.yaml ignore
+!openapi/*.yaml
+!.spectral.yaml
+
 # Requirements files must always be tracked despite the broad *.txt ignore
 !requirements*.txt
 !**/requirements*.txt

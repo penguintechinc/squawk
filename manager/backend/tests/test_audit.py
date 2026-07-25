@@ -53,6 +53,28 @@ def viewer_token(app):
         )
 
 
+@pytest.fixture
+def orgadmin_token(app):
+    """JWT token for OrgAdmin role."""
+    from app.services.auth_service import AuthService
+
+    with app.app_context():
+        db = app.db
+        user = db.auth_user.insert(
+            username='orgadmin',
+            email='orgadmin@example.com',
+            password_hash='hashed',
+            global_role='OrgAdmin'
+        )
+        db.commit()
+        return AuthService.create_access_token(
+            user_id=user,
+            username='orgadmin',
+            global_role='OrgAdmin',
+            team_roles={}
+        )
+
+
 class TestAuditEventsAPI:
     """Test GET /api/v1/audit-events endpoint."""
 
@@ -61,6 +83,30 @@ class TestAuditEventsAPI:
         with app.test_client() as client:
             response = client.get('/api/v1/audit-events')
             assert response.status_code == 401
+
+    def test_endpoint_requires_audit_read_scope_systemadmin_only(self, app, viewer_token, orgadmin_token, admin_token):
+        """GET /api/v1/audit-events requires audit:read (SystemAdmin only)."""
+        with app.test_client() as client:
+            # Viewer: 403
+            response = client.get(
+                '/api/v1/audit-events',
+                headers={'Authorization': f'Bearer {viewer_token}'}
+            )
+            assert response.status_code == 403
+
+            # OrgAdmin: 403
+            response = client.get(
+                '/api/v1/audit-events',
+                headers={'Authorization': f'Bearer {orgadmin_token}'}
+            )
+            assert response.status_code == 403
+
+            # SystemAdmin: 200
+            response = client.get(
+                '/api/v1/audit-events',
+                headers={'Authorization': f'Bearer {admin_token}'}
+            )
+            assert response.status_code == 200
 
     def test_endpoint_returns_empty_on_no_events(self, app, admin_token):
         """GET /api/v1/audit-events returns empty list when no events."""
@@ -361,6 +407,7 @@ class TestAuditEventsAPI:
             assert 'id' in event
             assert 'created_at' in event
             assert 'actor_id' in event
+            assert 'tenant' in event
             assert 'action' in event
             assert 'resource_type' in event
             assert 'resource_id' in event
@@ -368,3 +415,43 @@ class TestAuditEventsAPI:
             assert 'status_code' in event
             assert 'request_id' in event
             assert 'source_ip' in event
+
+    def test_endpoint_filter_by_tenant(self, app, admin_token):
+        """GET /api/v1/audit-events?tenant=X filters by tenant."""
+        db = app.db
+        with app.app_context():
+            now = datetime.utcnow()
+            db.audit_event.insert(tenant='default', action='created', outcome='success', status_code=201, created_at=now)
+            db.audit_event.insert(tenant='acme', action='created', outcome='success', status_code=201, created_at=now)
+            db.commit()
+
+        with app.test_client() as client:
+            response = client.get(
+                '/api/v1/audit-events?tenant=default',
+                headers={'Authorization': f'Bearer {admin_token}'}
+            )
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['total'] == 1
+            assert data['events'][0]['tenant'] == 'default'
+
+    def test_endpoint_filter_by_tenant_combined(self, app, admin_token):
+        """GET /api/v1/audit-events?tenant=X&action=Y filters by both tenant and action."""
+        db = app.db
+        with app.app_context():
+            now = datetime.utcnow()
+            db.audit_event.insert(tenant='default', action='created', outcome='success', status_code=201, created_at=now)
+            db.audit_event.insert(tenant='default', action='deleted', outcome='success', status_code=200, created_at=now)
+            db.audit_event.insert(tenant='acme', action='created', outcome='success', status_code=201, created_at=now)
+            db.commit()
+
+        with app.test_client() as client:
+            response = client.get(
+                '/api/v1/audit-events?tenant=default&action=created',
+                headers={'Authorization': f'Bearer {admin_token}'}
+            )
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data['total'] == 1
+            assert data['events'][0]['tenant'] == 'default'
+            assert data['events'][0]['action'] == 'created'

@@ -222,6 +222,7 @@ def audit_log(action: str, resource_type: str | None = None):
 
             user = get_current_user()
             actor_id = user.get('user_id') if user else None
+            tenant = user.get('tenant') if user else None
             source_ip = request.remote_addr
 
             # Attempt to infer resource_id from route kwargs
@@ -265,6 +266,7 @@ def audit_log(action: str, resource_type: str | None = None):
                     db.audit_event.insert(
                         action=action,
                         actor_id=actor_id,
+                        tenant=tenant,
                         resource_type=inferred_resource_type,
                         resource_id=resource_id,
                         outcome=outcome,
@@ -300,6 +302,7 @@ def audit_log(action: str, resource_type: str | None = None):
                 db.audit_event.insert(
                     action=action,
                     actor_id=actor_id,
+                    tenant=tenant,
                     resource_type=inferred_resource_type,
                     resource_id=resource_id,
                     outcome=outcome,

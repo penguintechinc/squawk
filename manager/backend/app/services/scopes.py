@@ -27,7 +27,7 @@ SUPERADMIN_SCOPE = "admin:super"
 _READ_SCOPES: List[str] = [
     "users:read", "servers:read", "teams:read", "time:read",
     "dhcp:read", "ioc:read", "zones:read", "tokens:read",
-    "analytics:read", "whois:read", "audit:read",
+    "analytics:read", "whois:read",
 ]
 
 # Global role → concrete scope bundle.
@@ -40,6 +40,7 @@ ROLE_SCOPES: Dict[str, List[str]] = {
         "time:write", "time:admin",
         "dhcp:write", "dhcp:admin",
         "ioc:admin",
+        "audit:read",  # SystemAdmin only (no least-privilege leak to other roles)
     ] + _READ_SCOPES,
     "OrgAdmin": [
         "servers:write", "teams:write", "time:write", "dhcp:write",

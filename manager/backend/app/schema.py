@@ -590,7 +590,7 @@ audit_event = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("created_at", DateTime, nullable=False, server_default=func.now(), index=True),
     Column("actor_id", Integer, ForeignKey("auth_user.id", ondelete="SET NULL")),
-    Column("tenant", String(100)),  # Multi-tenancy support; NULL = default tenant
+    Column("tenant", String(100), index=True),  # Multi-tenancy support; nullable for cross-tenant audit
     Column("action", String(100), nullable=False, index=True),
     Column("resource_type", String(50), index=True),  # E.g., 'dns_server', 'token', 'user'
     Column("resource_id", Integer, index=True),
@@ -601,4 +601,5 @@ audit_event = Table(
 )
 Index("idx_audit_event_actor", audit_event.c.actor_id)
 Index("idx_audit_event_action_created", audit_event.c.action, audit_event.c.created_at)
+Index("idx_audit_event_tenant_created", audit_event.c.tenant, audit_event.c.created_at)
 Index("idx_audit_event_resource", audit_event.c.resource_type, audit_event.c.resource_id)

@@ -21,6 +21,7 @@ def list_audit_events():
     Query params:
         - action: Filter by action name (e.g., 'user_created')
         - actor_id: Filter by actor user ID
+        - tenant: Filter by tenant name
         - resource_type: Filter by resource type (e.g., 'token', 'dns_server')
         - resource_id: Filter by specific resource ID
         - outcome: Filter by outcome ('success' or 'failure')
@@ -36,6 +37,7 @@ def list_audit_events():
                     "id": 1,
                     "created_at": "2026-07-25T12:00:00",
                     "actor_id": 123,
+                    "tenant": "default",
                     "action": "user_created",
                     "resource_type": "user",
                     "resource_id": 456,
@@ -64,6 +66,12 @@ def list_audit_events():
     actor_id = request.args.get('actor_id', type=int)
     if actor_id is not None:
         cond = db.audit_event.actor_id == actor_id
+        query = cond if query is None else query & cond
+
+    # Filter by tenant
+    tenant = request.args.get('tenant')
+    if tenant:
+        cond = db.audit_event.tenant == tenant
         query = cond if query is None else query & cond
 
     # Filter by resource_type
@@ -131,6 +139,7 @@ def list_audit_events():
                 'id': e.id,
                 'created_at': e.created_at.isoformat(),
                 'actor_id': e.actor_id,
+                'tenant': e.tenant,
                 'action': e.action,
                 'resource_type': e.resource_type,
                 'resource_id': e.resource_id,

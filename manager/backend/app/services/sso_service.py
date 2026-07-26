@@ -1,28 +1,27 @@
 """
-Enterprise OIDC Single Sign-On service.
+Enterprise OIDC Single Sign-On service (security-hardened).
 
 Handles OAuth 2.0 Authorization Code Flow with PKCE, ID token validation,
 and just-in-time (JIT) user provisioning. SSO logins bypass local TOTP MFA
 because the IdP owns MFA. SAML 2.0 is deferred.
 
-Security notes:
-- State tokens are signed JWTs with 10-minute expiration
-- PKCE code verifier is stored temporarily in state JWT
-- ID token signatures verified via JWKS (alg allowlist: RS256, ES256 only)
-- All IdP endpoints validated to be https:// at configuration time
-- Tokens/codes/secrets never logged; only error messages and state transitions
+Security (FindingsFixed):
+- [CRITICAL] State is opaque random token, NOT a decodable JWT
+- [CRITICAL] Email takeover: match by (sso_provider, sso_subject) only; require email_verified
+- [HIGH] Browser binding: httpOnly secure cookie + SHA-256 hash in attempt row
+- [MEDIUM] Nonce: persisted in attempt row, validated via ID token claim
+- [MEDIUM] Redirect URI: server-configured only (no query param override)
+- [LOW] Password: NULL hash for SSO users, short-circuit bcrypt check
 """
 
 import secrets
 import hashlib
 import base64
-import json
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
-import jwt
 import requests
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -51,7 +50,7 @@ class OIDCConfig:
 class AuthorizationRequest:
     """Authorization request parameters."""
     authorization_url: str
-    state: str  # signed JWT with code_verifier + issued_at
+    state: str  # Opaque random token (NOT decodable, no verifier)
 
 
 @dataclass(slots=True)
@@ -68,17 +67,19 @@ class ValidatedIDToken:
     """Validated ID token claims."""
     sub: str  # Subject (unique IdP user identifier)
     email: str  # Email claim
+    email_verified: bool  # Email verification status (CRITICAL for JIT)
     name: Optional[str]  # User's full name or preferred name
     iss: str
     aud: str
 
 
 class SSOService:
-    """OIDC SSO service for enterprise authentication."""
+    """OIDC SSO service for enterprise authentication (security-hardened)."""
 
     # ID token validation: only allow RS256 and ES256
     ALLOWED_ALGS = ['RS256', 'ES256']
-    STATE_EXPIRY_SECONDS = 600  # 10 minutes
+    LOGIN_ATTEMPT_EXPIRY_SECONDS = 600  # 10 minutes
+    STATE_LENGTH = 32  # secrets.token_urlsafe(32) ~= 43 chars base64
 
     @staticmethod
     def _get_cipher() -> Fernet:
@@ -120,85 +121,122 @@ class SSOService:
         Returns:
             (code_verifier, code_challenge_s256)
         """
-        # code_verifier: 43-128 chars of unreserved chars (A-Z a-z 0-9 - . _ ~)
         code_verifier = base64.urlsafe_b64encode(
             secrets.token_bytes(32)
-        ).decode('utf-8').rstrip('=')  # Remove padding
+        ).decode('utf-8').rstrip('=')
 
-        # code_challenge = BASE64URL(SHA256(code_verifier))
         challenge = hashlib.sha256(code_verifier.encode('utf-8')).digest()
         code_challenge = base64.urlsafe_b64encode(challenge).decode('utf-8').rstrip('=')
 
         return code_verifier, code_challenge
 
     @staticmethod
-    def _create_state_token(code_verifier: str) -> str:
+    def create_login_attempt(provider: str, code_verifier: str, nonce: str,
+                            browser_binding_hash: str, db) -> str:
         """
-        Create a signed JWT state token with embedded code_verifier.
-
-        The state token includes the code_verifier so it can be extracted during
-        callback without storing session state server-side. Single-use is enforced
-        by timestamp validation (≤10 min).
+        Create a server-side login attempt record.
 
         Args:
-            code_verifier: PKCE code verifier to embed
+            provider: SSO provider name
+            code_verifier: PKCE verifier (NOT sent to frontend)
+            nonce: Random nonce for ID token validation
+            browser_binding_hash: SHA-256 of browser binding cookie
+            db: Database connection
 
         Returns:
-            Signed JWT state token
+            Opaque state token (random, no decodable content)
         """
-        payload = {
-            'code_verifier': code_verifier,
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(seconds=SSOService.STATE_EXPIRY_SECONDS),
-        }
-        return jwt.encode(
-            payload,
-            current_app.config['SECRET_KEY'],
-            algorithm='HS256'
+        opaque_state = secrets.token_urlsafe(SSOService.STATE_LENGTH)
+
+        db.sso_login_attempts.insert(
+            opaque_state=opaque_state,
+            provider=provider,
+            code_verifier=code_verifier,
+            nonce=nonce,
+            browser_binding_hash=browser_binding_hash,
         )
+        db.commit()
+
+        return opaque_state
 
     @staticmethod
-    def _verify_state_token(state_token: str) -> Optional[str]:
+    def get_login_attempt(state: str, db):
         """
-        Verify and extract code_verifier from state token.
+        Retrieve and validate a login attempt record.
+
+        Enforces: exists, not used, not expired (≤10 min).
+
+        Args:
+            state: Opaque state token
+            db: Database connection
 
         Returns:
-            code_verifier if valid, None if expired or invalid
+            Attempt row dict, or None if invalid/expired/used
         """
-        try:
-            payload = jwt.decode(
-                state_token,
-                current_app.config['SECRET_KEY'],
-                algorithms=['HS256']
-            )
-            return payload.get('code_verifier')
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        attempt = db(db.sso_login_attempts.opaque_state == state).select().first()
+
+        if not attempt:
+            current_app.logger.warning(f"Login attempt not found for state")
             return None
 
+        if attempt['used']:
+            current_app.logger.warning(f"Login attempt already used")
+            return None
+
+        age = (datetime.utcnow() - attempt['created_at']).total_seconds()
+        if age > SSOService.LOGIN_ATTEMPT_EXPIRY_SECONDS:
+            current_app.logger.warning(f"Login attempt expired (age={age}s)")
+            return None
+
+        return attempt
+
     @staticmethod
-    def build_authorization_url(config: OIDCConfig) -> AuthorizationRequest:
+    def mark_attempt_used(attempt_id: int, db) -> None:
+        """Mark login attempt as used (single-use enforcement)."""
+        db(db.sso_login_attempts.id == attempt_id).update(used=True)
+        db.commit()
+
+    @staticmethod
+    def build_authorization_url(config: OIDCConfig, provider_name: str, db,
+                                binding_cookie_value: str) -> AuthorizationRequest:
         """
         Build the authorization URL to redirect to IdP.
 
-        Generates PKCE code_verifier/challenge, creates signed state token,
-        and returns the authorization URL.
+        Generates PKCE code_verifier/challenge, nonce, creates server-side
+        login attempt record, and returns authorization URL with OPAQUE state.
 
         Args:
             config: OIDC provider configuration
+            provider_name: Provider name (for storage)
+            db: Database connection
+            binding_cookie_value: Browser binding cookie value (SHA-256 it)
 
         Returns:
-            AuthorizationRequest with authorization_url and state
+            AuthorizationRequest with authorization_url and opaque state
         """
         code_verifier, code_challenge = SSOService._generate_pkce_pair()
-        state = SSOService._create_state_token(code_verifier)
         nonce = secrets.token_urlsafe(32)
+
+        # Hash the browser binding cookie for verification at callback
+        browser_binding_hash = hashlib.sha256(
+            binding_cookie_value.encode('utf-8')
+        ).hexdigest()
+
+        # Create server-side attempt record (stores verifier + nonce)
+        opaque_state = SSOService.create_login_attempt(
+            provider_name,
+            code_verifier,
+            nonce,
+            browser_binding_hash,
+            db
+        )
 
         params = {
             'client_id': config.client_id,
             'response_type': 'code',
             'scope': config.scopes,
-            'redirect_uri': current_app.config.get('OIDC_REDIRECT_URI', 'http://localhost:3000/callback'),
-            'state': state,
+            'redirect_uri': current_app.config.get('OIDC_REDIRECT_URI'),
+            'state': opaque_state,  # OPAQUE, NOT JWT-encoded
             'nonce': nonce,
             'code_challenge': code_challenge,
             'code_challenge_method': 'S256',
@@ -208,7 +246,7 @@ class SSOService:
 
         return AuthorizationRequest(
             authorization_url=authorization_url,
-            state=state
+            state=opaque_state
         )
 
     @staticmethod
@@ -216,27 +254,39 @@ class SSOService:
         config: OIDCConfig,
         code: str,
         state: str,
-        redirect_uri: str
+        binding_cookie_value: str,
+        db
     ) -> Optional[TokenExchangeResult]:
         """
         Exchange authorization code for tokens at token endpoint.
 
-        Server-side code exchange using client_secret for security.
+        Validates state/browser-binding, retrieves stored code_verifier,
+        performs server-side code exchange, marks attempt used.
 
         Args:
             config: OIDC provider configuration
             code: Authorization code from callback
-            state: State token (used to extract code_verifier)
-            redirect_uri: Redirect URI (must match original)
+            state: Opaque state token (from attempt table)
+            binding_cookie_value: Current browser binding cookie
+            db: Database connection
 
         Returns:
             TokenExchangeResult with access/ID tokens, or None on failure
         """
-        code_verifier = SSOService._verify_state_token(state)
-        if not code_verifier:
-            current_app.logger.warning("Invalid or expired state token in code exchange")
+        # Retrieve and validate login attempt
+        attempt = SSOService.get_login_attempt(state, db)
+        if not attempt:
             return None
 
+        # Validate browser binding (CSRF protection)
+        binding_hash_computed = hashlib.sha256(
+            binding_cookie_value.encode('utf-8')
+        ).hexdigest()
+        if binding_hash_computed != attempt['browser_binding_hash']:
+            current_app.logger.warning("Browser binding mismatch (CSRF)")
+            return None
+
+        code_verifier = attempt['code_verifier']
         client_secret = SSOService.decrypt_secret(config.client_secret)
 
         payload = {
@@ -244,7 +294,7 @@ class SSOService:
             'code': code,
             'client_id': config.client_id,
             'client_secret': client_secret,
-            'redirect_uri': redirect_uri,
+            'redirect_uri': current_app.config.get('OIDC_REDIRECT_URI'),
             'code_verifier': code_verifier,
         }
 
@@ -257,11 +307,15 @@ class SSOService:
 
             if response.status_code != 200:
                 current_app.logger.warning(
-                    f"Token endpoint returned {response.status_code} for provider {config.name}"
+                    f"Token endpoint returned {response.status_code} for {config.name}"
                 )
                 return None
 
             data = response.json()
+
+            # Mark attempt as used AFTER successful code exchange
+            SSOService.mark_attempt_used(attempt['id'], db)
+
             return TokenExchangeResult(
                 access_token=data.get('access_token', ''),
                 id_token=data.get('id_token', ''),
@@ -270,38 +324,31 @@ class SSOService:
             )
 
         except requests.RequestException as e:
-            current_app.logger.warning(f"Token endpoint request failed for {config.name}: {e}")
+            current_app.logger.warning(f"Token endpoint request failed: {e}")
             return None
 
     @staticmethod
     def validate_id_token(
         config: OIDCConfig,
         id_token: str,
-        nonce: Optional[str] = None
+        expected_nonce: str
     ) -> Optional[ValidatedIDToken]:
         """
         Validate ID token signature and claims.
 
-        Signature verified via JWKS endpoint; iss, aud, exp, nonce, and alg checked.
+        Signature verified via JWKS; iss, aud, exp, nonce checked.
         Only RS256 and ES256 algorithms accepted.
 
         Args:
             config: OIDC provider configuration
             id_token: ID token JWT
-            nonce: Expected nonce value (optional for strict validation)
+            expected_nonce: Expected nonce value (from attempt row)
 
         Returns:
             ValidatedIDToken with claims, or None if validation fails
         """
         try:
-            # Get JWKS from IdP
-            jwks_client = PyJWKClient(
-                config.jwks_url,
-                timeout=10
-            )
-
-            # Verify signature and decode
-            # PyJWKClient.get_signing_key() raises PyJWKClientError if kid not found
+            jwks_client = PyJWKClient(config.jwks_url, timeout=10)
             signing_key = jwks_client.get_signing_key_from_jwt(id_token)
 
             payload = jwt.decode(
@@ -313,25 +360,28 @@ class SSOService:
                 options={'verify_aud': True}
             )
 
-            # Validate nonce if provided
-            if nonce and payload.get('nonce') != nonce:
+            # Validate nonce (NOW with server-side enforcement)
+            if payload.get('nonce') != expected_nonce:
                 current_app.logger.warning("ID token nonce mismatch")
                 return None
 
-            # Extract claims
+            # CRITICAL: require email_verified for JIT provisioning
+            email_verified = payload.get('email_verified', False)
+
             return ValidatedIDToken(
                 sub=payload.get('sub', ''),
                 email=payload.get('email', ''),
+                email_verified=email_verified,
                 name=payload.get('name'),
                 iss=payload.get('iss', ''),
                 aud=payload.get('aud', '')
             )
 
         except (InvalidSignatureError, InvalidTokenError) as e:
-            current_app.logger.warning(f"ID token validation failed for {config.name}: {e}")
+            current_app.logger.warning(f"ID token validation failed: {e}")
             return None
         except Exception as e:
-            current_app.logger.warning(f"ID token validation error for {config.name}: {e}")
+            current_app.logger.warning(f"ID token validation error: {e}")
             return None
 
     @staticmethod
@@ -341,13 +391,11 @@ class SSOService:
         db
     ) -> Optional[int]:
         """
-        Just-in-time (JIT) provision user or match existing user by email/sub.
+        Just-in-time (JIT) provision user or match existing user.
 
-        If a user with sso_provider=config.name and sso_subject=validated_token.sub exists,
-        return their user ID. Otherwise, match by email; if found, update SSO fields.
-        If no user exists, create a new Viewer (read-only) user.
-
-        SSO-provisioned users have no password hash (cannot login locally).
+        CRITICAL: Only match by (sso_provider, sso_subject).
+        If email exists locally but no SSO subject match → REFUSE auto-link.
+        Create new user ONLY if email_verified == true.
 
         Args:
             config: OIDC provider configuration
@@ -368,26 +416,28 @@ class SSOService:
         # Check for existing user by email
         existing_by_email = db(db.auth_user.email == validated_token.email).select()
         if existing_by_email:
-            user = existing_by_email[0]
-            # Update SSO fields on existing user
-            db(db.auth_user.id == user['id']).update(
-                sso_provider=config.name,
-                sso_subject=validated_token.sub
+            # CRITICAL: refuse auto-link; require admin to link manually
+            current_app.logger.warning(
+                f"Email conflict: {validated_token.email} exists locally, "
+                f"refusing auto-link from SSO {config.name}"
             )
-            db.commit()
-            return user['id']
+            return None  # Caller will return 403
 
-        # JIT provision new Viewer user
-        # SSO users have a placeholder password (never used)
-        hashed_placeholder = '*' * 64  # Placeholder to indicate no local login
+        # JIT provision new user ONLY if email is verified
+        if not validated_token.email_verified:
+            current_app.logger.warning(
+                f"Refusing JIT: email_verified=false for {validated_token.email}"
+            )
+            return None
 
+        # Create new Viewer user with NULL password (no local login)
         user_id = db.auth_user.insert(
-            username=validated_token.email.split('@')[0],  # Extract username from email
+            username=validated_token.email.split('@')[0],
             email=validated_token.email,
-            password_hash=hashed_placeholder,
-            global_role='Viewer',  # SSO users default to read-only
+            password_hash=None,  # NULL: SSO users cannot login locally
+            global_role='Viewer',
             active=True,
-            mfa_enabled=False,  # SSO bypasses TOTP; IdP owns MFA
+            mfa_enabled=False,
             sso_provider=config.name,
             sso_subject=validated_token.sub
         )

@@ -24,7 +24,7 @@ auth_user = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("username", String(100), unique=True, nullable=False),
     Column("email", String(255), unique=True, nullable=False),
-    Column("password_hash", String(255), nullable=False),
+    Column("password_hash", String(255), nullable=True),  # NULL for SSO-provisioned users
     Column("global_role", String(50), nullable=False, server_default="Viewer"),
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("mfa_enabled", Boolean, nullable=False, server_default="0"),
@@ -84,6 +84,20 @@ sso_provider = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
+
+sso_login_attempt = Table(
+    "sso_login_attempts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("opaque_state", String(100), unique=True, nullable=False),  # random state, not decodable
+    Column("provider", String(100), nullable=False),
+    Column("code_verifier", String(200), nullable=False),  # PKCE verifier
+    Column("nonce", String(200), nullable=False),  # ID token nonce
+    Column("browser_binding_hash", String(64), nullable=False),  # SHA-256 of browser binding cookie
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("used", Boolean, nullable=False, server_default='0'),  # single-use enforcement
+)
+Index("idx_opaque_state", sso_login_attempt.c.opaque_state, unique=True)
 
 # ── DNS Servers ─────────────────────────────────────────────────────────────
 

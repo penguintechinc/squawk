@@ -1,20 +1,25 @@
 """
-OIDC SSO Login flow API (public endpoints).
+OIDC SSO Login flow API (public endpoints, security-hardened).
 
-Handles the OAuth 2.0 Authorization Code + PKCE flow:
+Handles the OAuth 2.0 Authorization Code + PKCE flow with CSRF protection:
 1. GET /api/v1/auth/sso/providers - List enabled providers (public)
-2. GET /api/v1/auth/sso/<name>/authorize - Get authorization URL
+2. GET /api/v1/auth/sso/<name>/authorize - Get authorization URL + set browser binding cookie
 3. POST /api/v1/auth/sso/<name>/callback - Exchange code for tokens + JIT provision
 
 SSO logins bypass TOTP MFA because the IdP owns MFA.
 """
 
-from flask import Blueprint, request, jsonify, current_app
+import secrets
+from flask import Blueprint, request, jsonify, current_app, make_response
 from app.services.sso_service import SSOService, OIDCConfig
 from app.services.auth_service import AuthService
 from app.utils.decorators import validate_json
 
 sso_bp = Blueprint('sso', __name__)
+
+# Browser binding cookie name
+BINDING_COOKIE_NAME = '__Host-sso_binding'
+BINDING_COOKIE_TTL = 600  # 10 minutes (matches login attempt expiry)
 
 
 @sso_bp.route('/api/v1/auth/sso/providers', methods=['GET'])
@@ -54,17 +59,14 @@ def authorize(name: str):
     """
     Get authorization URL to redirect user to IdP.
 
-    Generates PKCE code_verifier/challenge, creates signed state token,
-    and returns authorization URL.
-
-    Query parameters:
-        redirect_uri (optional): Where to redirect after IdP callback
-                                (default: OIDC_REDIRECT_URI from config)
+    Sets an httpOnly, Secure, SameSite=Lax cookie for browser binding (CSRF).
+    Creates server-side login attempt record (stores verifier + nonce + binding hash).
+    Returns opaque state token (NOT decodable, no verifier exposed).
 
     Response:
         {
             "authorization_url": "https://idp.example.com/oauth/authorize?...",
-            "state": "eyJ..."  # State token (send to callback)
+            "state": "opaque_random_token"  # NOT JWT, no secrets inside
         }
     """
     db = current_app.db
@@ -90,13 +92,29 @@ def authorize(name: str):
         scopes=p['scopes']
     )
 
-    # Build authorization request
-    auth_req = SSOService.build_authorization_url(config)
+    # Generate browser binding token (for CSRF protection)
+    binding_token = secrets.token_urlsafe(32)
 
-    return jsonify({
+    # Build authorization request (stores code_verifier + nonce server-side)
+    auth_req = SSOService.build_authorization_url(config, name, db, binding_token)
+
+    # Return response with opaque state and browser binding cookie
+    response = make_response(jsonify({
         'authorization_url': auth_req.authorization_url,
         'state': auth_req.state
-    }), 200
+    }), 200)
+
+    # Set httpOnly, Secure, SameSite=Lax cookie for browser binding
+    response.set_cookie(
+        BINDING_COOKIE_NAME,
+        binding_token,
+        max_age=BINDING_COOKIE_TTL,
+        httponly=True,
+        secure=True,  # HTTPS only
+        samesite='Lax'
+    )
+
+    return response
 
 
 @sso_bp.route('/api/v1/auth/sso/<name>/callback', methods=['POST'])
@@ -105,10 +123,18 @@ def callback(name: str):
     """
     Handle IdP callback: exchange code for tokens, validate ID token, JIT provision.
 
+    Validates:
+    - State exists, not used, not expired
+    - Browser binding cookie matches stored hash
+    - Code can be exchanged for tokens
+    - ID token signature, iss, aud, exp, nonce all valid
+    - Email is verified (for JIT)
+    - No email-based account takeover (refuse auto-link existing local users)
+
     Request:
         {
             "code": "authorization_code_from_idp",
-            "state": "state_token_from_authorize"
+            "state": "opaque_state_from_authorize"
         }
 
     Response (on success):
@@ -126,7 +152,7 @@ def callback(name: str):
 
     Response (on failure):
         {
-            "error": "Invalid authorization code" | "Invalid state" | ...
+            "error": "..."
         }
     """
     data = request.get_json()
@@ -156,17 +182,20 @@ def callback(name: str):
         scopes=p['scopes']
     )
 
-    redirect_uri = request.args.get(
-        'redirect_uri',
-        current_app.config.get('OIDC_REDIRECT_URI', 'http://localhost:3000/callback')
-    )
+    # Get browser binding cookie (CSRF protection)
+    binding_cookie = request.cookies.get(BINDING_COOKIE_NAME)
+    if not binding_cookie:
+        return jsonify({
+            'error': 'Missing browser binding cookie (CSRF protection)'
+        }), 400
 
-    # Exchange code for tokens
+    # Exchange code for tokens (validates state, binding, retrieves stored nonce)
     token_result = SSOService.exchange_code_for_token(
         config,
         code,
         state,
-        redirect_uri
+        binding_cookie,
+        db
     )
 
     if not token_result or not token_result.id_token:
@@ -174,11 +203,20 @@ def callback(name: str):
             'error': 'Failed to exchange authorization code for tokens'
         }), 400
 
-    # Validate ID token (note: we're not validating nonce here; it's in the authorize call)
+    # Retrieve login attempt to get stored nonce
+    attempt = SSOService.get_login_attempt(state, db)
+    if not attempt:
+        return jsonify({
+            'error': 'Login attempt not found or invalid'
+        }), 400
+
+    expected_nonce = attempt['nonce']
+
+    # Validate ID token (signature, iss, aud, exp, nonce)
     validated_token = SSOService.validate_id_token(
         config,
         token_result.id_token,
-        nonce=None  # Nonce validation happens at IdP
+        expected_nonce
     )
 
     if not validated_token:
@@ -191,7 +229,8 @@ def callback(name: str):
             'error': 'ID token missing email claim'
         }), 400
 
-    # JIT provision or match user by email/sub
+    # JIT provision or match user by (sso_provider, sso_subject)
+    # Returns None if: email not verified, or existing local account found (refuses auto-link)
     user_id = SSOService.jit_provision_or_match_user(
         config,
         validated_token,
@@ -199,9 +238,15 @@ def callback(name: str):
     )
 
     if not user_id:
-        return jsonify({
-            'error': 'Failed to provision SSO user'
-        }), 500
+        if not validated_token.email_verified:
+            return jsonify({
+                'error': 'Email not verified with IdP; cannot create account'
+            }), 403
+        else:
+            # Email exists locally; refuse auto-link
+            return jsonify({
+                'error': 'Email account exists; link via admin'
+            }), 403
 
     # Get user record
     user_record = db.auth_user[user_id]

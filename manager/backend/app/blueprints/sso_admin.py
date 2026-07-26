@@ -17,7 +17,7 @@ sso_admin_bp = Blueprint('sso_admin', __name__)
 
 @sso_admin_bp.route('/api/v1/admin/sso/providers', methods=['GET'])
 @token_required
-@requires_scope('admin:read')
+@requires_scope('sso:read')
 def list_sso_providers():
     """
     List all SSO OIDC providers (admin only).
@@ -56,7 +56,7 @@ def list_sso_providers():
 
 @sso_admin_bp.route('/api/v1/admin/sso/providers', methods=['POST'])
 @token_required
-@requires_scope('admin:write')
+@requires_scope('sso:write')
 @validate_json('name', 'display_name', 'issuer', 'client_id', 'client_secret',
                'authorization_endpoint', 'token_endpoint', 'jwks_url')
 @audit_log('sso_provider_created')
@@ -138,7 +138,7 @@ def create_sso_provider():
 
 @sso_admin_bp.route('/api/v1/admin/sso/providers/<int:provider_id>', methods=['GET'])
 @token_required
-@requires_scope('admin:read')
+@requires_scope('sso:read')
 def get_sso_provider(provider_id: int):
     """
     Get a single SSO provider configuration (admin only).
@@ -168,7 +168,7 @@ def get_sso_provider(provider_id: int):
 
 @sso_admin_bp.route('/api/v1/admin/sso/providers/<int:provider_id>', methods=['PATCH'])
 @token_required
-@requires_scope('admin:write')
+@requires_scope('sso:write')
 @audit_log('sso_provider_updated')
 def update_sso_provider(provider_id: int):
     """
@@ -232,7 +232,7 @@ def update_sso_provider(provider_id: int):
 
 @sso_admin_bp.route('/api/v1/admin/sso/providers/<int:provider_id>', methods=['DELETE'])
 @token_required
-@requires_scope('admin:write')
+@requires_scope('sso:write')
 @audit_log('sso_provider_deleted')
 def delete_sso_provider(provider_id: int):
     """

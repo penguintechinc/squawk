@@ -31,6 +31,8 @@ def test_schema_creates_all_tables():
         "mtls_certificate", "mtls_revocation",
         # refresh-token rotation/revocation
         "revoked_token",
+        # enterprise SSO (migration)
+        "sso_providers",
     }
     assert expected == tables
     engine.dispose()

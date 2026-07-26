@@ -224,13 +224,13 @@ class TestIDTokenValidation:
             }
             id_token = jwt.encode(payload, private_key, algorithm='RS256')
 
-            # Mock JWKS endpoint
-            with patch('jwt.PyJWKClient') as mock_jwks:
+            # Mock JWKS endpoint at the sso_service module level
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks_class:
                 mock_client = MagicMock()
                 mock_key = MagicMock()
                 mock_key.key = private_key.public_key()
                 mock_client.get_signing_key_from_jwt.return_value = mock_key
-                mock_jwks.return_value = mock_client
+                mock_jwks_class.return_value = mock_client
 
                 validated = SSOService.validate_id_token(config, id_token, nonce='test-nonce')
 
@@ -562,10 +562,10 @@ class TestSSOEndpoints:
     def test_admin_create_provider_enterprise_only(self, client, db, app, jwt_token_factory):
         """Test SSO provider creation requires Enterprise tier."""
         with app.app_context():
-            # Create a token with admin scope (non-enterprise)
+            # Create a token with SystemAdmin role (which has sso:write scope)
             access_token = jwt_token_factory(
                 user_id=1,
-                global_role='Admin'
+                global_role='SystemAdmin'
             )
 
             # Mock license check to return non-enterprise
@@ -593,7 +593,7 @@ class TestSSOEndpoints:
         with app.app_context():
             access_token = jwt_token_factory(
                 user_id=1,
-                global_role='Admin'
+                global_role='SystemAdmin'
             )
 
             with patch.object(app.license_service, 'is_enterprise', return_value=True):

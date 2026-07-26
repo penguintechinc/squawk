@@ -51,7 +51,6 @@ class AuthService:
         # decisions are made on `scope`; global_role/team_roles are retained
         # for audit and per-team membership checks only.
         from app.services.scopes import scope_string
-        from app.utils.crypto import compute_kid_from_private_pem
 
         payload = {
             'sub': str(user_id),
@@ -67,13 +66,23 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
-        return jwt.encode(
-            payload,
-            current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM'],
-            headers={'kid': kid}
-        )
+
+        # Use the configured signing provider (local or KMS)
+        signing_provider = current_app.config.get('JWT_SIGNING_PROVIDER')
+        if signing_provider and signing_provider.__class__.__name__ != 'LocalPemProvider':
+            # Non-local provider: use manual JWS assembly
+            from app.services.signing_provider import build_jws_manually
+            return build_jws_manually(payload, signing_provider)
+        else:
+            # Local provider or legacy path: use PyJWT directly
+            from app.utils.crypto import compute_kid_from_private_pem
+            kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
+            return jwt.encode(
+                payload,
+                current_app.config['JWT_PRIVATE_KEY'],
+                algorithm=current_app.config['JWT_ALGORITHM'],
+                headers={'kid': kid}
+            )
 
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
@@ -82,8 +91,6 @@ class AuthService:
         Every token includes a `kid` header derived from the public key so
         rotation can select the correct key for verification.
         """
-        from app.utils.crypto import compute_kid_from_private_pem
-
         tenant = current_app.config.get('TENANT_ID', 'default')
 
         payload = {
@@ -98,13 +105,23 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
-        return jwt.encode(
-            payload,
-            current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM'],
-            headers={'kid': kid}
-        )
+
+        # Use the configured signing provider (local or KMS)
+        signing_provider = current_app.config.get('JWT_SIGNING_PROVIDER')
+        if signing_provider and signing_provider.__class__.__name__ != 'LocalPemProvider':
+            # Non-local provider: use manual JWS assembly
+            from app.services.signing_provider import build_jws_manually
+            return build_jws_manually(payload, signing_provider)
+        else:
+            # Local provider or legacy path: use PyJWT directly
+            from app.utils.crypto import compute_kid_from_private_pem
+            kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
+            return jwt.encode(
+                payload,
+                current_app.config['JWT_PRIVATE_KEY'],
+                algorithm=current_app.config['JWT_ALGORITHM'],
+                headers={'kid': kid}
+            )
 
     @staticmethod
     def create_server_jwt(server_id: int, jwt_secret: str) -> str:

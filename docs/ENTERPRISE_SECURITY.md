@@ -154,6 +154,65 @@ enables seamless key rotation without flag-day cutoffs.
 loaded keys. This enables seamless upgrades — old tokens remain valid throughout
 rotation and can coexist with kid-bearing tokens.
 
+### AWS KMS signing (Enterprise tier)
+
+**Pluggable signing providers** allow the manager to delegate private key operations
+to an external Key Management Service (KMS) instead of storing keys on disk. The
+**LocalPemProvider** (default) uses local PEM files; the **AwsKmsProvider** uses
+AWS KMS for signing operations.
+
+AWS KMS integration (Enterprise license tier required):
+- Private key never touches disk or memory in plaintext
+- Signing operations delegated to AWS KMS via the Sign API
+- Public key fetched once at startup (cached)
+- kid computed from the public key, enabling seamless rotation
+
+**Configuration:**
+
+| Env var                | Default   | Notes |
+|------------------------|-----------|-------|
+| `JWT_SIGNING_PROVIDER` | `local`   | `local` (PEM file) or `aws_kms` (AWS KMS) |
+| `AWS_KMS_KEY_ID`       | —         | KMS key ARN or alias (required for aws_kms) |
+| `AWS_DEFAULT_REGION`   | —         | AWS region (or use IRSA/credentials) |
+
+**Selecting AWS KMS:**
+
+```bash
+# At manager startup:
+export JWT_SIGNING_PROVIDER=aws_kms
+export AWS_KMS_KEY_ID=arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
+# AWS credentials: use IRSA (Kubernetes) or env vars (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+```
+
+Fail-fast behavior:
+- Enterprise license not detected → ValueError at startup
+- AWS_KMS_KEY_ID not set → ValueError at startup
+- boto3 not installed → ImportError at provider init
+- KMS connectivity loss → error logged, requests fail (not retried)
+
+**Rotation with AwsKmsProvider:**
+
+1. **Create a new KMS key** in AWS (or rotate the existing key's material via AWS KMS key rotation).
+2. **Update DNS_PRIVATE_KEY_ID** to the new key ARN/alias.
+3. **Restart the manager** — new tokens are signed with the new key's kid.
+4. **Verifiers pick up the new kid** at token validation time (no restart needed if using `JWT_PUBLIC_KEYS_DIR`).
+5. **Monitor for old-key rejections** — there should be none if the overlap window is long enough (all old tokens cached/replayable with old public key).
+6. **Retire old key** — after TTL of longest-lived token passes, optionally schedule KMS key deletion.
+
+The public key is fetched once at manager startup and cached in memory. To pick up a
+new public key (e.g., after KMS key rotation), restart the manager.
+
+Comparison: **LocalPemProvider** vs **AwsKmsProvider**
+
+| Aspect | LocalPemProvider | AwsKmsProvider |
+|--------|------------------|----------------|
+| **Private key storage** | PEM file (disk/Secret) | AWS KMS (HSM-backed) |
+| **Startup time** | Immediate | ~1-2s (KMS API call) |
+| **Signing latency** | <1ms (in-process) | 100-200ms (KMS RPC) |
+| **Key rotation** | Manual (update Secret) | AWS KMS key rotation or new key selection |
+| **Audit trail** | App logs | AWS CloudTrail (KMS Sign calls) |
+| **License** | Any tier | Enterprise only |
+
 ### Deployment-domain tokens
 
 Long-lived **deployment-domain** tokens (used by the client-config pull flow) are

@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.services.auth_service import AuthService
 from app.middleware.auth import token_required, get_current_user
 from app.utils.decorators import validate_json, audit_log
+import json
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -315,11 +316,23 @@ def token():
         else:
             granted_scopes = client['scopes']
 
+        # Fetch allowed_domains from DB and parse JSON
+        db = current_app.db
+        mc_record = db((db.machine_client.client_id == client['client_id']) &
+                       (db.machine_client.active == True)).select().first()
+        allowed_domains = None
+        if mc_record and mc_record.allowed_domains:
+            try:
+                allowed_domains = json.loads(mc_record.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+
         # Issue token
         access_token = AuthService.create_machine_access_token(
             client_id=client['client_id'],
             tenant=client['tenant'],
-            granted_scopes=granted_scopes
+            granted_scopes=granted_scopes,
+            allowed_domains=allowed_domains
         )
 
         # Update last_used_at
@@ -409,11 +422,20 @@ def token():
         else:
             granted_scopes = trust_anchor.allowed_scopes
 
+        # Fetch allowed_domains from trust anchor and parse JSON
+        allowed_domains = None
+        if trust_anchor.allowed_domains:
+            try:
+                allowed_domains = json.loads(trust_anchor.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+
         # Issue token (with machine marker, tenant from anchor)
         access_token = AuthService.create_machine_access_token(
             client_id=f"oidc:{subject}",  # Synthetic client_id for logging
             tenant=trust_anchor.tenant,
-            granted_scopes=granted_scopes
+            granted_scopes=granted_scopes,
+            allowed_domains=allowed_domains
         )
 
         ttl_config = current_app.config.get('MACHINE_ACCESS_TOKEN_EXPIRES')

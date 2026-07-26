@@ -592,6 +592,7 @@ machine_client = Table(
     Column("client_secret_hash", String(255), nullable=False),
     Column("tenant", String(255), nullable=False, server_default="default"),
     Column("scopes", String(1024), nullable=False),  # Space-separated scope list
+    Column("allowed_domains", Text),  # JSON list of allowed FQDNs or *.suffix wildcards; NULL=unrestricted
     Column("description", Text),
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
@@ -613,6 +614,7 @@ oidc_trust_anchor = Table(
     Column("tenant", String(255), nullable=False, server_default="default"),
     Column("allowed_scopes", String(1024), nullable=False),  # Space-separated
     Column("subject_pattern", String(255)),  # Glob pattern for subject claim
+    Column("allowed_domains", Text),  # JSON list of allowed FQDNs or *.suffix wildcards; NULL=unrestricted
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),

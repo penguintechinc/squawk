@@ -24,7 +24,7 @@ auth_user = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("username", String(100), unique=True, nullable=False),
     Column("email", String(255), unique=True, nullable=False),
-    Column("password_hash", String(255), nullable=False),
+    Column("password_hash", String(255), nullable=True),  # NULL for SSO-provisioned users
     Column("global_role", String(50), nullable=False, server_default="Viewer"),
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("mfa_enabled", Boolean, nullable=False, server_default="0"),
@@ -84,6 +84,51 @@ sso_provider = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
+
+sso_login_attempt = Table(
+    "sso_login_attempts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("opaque_state", String(100), unique=True, nullable=False),  # random state, not decodable
+    Column("provider", String(100), nullable=False),
+    Column("code_verifier", String(200), nullable=False),  # PKCE verifier
+    Column("nonce", String(200), nullable=False),  # ID token nonce
+    Column("browser_binding_hash", String(64), nullable=False),  # SHA-256 of browser binding cookie
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("used", Boolean, nullable=False, server_default='0'),  # single-use enforcement
+)
+Index("idx_opaque_state", sso_login_attempt.c.opaque_state, unique=True)
+
+saml_provider = Table(
+    "saml_providers",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), unique=True, nullable=False),  # slug (e.g. 'shibboleth')
+    Column("display_name", String(255), nullable=False),  # User-facing name
+    Column("idp_entity_id", String(500), nullable=False),  # IdP EntityID (must match Issuer in assertions)
+    Column("idp_sso_url", String(500), nullable=False),  # IdP SSO endpoint (HTTP-Redirect binding)
+    Column("idp_x509_cert", Text, nullable=False),  # IdP X.509 certificate (PEM, validates assertion XML signatures)
+    Column("sp_entity_id", String(500), nullable=False),  # Our SAML SP EntityID
+    Column("sp_acs_url", String(500), nullable=False),  # Our Assertion Consumer Service URL (must be https://)
+    Column("name_id_format", String(255), nullable=False,
+           server_default='urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'),
+    Column("want_assertions_signed", Boolean, nullable=False, server_default='1'),  # Require signed assertions
+    Column("enabled", Boolean, nullable=False, server_default='0'),
+    Column("tenant", String(100), nullable=False, server_default='default'),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+
+saml_assertion_id = Table(
+    "saml_assertion_ids",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("provider_id", Integer, nullable=False),  # FK to saml_providers.id
+    Column("assertion_id", String(255), nullable=False),  # @ID from SAML Assertion
+    Column("consumed_at", DateTime, nullable=False, server_default=func.now()),
+)
+Index("idx_saml_assertion_ids_provider_id_assertion_id",
+      saml_assertion_id.c.provider_id, saml_assertion_id.c.assertion_id)
 
 # ── DNS Servers ─────────────────────────────────────────────────────────────
 

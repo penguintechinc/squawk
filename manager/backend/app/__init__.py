@@ -18,6 +18,10 @@ def create_app(config_class: type = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+    from app.observability import init_tracing
+    init_tracing(app)
+
     # CORS with allowlist (default deny cross-origin if ALLOWED_ORIGINS unset)
     allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
     allowed_origins: list[str] = [

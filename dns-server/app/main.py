@@ -37,6 +37,10 @@ resilience_manager = ResilienceManager(manager_client)
 # Create Quart app
 app = Quart(__name__)
 
+# Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+from app.observability import init_tracing
+init_tracing(app)
+
 
 @app.before_serving
 async def startup():

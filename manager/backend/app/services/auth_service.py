@@ -386,7 +386,8 @@ class AuthService:
     @staticmethod
     def create_machine_access_token(client_id: str, tenant: str,
                                    granted_scopes: str,
-                                   expires_in: Optional[int] = None) -> str:
+                                   expires_in: Optional[int] = None,
+                                   dpop_jkt: Optional[str] = None) -> str:
         """
         Create a short-lived JWT access token for a machine client.
 
@@ -395,9 +396,11 @@ class AuthService:
             tenant: Tenant ID
             granted_scopes: Space-separated scope grant (validated subset)
             expires_in: Token TTL in seconds (default 15 min from config)
+            dpop_jkt: Optional DPoP JWK thumbprint. If provided, token is
+                      bound to this key via RFC 9449 cnf claim.
 
         Returns:
-            Signed JWT access token
+            Signed JWT access token (token_type Bearer or DPoP based on dpop_jkt)
         """
         ttl_seconds = expires_in or current_app.config.get(
             'MACHINE_ACCESS_TOKEN_EXPIRES', timedelta(minutes=15)
@@ -419,6 +422,11 @@ class AuthService:
             'exp': datetime.utcnow() + ttl,
             'iat': datetime.utcnow()
         }
+
+        # RFC 9449: DPoP binding via cnf (confirmation) claim
+        if dpop_jkt:
+            payload['cnf'] = {'jkt': dpop_jkt}
+
         return jwt.encode(
             payload,
             current_app.config['JWT_PRIVATE_KEY'],

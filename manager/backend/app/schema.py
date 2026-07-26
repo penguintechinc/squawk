@@ -619,3 +619,14 @@ oidc_trust_anchor = Table(
 )
 Index("idx_oidc_trust_anchor_active", oidc_trust_anchor.c.issuer,
       oidc_trust_anchor.c.active)
+
+# ── DPoP Replay Defense (RFC 9449) ──────────────────────────────────────────
+
+dpop_replay = Table(
+    "dpop_replay",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("jti", String(36), nullable=False, unique=True, index=True),
+    Column("expires_at", DateTime, nullable=False),
+)
+Index("idx_dpop_replay_expires", dpop_replay.c.expires_at)

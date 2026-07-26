@@ -33,6 +33,8 @@ def test_schema_creates_all_tables():
         "revoked_token",
         # machine identities (OAuth2 client_credentials + OIDC token exchange)
         "machine_client", "oidc_trust_anchor",
+        # DPoP sender-constrained tokens (RFC 9449)
+        "dpop_replay",
     }
     assert expected == tables
     engine.dispose()

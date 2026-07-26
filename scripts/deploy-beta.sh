@@ -193,7 +193,7 @@ deploy_with_helm() {
     "$CHART_PATH"
     "--namespace" "$NAMESPACE"
     "--create-namespace"
-    "-f" "$CHART_PATH/values-beta.yaml"
+    "-f" "$CHART_PATH/beta.yml"
     "--set" "image.tag=$TAG"
     "--set" "dnsServer.image.tag=$TAG"
     "--set" "flaskApi.image.tag=$TAG"

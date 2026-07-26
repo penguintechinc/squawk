@@ -61,6 +61,21 @@ spec:
           value: {{ .Values.jwt.audience | quote }}
         - name: TENANT_ID
           value: {{ .Values.manager.tenantId | quote }}
+        {{- if .Values.spiffe.enabled }}
+        # SPIFFE/mTLS service identity (opt-in, preferred over the legacy
+        # per-server static JWT). Only meaningful behind a mesh/gateway that
+        # terminates mTLS and injects+strips the XFCC header — see
+        # k8s/helm/spire/README.md before enabling. Omitted entirely when
+        # spiffe.enabled is false: manager/backend/app/config.py already
+        # defaults SPIFFE_ENABLED to "false" when the env var is unset, so
+        # omission and an explicit "false" are behaviorally identical.
+        - name: SPIFFE_ENABLED
+          value: "true"
+        - name: SPIFFE_TRUST_DOMAIN
+          value: {{ .Values.spiffe.trustDomain | quote }}
+        - name: SPIFFE_XFCC_HEADER
+          value: {{ .Values.spiffe.xfccHeader | quote }}
+        {{- end }}
         volumeMounts:
         - name: jwt-keys
           mountPath: {{ .Values.jwt.mountPath }}

@@ -6,11 +6,14 @@ metadata:
   labels:
     {{- include "squawk.dnsServer.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.dnsServer.service.type | default "ClusterIP" }}
   ports:
   - name: doh
-    port: 8080
+    port: {{ .Values.dnsServer.service.port | default 8080 }}
     targetPort: 8080
     protocol: TCP
+    {{- if and (eq (.Values.dnsServer.service.type | default "ClusterIP") "NodePort") .Values.dnsServer.service.nodePort }}
+    nodePort: {{ .Values.dnsServer.service.nodePort }}
+    {{- end }}
   selector:
     {{- include "squawk.dnsServer.selectorLabels" . | nindent 4 }}

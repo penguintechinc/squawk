@@ -29,7 +29,7 @@ spec:
       containers:
       - name: k8s-dns
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.k8sDns.image.repository }}:{{ .Values.k8sDns.image.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.k8sDns.image.pullPolicy | default "Always" }}
         command: ["squawk-k8s-dns", "serve"]
         ports:
         - name: dns-udp

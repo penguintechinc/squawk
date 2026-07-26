@@ -6,15 +6,21 @@ metadata:
   labels:
     {{- include "squawk.dnsClient.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.dnsClient.service.type | default "ClusterIP" }}
   ports:
   - name: dns-udp
     port: 53
     targetPort: {{ .Values.dnsClient.listenPort }}
     protocol: UDP
+    {{- if and (eq (.Values.dnsClient.service.type | default "ClusterIP") "NodePort") .Values.dnsClient.service.nodePort }}
+    nodePort: {{ .Values.dnsClient.service.nodePort }}
+    {{- end }}
   - name: dns-tcp
     port: 53
     targetPort: {{ .Values.dnsClient.listenPort }}
     protocol: TCP
+    {{- if and (eq (.Values.dnsClient.service.type | default "ClusterIP") "NodePort") .Values.dnsClient.service.nodePort }}
+    nodePort: {{ .Values.dnsClient.service.nodePort }}
+    {{- end }}
   selector:
     {{- include "squawk.dnsClient.selectorLabels" . | nindent 4 }}

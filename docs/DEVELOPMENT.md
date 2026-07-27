@@ -1436,6 +1436,100 @@ def check_rate_limit(self, client_ip: str) -> bool:
     return rate_limiter.is_allowed(client_ip)
 ```
 
+## Observability & Monitoring
+
+### OpenTelemetry Tracing
+
+Squawk includes opt-in OpenTelemetry (OTel) tracing for both the manager control plane and DNS server data plane. Tracing is completely disabled by default (zero overhead) and only initializes when explicitly enabled.
+
+#### Enabling Tracing
+
+Set the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable to enable tracing:
+
+```bash
+# Enable tracing with OTLP HTTP exporter
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Start the manager
+python3 -m app
+
+# Start the DNS server
+python3 -m app.main
+```
+
+If the env var is not set, the applications boot normally with **no tracing overhead** — the OpenTelemetry SDK is not even initialized.
+
+#### Tracing Configuration
+
+**Common environment variables:**
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP collector endpoint (e.g., `http://localhost:4318`) | Not set (tracing disabled) |
+| `OTEL_TRACES_SAMPLER` | Trace sampling strategy: `always_on`, `always_off`, or `parentbased_*` | `always_on` (if tracing enabled) |
+| `OTEL_TRACES_SAMPLER_ARG` | Argument for sampler (e.g., `0.5` for 50% sampling) | Depends on sampler |
+| `OTEL_SERVICE_NAME` | Override service name | `squawk-manager` or `squawk-dns-server` |
+
+#### Instrumented Components
+
+**Manager (Flask):**
+- Flask request/response handling
+- Outbound HTTP requests (via `requests` library)
+- W3C trace context propagation (automatic)
+
+**DNS Server (Quart/ASGI):**
+- ASGI middleware for request handling
+- Outbound HTTP requests (via `requests` library)
+- W3C trace context propagation (automatic)
+
+#### What's Captured in Traces
+
+- **Span attributes:** HTTP method, URL, status code, response time
+- **Service metadata:** `service.name`, `service.version`
+- **Trace context:** Parent-child span relationships via W3C `traceparent` header
+
+#### Testing with Jaeger (Local Development)
+
+```bash
+# Start Jaeger all-in-one container
+docker run -d \
+  --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 4318:4318 \
+  -p 16686:16686 \
+  jaegertracing/all-in-one
+
+# Enable tracing in Squawk
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Start manager and DNS server (they will send traces to Jaeger)
+
+# View traces at http://localhost:16686
+```
+
+#### Sampling for Production
+
+To reduce trace volume in production, configure sampling:
+
+```bash
+# 10% sampling
+export OTEL_TRACES_SAMPLER=parentbased_traceidratio
+export OTEL_TRACES_SAMPLER_ARG=0.1
+
+# Disable tracing
+unset OTEL_EXPORTER_OTLP_ENDPOINT
+```
+
+#### Logs vs Metrics vs Traces
+
+Squawk separates observability signals:
+
+- **Logs:** Structured JSON logs via Python `logging` module (separate from tracing)
+- **Metrics:** Prometheus metrics via `prometheus-client` (separate from tracing)
+- **Traces:** OpenTelemetry traces (this section)
+
+Each signal is independent; enable/disable them as needed without affecting the others.
+
 ## Release Process
 
 ### Version Management

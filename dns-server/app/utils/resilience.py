@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from app.services.manager_client import ManagerClient
-from app.config import JWT_PUBLIC_KEY
+from app.config import JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
 from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
@@ -114,8 +114,8 @@ class ResilienceManager:
             return False
 
         # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
-        # exp/iat/tenant, fail closed) — team authorization stays here.
-        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        # exp/iat/tenant, fail closed; supports kid-based key selection) — team authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS)
         if payload is None:
             return False
 

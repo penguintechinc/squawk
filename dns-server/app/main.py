@@ -8,15 +8,20 @@ import time
 from quart import Quart, request, jsonify
 from typing import Optional
 
-from app.config import DNS_PORT, SYNC_INTERVAL, HEARTBEAT_INTERVAL, LOG_LEVEL
+from app.config import (
+    DNS_PORT, SYNC_INTERVAL, HEARTBEAT_INTERVAL, LOG_LEVEL,
+    SQUAWK_RATE_LIMIT_ENABLED, SQUAWK_RATE_LIMIT_RPS, SQUAWK_RATE_LIMIT_BURST,
+    SQUAWK_RATE_LIMIT_BACKEND
+)
 from app.services.manager_client import ManagerClient
 from app.services.dns_resolver import DNSResolver
 from app.services.cache_manager import CacheManager
 from app.services.ioc_checker import IOCChecker
 from app.services.selective_router import SelectiveRouter
 from app.utils.resilience import ResilienceManager
-from app.services.prometheus_metrics import PrometheusMetrics, init_prometheus_metrics
+from app.services.prometheus_metrics import init_prometheus_metrics
 from app.services.http3_serving import build_serving_config
+from app.services.rate_limiter import RateLimiter
 
 # Configure logging
 logging.basicConfig(
@@ -34,8 +39,24 @@ selective_router = SelectiveRouter()
 metrics_reporter = init_prometheus_metrics(db_url=None, enable_collection=False)
 resilience_manager = ResilienceManager(manager_client)
 
+# Initialize rate limiter with optional Valkey backend
+use_valkey_backend = (
+    SQUAWK_RATE_LIMIT_BACKEND.lower() == 'valkey' and cache_manager.redis
+)
+rate_limiter = RateLimiter(
+    enabled=SQUAWK_RATE_LIMIT_ENABLED,
+    rps=SQUAWK_RATE_LIMIT_RPS,
+    burst=SQUAWK_RATE_LIMIT_BURST,
+    redis_client=cache_manager.redis if use_valkey_backend else None,
+    use_valkey=use_valkey_backend
+)
+
 # Create Quart app
 app = Quart(__name__)
+
+# Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+from app.observability import init_tracing
+init_tracing(app)
 
 
 @app.before_serving
@@ -100,9 +121,42 @@ async def dns_query():
     domain = request.args.get('name')
     record_type = request.args.get('type', 'A')
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    client_ip = request.remote_addr
 
     if not domain:
         return jsonify({'Status': 2, 'error': 'Missing domain name'}), 400
+
+    # Verify JWT and extract identity for rate limiting (if token provided)
+    token_identity = None
+    if token:
+        from app.utils.jwt_verify import verify_squawk_jwt
+        from app.config import JWT_PUBLIC_KEY
+
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        if payload:
+            token_identity = payload.get('sub')  # Use subject (user ID) as identity
+
+    # Determine identity type for metrics
+    identity_type = 'token' if token_identity else 'ip'
+
+    # Check rate limit (identity priority: token > client IP)
+    allowed, retry_after = await rate_limiter.check_limit(
+        token_identity=token_identity,
+        client_ip=client_ip
+    )
+
+    if not allowed:
+        metrics_reporter.record_rate_limited_query(
+            domain=domain,
+            record_type=record_type,
+            identity_type=identity_type,
+            source=token or client_ip
+        )
+        return (
+            jsonify({'Status': 2, 'error': 'Rate limit exceeded'}),
+            429,
+            {'Retry-After': str(int(retry_after) + 1)}  # Round up to next second
+        )
 
     # Check operational mode
     mode = resilience_manager.check_mode()
@@ -117,7 +171,8 @@ async def dns_query():
             status='error',
             response_time=0.0,
             cache_hit=False,
-            source=token or 'unknown'
+            source=token or 'unknown',
+            identity_type=identity_type
         )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
@@ -132,7 +187,8 @@ async def dns_query():
             cache_hit=False,
             blocked=True,
             block_reason='threat_intelligence',
-            source=token or 'unknown'
+            source=token or 'unknown',
+            identity_type=identity_type
         )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
@@ -148,7 +204,8 @@ async def dns_query():
             status='success',
             response_time=response_time_sec,
             cache_hit=True,
-            source=token or 'unknown'
+            source=token or 'unknown',
+            identity_type=identity_type
         )
         return jsonify(cached_result), 200
 
@@ -174,7 +231,8 @@ async def dns_query():
                 cache_hit=False,
                 blocked=True,
                 block_reason='threat_intelligence',
-                source=token or 'unknown'
+                source=token or 'unknown',
+                identity_type=identity_type
             )
             return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
@@ -190,7 +248,8 @@ async def dns_query():
         status=result_status,
         response_time=response_time_sec,
         cache_hit=False,
-        source=token or 'unknown'
+        source=token or 'unknown',
+        identity_type=identity_type
     )
 
     return jsonify(result), 200
@@ -211,6 +270,7 @@ async def status():
     cache_stats = cache_manager.get_stats()
     ioc_stats = ioc_checker.get_stats()
     routing_stats = selective_router.get_stats()
+    rate_limit_stats = rate_limiter.get_stats()
 
     return jsonify({
         'server_id': manager_client.server_id,
@@ -218,7 +278,8 @@ async def status():
         'metrics': metrics_data,
         'cache': cache_stats,
         'ioc': ioc_stats,
-        'routing': routing_stats
+        'routing': routing_stats,
+        'rate_limit': rate_limit_stats
     })
 
 

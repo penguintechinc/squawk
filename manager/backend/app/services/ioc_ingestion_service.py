@@ -1152,7 +1152,7 @@ class IOCManager:
             return True, "Blocked by threat intelligence"
 
         # Check CIDR blocks
-        for net, feeds in self.cidr_blocks:
+        for net, _feeds in self.cidr_blocks:
             try:
                 addr = ipaddress.ip_address(ip_normalized)
                 if addr in net:

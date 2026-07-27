@@ -5,7 +5,7 @@ Supports exact domain match, wildcard match, parent domain match, and IP/CIDR ma
 """
 import logging
 import ipaddress
-from typing import Set, Dict, List, Optional, Union
+from typing import Set, Dict, List
 
 logger = logging.getLogger(__name__)
 

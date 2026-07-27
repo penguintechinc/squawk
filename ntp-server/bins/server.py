@@ -67,10 +67,51 @@ def _load_jwt_public_key() -> Optional[str]:
             return f.read().strip()
     return None
 
+
+def _compute_kid_from_public_pem(public_pem: str) -> str:
+    """Compute kid (key ID) as first 16 hex chars of SHA-256 over DER SubjectPublicKeyInfo."""
+    import hashlib
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.backends import default_backend
+
+    public_key = serialization.load_pem_public_key(public_pem.encode(), default_backend())
+    der_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    sha256_hash = hashlib.sha256(der_bytes).digest()
+    return sha256_hash.hex()[:16]
+
+
+def _load_jwt_public_keys_from_directory() -> Dict[str, str]:
+    """Load multiple PEM keys from a directory (for key rotation overlap)."""
+    keys: Dict[str, str] = {}
+    dir_path = os.getenv("JWT_PUBLIC_KEYS_DIR")
+    if not dir_path or not os.path.isdir(dir_path):
+        return keys
+    try:
+        for filename in os.listdir(dir_path):
+            if filename.endswith('.pem'):
+                filepath = os.path.join(dir_path, filename)
+                if os.path.isfile(filepath):
+                    with open(filepath, 'r') as f:
+                        pem_content = f.read().strip()
+                        if pem_content:
+                            try:
+                                kid = _compute_kid_from_public_pem(pem_content)
+                                keys[kid] = pem_content
+                            except Exception:
+                                pass
+    except Exception:
+        pass
+    return keys
+
+
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "ES256")
 JWT_ISSUER = os.getenv("JWT_ISSUER", "squawk-manager")
 JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "squawk")
 JWT_PUBLIC_KEY = _load_jwt_public_key()
+JWT_PUBLIC_KEYS = _load_jwt_public_keys_from_directory()
 
 POSTHOG_KEY = os.getenv("POSTHOG_KEY", "")
 POSTHOG_HOST = os.getenv("POSTHOG_HOST", "")
@@ -359,59 +400,103 @@ class CookieManager:
 def verify_jwt(token: str, required_scope: Optional[str] = None) -> bool:
     """
     Verify ES256/RS256 JWT and optionally check scope.
+    Supports kid-based key selection for rotation overlap.
 
     Args:
         token: Bearer token
         required_scope: Optional scope (e.g., "ntp:client", "ntp:admin")
 
     Returns:
-        True if valid, False otherwise. Fail closed if JWT_PUBLIC_KEY not configured.
+        True if valid, False otherwise. Fail closed if no public key configured.
     """
+    if not token:
+        return False
+
+    # Decode header to extract kid (without verifying signature yet)
     try:
-        # Read public key at call time to support test override
-        public_key = os.getenv("JWT_PUBLIC_KEY")
-        if not public_key:
-            # Try loading from file
-            key_file = os.getenv("JWT_PUBLIC_KEY_FILE")
-            if key_file and os.path.isfile(key_file):
-                with open(key_file, 'r') as f:
-                    public_key = f.read().strip()
+        header = jwt.get_unverified_header(token)
+    except Exception:
+        logger.warning("JWT verification: failed to extract header")
+        return False
 
-        if not public_key:
-            logger.warning("JWT_PUBLIC_KEY not configured")
+    kid = header.get('kid')
+
+    # Determine which key(s) to try
+    keys_to_try: Dict[Optional[str], str] = {}
+
+    if kid:
+        # Token has kid: must match in JWT_PUBLIC_KEYS (if provided)
+        if JWT_PUBLIC_KEYS and kid in JWT_PUBLIC_KEYS:
+            keys_to_try[kid] = JWT_PUBLIC_KEYS[kid]
+        else:
+            # Kid present but not found: reject (unknown key)
+            logger.warning(f"JWT verification: unknown kid '{kid}'")
             return False
+    else:
+        # Token has no kid: try all keys (backward compat during rotation)
+        if JWT_PUBLIC_KEYS:
+            keys_to_try = JWT_PUBLIC_KEYS.copy()
+        else:
+            # Fall back to single JWT_PUBLIC_KEY
+            public_key = os.getenv("JWT_PUBLIC_KEY")
+            if not public_key:
+                # Try loading from file
+                key_file = os.getenv("JWT_PUBLIC_KEY_FILE")
+                if key_file and os.path.isfile(key_file):
+                    with open(key_file, 'r') as f:
+                        public_key = f.read().strip()
+            if not public_key:
+                logger.warning("JWT verification: JWT_PUBLIC_KEY not configured")
+                return False
+            keys_to_try[None] = public_key
 
-        payload = jwt.decode(
-            token,
-            public_key,
-            algorithms=["ES256", "RS256"],
-            audience=JWT_AUDIENCE,
-            issuer=JWT_ISSUER,
-            options={"require": ["exp", "iat", "tenant"]}
-        )
+    # Try each key until one succeeds
+    for _kid_val, key in keys_to_try.items():
+        if not key:
+            continue
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["ES256", "RS256"],
+                audience=JWT_AUDIENCE,
+                issuer=JWT_ISSUER,
+                options={"require": ["exp", "iat", "tenant"]}
+            )
 
-        # Fail closed: tenant claim must be present and non-empty
-        if not payload.get('tenant'):
-            logger.warning("JWT verification: token missing or empty tenant claim")
-            return False
-
-        # Check scope if required
-        if required_scope:
-            scopes = payload.get("scope", "").split()
-            if required_scope not in scopes:
-                logger.warning(f"JWT verification: missing scope {required_scope}")
+            # Fail closed: tenant claim must be present and non-empty
+            if not payload.get('tenant'):
+                logger.warning("JWT verification: token missing or empty tenant claim")
                 return False
 
-        return True
-    except jwt.ExpiredSignatureError:
-        logger.warning("JWT verification: token expired")
-        return False
-    except jwt.InvalidSignatureError:
-        logger.warning("JWT verification: invalid signature")
-        return False
-    except Exception as e:
-        logger.warning(f"JWT verification failed: {e}")
-        return False
+            # Check scope if required
+            if required_scope:
+                scopes = payload.get("scope", "").split()
+                if required_scope not in scopes:
+                    logger.warning(f"JWT verification: missing scope {required_scope}")
+                    return False
+
+            return True
+        except (jwt.InvalidSignatureError, jwt.DecodeError):
+            # Signature mismatch is expected when trying multiple keys
+            if kid:
+                logger.warning(f"JWT verification: signature verification failed for kid '{kid}'")
+                return False
+            # For no-kid tokens, continue to try other keys
+            continue
+        except jwt.ExpiredSignatureError:
+            logger.warning("JWT verification: token expired")
+            return False
+        except Exception as e:
+            logger.warning(f"JWT verification failed: {e}")
+            return False
+
+    # No keys succeeded
+    if kid:
+        logger.warning(f"JWT verification: token signature verification failed for kid '{kid}'")
+    else:
+        logger.warning("JWT verification: token signature verification failed with all available keys")
+    return False
 
 
 # ============================================================================
@@ -529,7 +614,7 @@ class NTSKEServer:
         finally:
             try:
                 conn.close()
-            except:
+            except OSError:
                 pass
 
     def _build_nts_ke_response(self, aead_id: int, cookies: List[NTSCookie]) -> bytes:

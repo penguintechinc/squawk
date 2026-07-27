@@ -45,6 +45,19 @@ def login():
     if not user:
         return jsonify({'error': 'Invalid username or password'}), 401
 
+    # Check if MFA is enabled
+    db = current_app.db
+    user_record = db.auth_user[user['id']]
+    if user_record and user_record.mfa_enabled:
+        # Return pre-auth token instead of full tokens
+        from app.services.mfa_service import MFAService
+        pre_auth_token = MFAService.create_pre_auth_token(user['id'])
+        return jsonify({
+            'mfa_required': True,
+            'pre_auth_token': pre_auth_token,
+            'message': 'MFA verification required'
+        }), 200
+
     # Generate tokens
     access_token = AuthService.create_access_token(
         user['id'],

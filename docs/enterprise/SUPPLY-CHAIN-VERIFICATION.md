@@ -244,4 +244,3 @@ Add to your CI/CD:
 4. Scan SBOM: `grype sbom.spdx.json --fail-on high`
 5. Deploy to staging: Verify Kyverno allows it (signature + SBOM check pass)
 6. Document findings
-

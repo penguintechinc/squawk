@@ -2,9 +2,12 @@
 Authentication middleware for JWT token validation.
 """
 
+import logging
 from functools import wraps
 from flask import request, jsonify, current_app, g
 from app.services.auth_service import AuthService
+
+logger = logging.getLogger(__name__)
 
 
 def token_required(f):
@@ -52,13 +55,54 @@ def token_required(f):
     return decorated
 
 
+def _authenticate_server_via_spiffe():
+    """Authenticate a DNS server by its mesh-forwarded SPIFFE identity.
+
+    Preferred over the legacy static-secret JWT. Returns the server row on a
+    valid SPIFFE identity in the configured trust domain, else None (caller
+    falls back to the JWT path).
+    """
+    if not current_app.config.get('SPIFFE_ENABLED', False):
+        return None
+
+    from app.services.spiffe import resolve_dns_server_identity
+
+    header_name = current_app.config.get('SPIFFE_XFCC_HEADER', 'X-Forwarded-Client-Cert')
+    trust_domain = current_app.config.get('SPIFFE_TRUST_DOMAIN', 'penguintech.io')
+    identity = resolve_dns_server_identity(request.headers.get(header_name), trust_domain)
+    if not identity:
+        return None
+
+    server = current_app.db.dns_server[identity.server_id]
+    if not server:
+        logger.warning("SPIFFE identity %s references unknown server", identity.spiffe_id)
+        return None
+
+    logger.info("Server authenticated via SPIFFE: %s", identity.spiffe_id)
+    return server
+
+
 def server_token_required(f):
     """
-    Decorator to require valid DNS server JWT token.
-    Validates using server-specific JWT secret.
+    Decorator to require an authenticated DNS server.
+
+    Prefers SPIFFE/mTLS identity (mesh-forwarded XFCC); falls back to the
+    legacy per-server JWT (static shared secret) when no SPIFFE identity is
+    presented.
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Preferred: SPIFFE/mTLS peer identity.
+        spiffe_server = _authenticate_server_via_spiffe()
+        if spiffe_server is not None:
+            g.current_server = {
+                'server_id': spiffe_server.id,
+                'name': spiffe_server.name,
+                'region': spiffe_server.region,
+                'auth_method': 'spiffe',
+            }
+            return f(*args, **kwargs)
+
         token = None
 
         # Get token from Authorization header
@@ -94,10 +138,15 @@ def server_token_required(f):
                 return jsonify({'error': 'Invalid or expired server token'}), 401
 
             # Store server info in g
+            logger.info(
+                "Server %s authenticated via legacy static-secret JWT "
+                "(SPIFFE/mTLS preferred)", server_id
+            )
             g.current_server = {
                 'server_id': server_id,
                 'name': server.name,
-                'region': server.region
+                'region': server.region,
+                'auth_method': 'jwt',
             }
 
             return f(*args, **kwargs)

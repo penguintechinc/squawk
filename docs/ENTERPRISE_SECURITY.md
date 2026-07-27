@@ -246,6 +246,52 @@ Merging Renovate PRs keeps base images patched without manual digest edits.
 
 ---
 
+## 6. Service-to-service authentication (SPIFFE/mTLS)
+
+DNS/DHCP/time servers authenticating **to the manager** prefer a SPIFFE/mTLS
+identity over the legacy per-server JWT (a long-lived static shared secret —
+the anti-pattern the standard forbids between services).
+
+**Identity scheme** (penguintech infra standard):
+
+```
+spiffe://<trust_domain>/<env>/<service>[/<instance>]
+```
+
+A DNS server presents `spiffe://penguintech.io/<env>/dns-server/<server_id>`.
+
+**How it works:** the service mesh / gateway (Envoy, Istio) terminates mTLS with
+the peer's short-lived X.509-SVID and forwards the verified SPIFFE ID in the
+`X-Forwarded-Client-Cert` (XFCC) header. The manager's `server_token_required`
+path resolves that identity first: it validates the trust domain and the
+`<env>/dns-server/<server_id>` scheme (fail-closed on any mismatch) and, on
+success, authenticates the server **without** any shared secret. When no SPIFFE
+identity is present it falls back to the legacy server JWT and logs that the
+static-secret path was used.
+
+**Configuration:**
+
+| Env var               | Default            | Purpose                                   |
+|-----------------------|--------------------|-------------------------------------------|
+| `SPIFFE_ENABLED`      | `false`            | Enable SPIFFE/mTLS server auth (opt-in)   |
+| `SPIFFE_TRUST_DOMAIN` | `penguintech.io`   | Accepted trust domain                     |
+| `SPIFFE_XFCC_HEADER`  | `X-Forwarded-Client-Cert` | Mesh-injected peer-identity header |
+
+> **Trust boundary (why it defaults off):** XFCC is a client-supplied header.
+> Trusting it is safe **only** when the mesh sidecar injects it, **strips any
+> inbound copy**, and the manager is not directly reachable by clients.
+> Otherwise a caller could forge the header and impersonate any server — an
+> auth bypass. `SPIFFE_ENABLED` therefore defaults to `false`; turn it on only
+> in a deployment that meets those conditions. Never enable it on a
+> directly-exposed listener.
+
+**Operational follow-up (SPIRE):** deploy a SPIRE server + agents to issue the
+SVIDs and register the DNS-server workloads under the above SPIFFE paths, and
+configure the mesh to forward XFCC. Once every server authenticates via SPIFFE,
+the per-server JWT secret can be retired.
+
+---
+
 ## Quick operator checklist
 
 - [ ] Generate an ES256 keypair with `scripts/gen-jwt-keys.sh`.
@@ -256,3 +302,4 @@ Merging Renovate PRs keeps base images patched without manual digest edits.
 - [ ] `cosign verify` the images you deploy (optionally enforce at admission).
 - [ ] Confirm pods report `runAsNonRoot` + `seccompProfile: RuntimeDefault`.
 - [ ] Enable Renovate PRs for digest/vulnerability updates.
+- [ ] Set `SPIFFE_TRUST_DOMAIN`; ensure the mesh forwards XFCC and the manager is not directly reachable.

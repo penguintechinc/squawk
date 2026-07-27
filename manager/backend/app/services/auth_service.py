@@ -28,8 +28,15 @@ class AuthService:
         return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
     @staticmethod
-    def verify_password(password: str, password_hash: str) -> bool:
-        """Verify password against hash."""
+    def verify_password(password: str, password_hash: Optional[str]) -> bool:
+        """
+        Verify password against hash.
+
+        Returns False immediately if password_hash is None/falsy
+        (e.g., SSO-provisioned users with no local password).
+        """
+        if not password_hash:  # None or empty string (SSO users)
+            return False
         return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
 
     @staticmethod

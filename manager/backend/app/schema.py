@@ -24,13 +24,15 @@ auth_user = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("username", String(100), unique=True, nullable=False),
     Column("email", String(255), unique=True, nullable=False),
-    Column("password_hash", String(255), nullable=False),
+    Column("password_hash", String(255), nullable=True),  # NULL for SSO-provisioned users
     Column("global_role", String(50), nullable=False, server_default="Viewer"),
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("mfa_enabled", Boolean, nullable=False, server_default="0"),
     Column("mfa_secret", String(255)),  # Encrypted TOTP secret (Fernet)
     Column("mfa_recovery_codes", Text),  # JSON array of hashed recovery codes
     Column("mfa_last_totp_counter", Integer, default=0),  # Tracks last used TOTP counter for replay prevention
+    Column("sso_provider", String(100)),  # SSO provider name (null if local auth)
+    Column("sso_subject", String(500)),  # IdP-specific user identifier (e.g. sub claim)
     Column("external_id", String(255), unique=True, index=True),  # SCIM provisioning identifier
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
@@ -62,6 +64,41 @@ team_member = Table(
 )
 Index("uq_team_member", team_member.c.team_id, team_member.c.user_id,
       unique=True)
+
+# ── SSO Configuration ───────────────────────────────────────────────────────
+
+sso_provider = Table(
+    "sso_providers",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), unique=True, nullable=False),  # slug (e.g. 'okta')
+    Column("display_name", String(255), nullable=False),  # User-facing name
+    Column("issuer", String(500), nullable=False),  # IdP issuer URL (iss claim)
+    Column("client_id", String(255), nullable=False),
+    Column("client_secret", Text, nullable=False),  # Fernet-encrypted at rest
+    Column("authorization_endpoint", String(500), nullable=False),  # Must be https://
+    Column("token_endpoint", String(500), nullable=False),  # Must be https://
+    Column("jwks_url", String(500), nullable=False),  # OIDC JWKS endpoint for ID token sig verification
+    Column("scopes", String(500), nullable=False, server_default='openid email profile'),
+    Column("enabled", Boolean, nullable=False, server_default='0'),
+    Column("tenant", String(100), nullable=False, server_default='default'),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+
+sso_login_attempt = Table(
+    "sso_login_attempts",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("opaque_state", String(100), unique=True, nullable=False),  # random state, not decodable
+    Column("provider", String(100), nullable=False),
+    Column("code_verifier", String(200), nullable=False),  # PKCE verifier
+    Column("nonce", String(200), nullable=False),  # ID token nonce
+    Column("browser_binding_hash", String(64), nullable=False),  # SHA-256 of browser binding cookie
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("used", Boolean, nullable=False, server_default='0'),  # single-use enforcement
+)
+Index("idx_opaque_state", sso_login_attempt.c.opaque_state, unique=True)
 
 # ── DNS Servers ─────────────────────────────────────────────────────────────
 

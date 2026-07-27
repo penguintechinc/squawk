@@ -33,6 +33,8 @@ def test_schema_creates_all_tables():
         "revoked_token",
         # enterprise SSO (migrations)
         "sso_providers", "sso_login_attempts",
+        # SAML 2.0 SSO (migrations)
+        "saml_providers", "saml_assertion_ids",
         # SCIM 2.0 provisioning
         "scim_tokens",
         # machine identities (OAuth2 client_credentials + OIDC token exchange)

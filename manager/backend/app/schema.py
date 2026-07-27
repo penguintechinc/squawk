@@ -100,6 +100,37 @@ sso_login_attempt = Table(
 )
 Index("idx_opaque_state", sso_login_attempt.c.opaque_state, unique=True)
 
+saml_provider = Table(
+    "saml_providers",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(100), unique=True, nullable=False),  # slug (e.g. 'shibboleth')
+    Column("display_name", String(255), nullable=False),  # User-facing name
+    Column("idp_entity_id", String(500), nullable=False),  # IdP EntityID (must match Issuer in assertions)
+    Column("idp_sso_url", String(500), nullable=False),  # IdP SSO endpoint (HTTP-Redirect binding)
+    Column("idp_x509_cert", Text, nullable=False),  # IdP X.509 certificate (PEM, validates assertion XML signatures)
+    Column("sp_entity_id", String(500), nullable=False),  # Our SAML SP EntityID
+    Column("sp_acs_url", String(500), nullable=False),  # Our Assertion Consumer Service URL (must be https://)
+    Column("name_id_format", String(255), nullable=False,
+           server_default='urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'),
+    Column("want_assertions_signed", Boolean, nullable=False, server_default='1'),  # Require signed assertions
+    Column("enabled", Boolean, nullable=False, server_default='0'),
+    Column("tenant", String(100), nullable=False, server_default='default'),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+
+saml_assertion_id = Table(
+    "saml_assertion_ids",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("provider_id", Integer, nullable=False),  # FK to saml_providers.id
+    Column("assertion_id", String(255), nullable=False),  # @ID from SAML Assertion
+    Column("consumed_at", DateTime, nullable=False, server_default=func.now()),
+)
+Index("idx_saml_assertion_ids_provider_id_assertion_id",
+      saml_assertion_id.c.provider_id, saml_assertion_id.c.assertion_id)
+
 # ── DNS Servers ─────────────────────────────────────────────────────────────
 
 dns_server = Table(

@@ -10,7 +10,7 @@ import bcrypt
 import secrets
 import fnmatch
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from flask import current_app
 from jwt.exceptions import (
     ExpiredSignatureError, InvalidSignatureError, InvalidTokenError,
@@ -37,6 +37,9 @@ class AuthService:
                            team_roles: Optional[Dict] = None) -> str:
         """
         Create JWT access token (15 minutes expiry) signed with ES256/RS256 private key.
+
+        Every token includes a `kid` header derived from the public key so
+        rotation can select the correct key for verification.
 
         Args:
             user_id: User ID
@@ -66,15 +69,31 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        return jwt.encode(
-            payload,
-            current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM']
-        )
+
+        # Use the configured signing provider (local or KMS)
+        signing_provider = current_app.config.get('JWT_SIGNING_PROVIDER')
+        if signing_provider and signing_provider.__class__.__name__ != 'LocalPemProvider':
+            # Non-local provider: use manual JWS assembly
+            from app.services.signing_provider import build_jws_manually
+            return build_jws_manually(payload, signing_provider)
+        else:
+            # Local provider or legacy path: use PyJWT directly
+            from app.utils.crypto import compute_kid_from_private_pem
+            kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
+            return jwt.encode(
+                payload,
+                current_app.config['JWT_PRIVATE_KEY'],
+                algorithm=current_app.config['JWT_ALGORITHM'],
+                headers={'kid': kid}
+            )
 
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
-        """Create JWT refresh token (7 days expiry) signed with ES256/RS256 private key."""
+        """Create JWT refresh token (7 days expiry) signed with ES256/RS256 private key.
+
+        Every token includes a `kid` header derived from the public key so
+        rotation can select the correct key for verification.
+        """
         tenant = current_app.config.get('TENANT_ID', 'default')
 
         payload = {
@@ -89,11 +108,23 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
-        return jwt.encode(
-            payload,
-            current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM']
-        )
+
+        # Use the configured signing provider (local or KMS)
+        signing_provider = current_app.config.get('JWT_SIGNING_PROVIDER')
+        if signing_provider and signing_provider.__class__.__name__ != 'LocalPemProvider':
+            # Non-local provider: use manual JWS assembly
+            from app.services.signing_provider import build_jws_manually
+            return build_jws_manually(payload, signing_provider)
+        else:
+            # Local provider or legacy path: use PyJWT directly
+            from app.utils.crypto import compute_kid_from_private_pem
+            kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
+            return jwt.encode(
+                payload,
+                current_app.config['JWT_PRIVATE_KEY'],
+                algorithm=current_app.config['JWT_ALGORITHM'],
+                headers={'kid': kid}
+            )
 
     @staticmethod
     def create_server_jwt(server_id: int, jwt_secret: str) -> str:

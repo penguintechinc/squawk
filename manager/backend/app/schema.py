@@ -27,6 +27,10 @@ auth_user = Table(
     Column("password_hash", String(255), nullable=False),
     Column("global_role", String(50), nullable=False, server_default="Viewer"),
     Column("active", Boolean, nullable=False, server_default="1"),
+    Column("mfa_enabled", Boolean, nullable=False, server_default="0"),
+    Column("mfa_secret", String(255)),  # Encrypted TOTP secret (Fernet)
+    Column("mfa_recovery_codes", Text),  # JSON array of hashed recovery codes
+    Column("mfa_last_totp_counter", Integer, default=0),  # Tracks last used TOTP counter for replay prevention
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
@@ -621,3 +625,25 @@ oidc_trust_anchor = Table(
 )
 Index("idx_oidc_trust_anchor_active", oidc_trust_anchor.c.issuer,
       oidc_trust_anchor.c.active)
+
+# ── Audit events (durable, SIEM-exportable) ──────────────────────────────────
+
+audit_event = Table(
+    "audit_event",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("created_at", DateTime, nullable=False, server_default=func.now(), index=True),
+    Column("actor_id", Integer, ForeignKey("auth_user.id", ondelete="SET NULL")),
+    Column("tenant", String(100), index=True),  # Multi-tenancy support; nullable for cross-tenant audit
+    Column("action", String(100), nullable=False, index=True),
+    Column("resource_type", String(50), index=True),  # E.g., 'dns_server', 'token', 'user'
+    Column("resource_id", Integer, index=True),
+    Column("outcome", String(20), nullable=False, server_default="success"),  # 'success' | 'failure'
+    Column("status_code", Integer),  # HTTP status or error code
+    Column("request_id", String(36), index=True),  # For request tracing
+    Column("source_ip", String(45)),  # IPv4 or IPv6
+)
+Index("idx_audit_event_actor", audit_event.c.actor_id)
+Index("idx_audit_event_action_created", audit_event.c.action, audit_event.c.created_at)
+Index("idx_audit_event_tenant_created", audit_event.c.tenant, audit_event.c.created_at)
+Index("idx_audit_event_resource", audit_event.c.resource_type, audit_event.c.resource_id)

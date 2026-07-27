@@ -1,3 +1,10 @@
+# Autoscaling: prod only, per house resource-tier standard. Replicas below
+# are the floor the HPA will not scale under (kept in sync with minReplicas);
+# the Deployment templates omit `replicas:` when autoscaling is enabled so
+# Helm upgrades don't fight the HPA's scaling decisions.
+autoscaling:
+  enabled: true
+
 dnsServer:
   replicas: 3
   resources:
@@ -7,12 +14,26 @@ dnsServer:
     limits:
       cpu: 1000m
       memory: 1Gi
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
 
 dnsClient:
   replicas: 3
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
 
 valkey:
   replicas: 1
+
+k8sDns:
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
 
 dhcpServer:
   replicas: 3
@@ -23,6 +44,10 @@ dhcpServer:
     limits:
       cpu: 1000m
       memory: 1Gi
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
 
 ntpServer:
   replicas: 3
@@ -33,3 +58,7 @@ ntpServer:
     limits:
       cpu: 1000m
       memory: 1Gi
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70

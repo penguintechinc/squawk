@@ -142,6 +142,12 @@ lint:
 	else \
 		echo "shellcheck not installed, skipping"; \
 	fi; \
+	if command -v npx >/dev/null 2>&1; then \
+		echo "-- spectral (OpenAPI) --"; \
+		npx --yes @stoplight/spectral-cli@6.16.0 lint openapi/v1.yaml || exit_code=1; \
+	else \
+		echo "npx not installed, skipping OpenAPI linting"; \
+	fi; \
 	exit $$exit_code
 
 fix-lint: format

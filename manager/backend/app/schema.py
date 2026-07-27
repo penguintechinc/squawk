@@ -565,3 +565,19 @@ mtls_revocation = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 Index("idx_mtls_revocation_serial", mtls_revocation.c.serial_number)
+
+# ── Refresh-token revocation (rotation + logout) ─────────────────────────────
+
+revoked_token = Table(
+    "revoked_token",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("jti", String(36), nullable=False, unique=True, index=True),
+    Column("user_id", Integer, ForeignKey("auth_user.id", ondelete="CASCADE")),
+    Column("reason", String(50)),  # 'rotated' | 'logout' | 'admin'
+    Column("revoked_at", DateTime, nullable=False, server_default=func.now()),
+    # Denylist entries only matter until the token would expire anyway;
+    # expired rows are purged opportunistically on new revocations.
+    Column("expires_at", DateTime, nullable=False),
+)
+Index("idx_revoked_token_expires", revoked_token.c.expires_at)

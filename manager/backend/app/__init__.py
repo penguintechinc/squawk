@@ -30,6 +30,24 @@ def create_app(config_class: type = Config) -> Flask:
         # Empty allowlist = deny cross-origin
         CORS(app, resources={r"/api/*": {"origins": []}})
 
+    # Security headers on every response. This is a JSON API: a restrictive
+    # CSP + nosniff blocks it from being abused as a script/style source, and
+    # frame-ancestors/X-Frame-Options prevent clickjacking via framed JSON.
+    @app.after_request
+    def set_security_headers(response):
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault(
+            'Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'"
+        )
+        response.headers.setdefault('Referrer-Policy', 'no-referrer')
+        # HSTS is only meaningful over TLS; browsers ignore it on plain HTTP,
+        # so setting it unconditionally is safe (TLS terminates at ingress).
+        response.headers.setdefault(
+            'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+        )
+        return response
+
     # Rate limiting via penguin-limiter
     from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
 

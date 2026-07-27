@@ -71,7 +71,11 @@ def login():
 @validate_json('refreshToken')
 def refresh():
     """
-    Refresh access token using refresh token.
+    Refresh (rotate) tokens using a refresh token.
+
+    The presented refresh token is single-use: it is revoked and a new
+    access + refresh token pair is issued. Reusing a rotated or revoked
+    refresh token returns 401.
 
     Request:
         {
@@ -80,19 +84,20 @@ def refresh():
 
     Response:
         {
-            "accessToken": "..."
+            "accessToken": "...",
+            "refreshToken": "..."
         }
     """
     data = request.get_json()
     refresh_token = data['refreshToken']
 
-    # Generate new access token
-    access_token = AuthService.refresh_access_token(refresh_token)
-    if not access_token:
+    tokens = AuthService.refresh_access_token(refresh_token)
+    if not tokens:
         return jsonify({'error': 'Invalid or expired refresh token'}), 401
 
     return jsonify({
-        'accessToken': access_token
+        'accessToken': tokens['access_token'],
+        'refreshToken': tokens['refresh_token']
     }), 200
 
 
@@ -101,15 +106,26 @@ def refresh():
 @audit_log('user_logout')
 def logout():
     """
-    Logout user (client-side token removal).
+    Logout user: revoke the refresh token server-side.
+
+    Request (optional body):
+        {
+            "refreshToken": "..."
+        }
+
+    The access token (15 min) simply ages out; the long-lived refresh token
+    is revoked here so it cannot mint new access tokens after logout.
 
     Response:
         {
             "message": "Logged out successfully"
         }
     """
-    # In stateless JWT, logout is handled client-side
-    # Can implement token blacklist here if needed
+    data = request.get_json(silent=True) or {}
+    refresh_token = data.get('refreshToken')
+    if refresh_token:
+        AuthService.revoke_refresh_token(refresh_token, reason='logout')
+
     return jsonify({
         'message': 'Logged out successfully'
     }), 200

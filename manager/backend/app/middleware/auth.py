@@ -152,7 +152,9 @@ def server_token_required(f):
             return f(*args, **kwargs)
 
         except Exception as e:
-            return jsonify({'error': f'Token validation failed: {str(e)}'}), 401
+            # Log the detail; never echo internal exception text to clients.
+            logger.warning("Server token validation failed: %s", e)
+            return jsonify({'error': 'Token validation failed'}), 401
 
     return decorated
 

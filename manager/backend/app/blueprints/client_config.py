@@ -8,6 +8,7 @@ from functools import wraps
 from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
+from app.utils.responses import internal_error
 
 client_config_bp = Blueprint('client_config', __name__)
 
@@ -95,7 +96,7 @@ def create_domain():
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/jwt-rollover',
@@ -132,7 +133,7 @@ def rollover_jwt(domain_id: int):
             return jsonify(result), 404
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/configs',
@@ -193,7 +194,7 @@ def create_config(domain_id: int):
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/configs/<int:config_id>',
@@ -246,7 +247,7 @@ def update_config(config_id: int):
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/register', methods=['POST'])
@@ -301,7 +302,7 @@ def register_client():
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/pull', methods=['POST'])
@@ -352,7 +353,7 @@ def pull_config():
             return jsonify(result), 404
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/assign', methods=['POST'])
@@ -399,7 +400,7 @@ def assign_config():
             return jsonify(result), 404
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/clients',
@@ -432,7 +433,7 @@ def get_domain_clients(domain_id: int):
         clients = client_config_mgr.get_domain_clients(domain_id)
         return jsonify({'clients': clients}), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)
 
 
 @client_config_bp.route('/api/v1/client-config/stats', methods=['GET'])
@@ -460,4 +461,4 @@ def get_stats():
         stats = client_config_mgr.get_client_stats()
         return jsonify(stats), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e)

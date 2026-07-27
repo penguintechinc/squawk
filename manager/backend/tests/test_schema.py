@@ -33,6 +33,8 @@ def test_schema_creates_all_tables():
         "revoked_token",
         # enterprise SSO (migrations)
         "sso_providers", "sso_login_attempts",
+        # SAML 2.0 SSO (migrations)
+        "saml_providers", "saml_assertion_ids",
     }
     assert expected == tables
     engine.dispose()

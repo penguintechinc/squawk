@@ -1,0 +1,21 @@
+title = "squawk gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives: doc examples, test fixtures, explicit templates, build artifacts"
+paths = [
+  '''docs/.*''',
+  '''(^|.*/)tests?[^/]*/.*''',
+  '''.*_test\.py''',
+  '''.*\.example\..*''',
+  '''__pycache__/.*''',
+  '''QUICKSTART\.md''',
+  '''scripts/gen-jwt-keys\.sh''',
+]
+regexes = [
+  # Well-known pyotp/Google Authenticator tutorial example TOTP secret
+  # (base32 for "Hello!!!") — used in docstrings/tests, never a live secret.
+  '''JBSWY3DPEBLW64TMMQ=*''',
+]

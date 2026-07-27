@@ -1,0 +1,27 @@
+title = "Squawk gitleaks config"
+
+# Extend gitleaks' built-in rule set rather than replacing it -- we only add
+# an allowlist for known false positives, never disable real secret classes.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation/template placeholders and test fixtures that are not real credentials"
+paths = [
+  # Docs show example curl/API commands with obviously-fake bearer tokens
+  # (YOUR_TOKEN, admin-token-789, abc123def456, etc.) -- not real secrets.
+  '''^docs/.*''',
+  '''^QUICKSTART\.md$''',
+  # Explicitly-named template manifests: placeholders only, real key
+  # material is never written to these files (see file header comments).
+  '''\.example\.ya?ml$''',
+]
+regexes = [
+  # Unsigned JWT header fragment used as a comparison fixture, not a token.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9''',
+  # Hardcoded test fixture values, not real credentials.
+  '''abcd1234567890''',
+  '''StrongPass123''',
+  # Filename literal (gen-jwt-keys.sh output path), not key material.
+  '''jwt_private_key_es256\.pem''',
+]

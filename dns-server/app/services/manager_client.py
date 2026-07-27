@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Optional
 import jwt as pyjwt
 
-from app.config import MANAGER_URL, JOIN_KEY, CACHE_DIR, SYNC_INTERVAL
+from app.config import MANAGER_URL, JOIN_KEY, CACHE_DIR
 
 logger = logging.getLogger(__name__)
 

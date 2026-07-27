@@ -7,10 +7,10 @@ Implements Issue #14: DNS Stats for Prometheus and Grafana
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from collections import defaultdict, deque
 import threading
-from pydal import DAL, Field
+from pydal import DAL
 from prometheus_client import (
     Counter,
     Histogram,
@@ -19,7 +19,6 @@ from prometheus_client import (
     generate_latest,
     CONTENT_TYPE_LATEST,
     CollectorRegistry,
-    REGISTRY as DEFAULT_REGISTRY,
 )
 
 logger = logging.getLogger(__name__)

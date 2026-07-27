@@ -4,7 +4,6 @@ Utility decorators for Squawk DNS Manager.
 
 from functools import wraps
 from flask import jsonify, current_app, request
-from datetime import datetime
 import time
 import logging
 import os

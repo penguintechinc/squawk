@@ -529,7 +529,7 @@ class NTSKEServer:
         finally:
             try:
                 conn.close()
-            except:
+            except OSError:
                 pass
 
     def _build_nts_ke_response(self, aead_id: int, cookies: List[NTSCookie]) -> bytes:

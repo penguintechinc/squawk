@@ -124,7 +124,7 @@ def check_auth(auth_header: str, required_scope: str) -> Tuple[int, Optional[dic
         return 403, None
 
     is_valid, payload = verify_token(token)
-    if not is_valid:
+    if not is_valid or payload is None:
         logger.warning(f"Invalid token for scope {required_scope}")
         return 401, None
 

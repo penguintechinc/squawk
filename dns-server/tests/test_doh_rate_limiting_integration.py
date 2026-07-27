@@ -10,19 +10,6 @@ import json
 from datetime import datetime, timedelta
 
 
-@pytest.fixture
-def app_with_rate_limiting():
-    """Create a test app with rate limiting enabled."""
-    from app.main import app, rate_limiter
-
-    # Enable rate limiting for tests
-    rate_limiter.enabled = True
-    rate_limiter.rps = 2.0
-    rate_limiter.burst = 3.0
-
-    return app
-
-
 @pytest.mark.asyncio
 async def test_doh_request_within_limit(app_with_rate_limiting, jwt_token_factory):
     """Test that requests within rate limit are allowed."""

@@ -2,8 +2,10 @@
 # Reason: penguin-* packages are locally installed (editable) and not yet published to PyPI
 # To regenerate with hashes when packages are published: pip-compile --generate-hashes manager/backend/requirements.in -o manager/backend/requirements.txt
 
-flask==3.1.0
-flask-cors==5.0.0
+flask==3.1.3
+flask-cors==6.0.5
+werkzeug==3.1.8
+click==8.4.2
 python-dotenv==1.2.2
 PyJWT==2.13.0
 bcrypt==4.2.1
@@ -17,7 +19,9 @@ penguin-limiter==0.1.0
 alembic>=1.13.0
 redis==5.2.1
 cryptography==48.0.1
-requests==2.32.3
+requests==2.33.0
+urllib3==2.7.0
+idna==3.18
 prometheus-client==0.21.1
 grpcio>=1.69.0
 grpcio-tools>=1.69.0
@@ -25,7 +29,7 @@ protobuf>=5.29.2
 psycopg2-binary==2.9.10
 PyMySQL==1.1.1
 defusedxml==0.7.1
-aiohttp==3.13.3
+aiohttp==3.14.3
 posthog==3.6.0
 python-whois==0.9.6
 ipwhois==1.3.0

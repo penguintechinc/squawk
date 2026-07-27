@@ -108,6 +108,8 @@ def create_app(config_class: type = Config) -> Flask:
     from app.blueprints.mfa import mfa_bp
     from app.blueprints.sso import sso_bp
     from app.blueprints.sso_admin import sso_admin_bp
+    from app.blueprints.saml import saml_bp
+    from app.blueprints.saml_admin import saml_admin_bp
     from app.blueprints.users import users_bp
     from app.blueprints.teams import teams_bp
     from app.blueprints.tokens import tokens_bp
@@ -128,6 +130,8 @@ def create_app(config_class: type = Config) -> Flask:
     app.register_blueprint(mfa_bp)
     app.register_blueprint(sso_bp)
     app.register_blueprint(sso_admin_bp)
+    app.register_blueprint(saml_bp)
+    app.register_blueprint(saml_admin_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(tokens_bp)

@@ -1,0 +1,94 @@
+# Alpha overrides — local MicroK8s/Docker Desktop cluster (context
+# `local-alpha`), local registry, bare-minimum resources, NodePort exposure
+# (no port-forward needed — see devops-kubernetes.md Alpha Setup).
+#
+# Scope note: only the services meant to be reached directly from
+# localhost during local dev/testing get NodePort — dns-server (DoH
+# resolver), squawk-client (DNS UDP/TCP:53), dhcp-server, and ntp-server.
+# k8s-dns (in-cluster CoreDNS stub-domain forward target, consumed only by
+# CoreDNS inside the cluster) and valkey/manager (namespace-internal only,
+# see templates/networkpolicy.yml) stay ClusterIP.
+
+global:
+  imageRegistry: localhost:32000
+
+autoscaling:
+  enabled: false
+
+dnsServer:
+  image:
+    tag: alpha-latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  service:
+    type: NodePort
+    nodePort: 30080
+
+dnsClient:
+  image:
+    tag: alpha-latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: NodePort
+    nodePort: 30053
+
+valkey:
+  replicas: 1
+
+k8sDns:
+  image:
+    tag: alpha-latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+
+dhcpServer:
+  image:
+    tag: alpha-latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  service:
+    type: NodePort
+    nodePort: 30081
+
+ntpServer:
+  image:
+    tag: alpha-latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30082
+      ntsKe: 30446
+      ntp: 30123
+
+manager:
+  image:
+    tag: alpha-latest

@@ -28,7 +28,7 @@ spec:
       containers:
       - name: dns-server
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsServer.image.repository }}:{{ .Values.dnsServer.image.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.dnsServer.image.pullPolicy | default "Always" }}
         ports:
         - name: doh
           containerPort: 8080

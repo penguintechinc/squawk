@@ -22,20 +22,29 @@ metadata:
   labels:
     {{- include "squawk.ntpServer.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.ntpServer.service.type | default "ClusterIP" }}
   ports:
   - name: ntp-http
     port: 8082
     targetPort: 8082
     protocol: TCP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.http }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.http }}
+    {{- end }}
   - name: nts-ke
     port: 4460
     targetPort: 4460
     protocol: TCP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.ntsKe }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.ntsKe }}
+    {{- end }}
   - name: ntp-udp
     port: 123
     targetPort: 11123
     protocol: UDP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.ntp }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.ntp }}
+    {{- end }}
   selector:
     {{- include "squawk.ntpServer.selectorLabels" . | nindent 4 }}
 {{- end }}

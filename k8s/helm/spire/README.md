@@ -117,19 +117,28 @@ work before `SPIFFE_ENABLED=true` is safe to flip. Whichever proxy you use:
 
 ## Flipping SPIFFE_ENABLED=true in the squawk chart
 
-Today `SPIFFE_ENABLED` / `SPIFFE_TRUST_DOMAIN` / `SPIFFE_XFCC_HEADER` are
-manager environment variables (see `manager/backend/app/config.py`) but are
-**not yet exposed as Helm values** in `k8s/helm/squawk` — the squawk chart's
-`manager-deployment.yml` doesn't source them from `.Values` yet. That wiring
-is out of scope for this reference chart (which only covers the SPIRE
-deployment itself); until it lands, enable the flag out-of-band once steps
-1–3 above are done and verified:
+`SPIFFE_ENABLED` / `SPIFFE_TRUST_DOMAIN` / `SPIFFE_XFCC_HEADER` are manager
+environment variables (see `manager/backend/app/config.py`), exposed as a
+`spiffe:` block in `k8s/helm/squawk/values.yaml` (default `enabled: false`
+— omitted from the manager Deployment's env entirely until turned on).
+Once steps 1–3 above are done and verified, enable it via the environment's
+values file (`alpha.yml` / `beta.yml` / `gamma.yml` / `production.yml`) or
+an ad hoc `--set`:
 
 ```bash
-kubectl --context <context> -n squawk set env deployment/manager \
-  SPIFFE_ENABLED=true \
-  SPIFFE_TRUST_DOMAIN=penguintech.io \
-  SPIFFE_XFCC_HEADER=X-Forwarded-Client-Cert
+helm upgrade --install squawk k8s/helm/squawk \
+  --kube-context <context> \
+  --values k8s/helm/squawk/<env>.yml \
+  --set spiffe.enabled=true
+```
+
+Or add to the environment's values file to persist it:
+
+```yaml
+spiffe:
+  enabled: true
+  trustDomain: penguintech.io      # default; override only for a non-standard trust domain
+  xfccHeader: X-Forwarded-Client-Cert  # default; override only if the mesh uses a different header name
 ```
 
 Confirm dns-server/dhcp-server/ntp-server pods have the

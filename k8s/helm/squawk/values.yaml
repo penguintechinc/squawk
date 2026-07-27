@@ -11,6 +11,7 @@ dnsServer:
     tag: latest
   replicas: 2
   service:
+    type: ClusterIP
     port: 8080
   resources:
     requests:
@@ -45,6 +46,8 @@ dnsClient:
       cpu: 200m
       memory: 128Mi
   listenPort: 5300
+  service:
+    type: ClusterIP
   autoscaling:
     minReplicas: 2
     maxReplicas: 5
@@ -122,6 +125,8 @@ dhcpServer:
     dnsServers: "8.8.8.8,8.8.4.4"
     leaseTime: "86400"
     posthogHost: "https://license.penguintech.io"
+  service:
+    type: ClusterIP
   autoscaling:
     minReplicas: 3
     maxReplicas: 6
@@ -143,6 +148,13 @@ ntpServer:
   env:
     udpPort: "11123"
     posthogHost: "https://license.penguintech.io"
+  # nodePorts is an explicit (empty-by-default) map, not just an absent key —
+  # ntp-server has 3 ports, so alpha.yml sets nodePorts.http/.ntsKe/.ntp
+  # individually. An absent `nodePorts` key (vs. an empty map) would error
+  # when the service template dereferences .nodePorts.http on a nil parent.
+  service:
+    type: ClusterIP
+    nodePorts: {}
   autoscaling:
     minReplicas: 3
     maxReplicas: 6
@@ -186,3 +198,16 @@ jwt:
   issuer: squawk-manager
   audience: squawk
   mountPath: /etc/squawk/jwt
+
+# SPIFFE/mTLS service identity for the manager's inbound XFCC auth path
+# (manager/backend/app/services/spiffe.py, manager/backend/app/config.py).
+# Preferred over the legacy per-server static JWT, but OPT-IN and OFF by
+# default: XFCC is a client-supplied header, safe to trust only when a mesh
+# sidecar/gateway terminates mTLS, injects the verified SPIFFE ID, and
+# strips any inbound copy before it reaches the manager. Do not flip
+# `enabled: true` until that mesh/proxy is in place — see
+# k8s/helm/spire/README.md for the full setup + verification steps.
+spiffe:
+  enabled: false
+  trustDomain: penguintech.io
+  xfccHeader: X-Forwarded-Client-Cert

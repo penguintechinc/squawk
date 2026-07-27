@@ -28,7 +28,7 @@ spec:
       containers:
       - name: squawk-client
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsClient.image.repository }}:{{ .Values.dnsClient.image.tag }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.dnsClient.image.pullPolicy | default "Always" }}
         args:
           - --server
           - "http://dns-server:8080"

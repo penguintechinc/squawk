@@ -7,8 +7,10 @@ from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
 from app.middleware.rbac import requires_system_admin
 from app.utils.decorators import validate_json, audit_log
+from app.utils.domain_validation import validate_allowed_domains
 from datetime import datetime
 import logging
+import json
 
 oidc_trust_anchors_bp = Blueprint('oidc_trust_anchors', __name__)
 log = logging.getLogger(__name__)
@@ -60,20 +62,27 @@ def list_oidc_trust_anchors():
         limitby=(offset, offset + limit)
     )
 
-    return jsonify([
-        {
+    result = []
+    for a in anchors:
+        allowed_domains = None
+        if a.allowed_domains:
+            try:
+                allowed_domains = json.loads(a.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+        result.append({
             'id': a.id,
             'issuer': a.issuer,
             'audience': a.audience,
             'tenant': a.tenant,
             'allowed_scopes': a.allowed_scopes,
+            'allowed_domains': allowed_domains,
             'subject_pattern': a.subject_pattern,
             'active': a.active,
             'created_at': a.created_at.isoformat(),
             'updated_at': a.updated_at.isoformat() if a.updated_at else None,
-        }
-        for a in anchors
-    ]), 200
+        })
+    return jsonify(result), 200
 
 
 @oidc_trust_anchors_bp.route('/api/v1/oidc-trust-anchors', methods=['POST'])
@@ -116,6 +125,7 @@ def create_oidc_trust_anchor():
     static_jwks_pem = data.get('static_jwks_pem', '').strip() or None
     allowed_scopes = data.get('allowed_scopes', '').strip()
     subject_pattern = data.get('subject_pattern', '').strip() or None
+    allowed_domains = data.get('allowed_domains')  # None or list
     tenant = data.get('tenant', 'default').strip()
 
     if not issuer or not audience or not allowed_scopes:
@@ -123,6 +133,11 @@ def create_oidc_trust_anchor():
 
     if not jwks_url and not static_jwks_pem:
         return jsonify({'error': 'Either jwks_url or static_jwks_pem required'}), 400
+
+    # Validate allowed_domains if provided
+    is_valid, error_msg = validate_allowed_domains(allowed_domains)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
 
     # Validate scopes exist in the system
     from app.services.scopes import ROLE_SCOPES
@@ -152,6 +167,7 @@ def create_oidc_trust_anchor():
         static_jwks_pem=static_jwks_pem,
         tenant=tenant,
         allowed_scopes=allowed_scopes,
+        allowed_domains=json.dumps(allowed_domains) if allowed_domains is not None else None,
         subject_pattern=subject_pattern,
         active=True,
         created_at=datetime.utcnow()
@@ -166,6 +182,7 @@ def create_oidc_trust_anchor():
         'audience': audience,
         'tenant': tenant,
         'allowed_scopes': allowed_scopes,
+        'allowed_domains': allowed_domains,
         'subject_pattern': subject_pattern,
         'active': True,
         'created_at': datetime.utcnow().isoformat()
@@ -183,12 +200,20 @@ def get_oidc_trust_anchor(anchor_id: int):
     if not anchor:
         return jsonify({'error': 'OIDC trust anchor not found'}), 404
 
+    allowed_domains = None
+    if anchor.allowed_domains:
+        try:
+            allowed_domains = json.loads(anchor.allowed_domains)
+        except (json.JSONDecodeError, TypeError):
+            allowed_domains = None
+
     return jsonify({
         'id': anchor.id,
         'issuer': anchor.issuer,
         'audience': anchor.audience,
         'tenant': anchor.tenant,
         'allowed_scopes': anchor.allowed_scopes,
+        'allowed_domains': allowed_domains,
         'subject_pattern': anchor.subject_pattern,
         'active': anchor.active,
         'created_at': anchor.created_at.isoformat(),
@@ -233,6 +258,13 @@ def update_oidc_trust_anchor(anchor_id: int):
     if 'active' in data:
         update_fields['active'] = bool(data['active'])
 
+    if 'allowed_domains' in data:
+        allowed_domains = data['allowed_domains']
+        is_valid, error_msg = validate_allowed_domains(allowed_domains)
+        if not is_valid:
+            return jsonify({'error': error_msg}), 400
+        update_fields['allowed_domains'] = json.dumps(allowed_domains) if allowed_domains is not None else None
+
     update_fields['updated_at'] = datetime.utcnow()
 
     if update_fields:
@@ -246,12 +278,20 @@ def update_oidc_trust_anchor(anchor_id: int):
     log.info(f"OIDC trust anchor updated: issuer={anchor.issuer}",
              extra={'audit': True})
 
+    allowed_domains = None
+    if anchor.allowed_domains:
+        try:
+            allowed_domains = json.loads(anchor.allowed_domains)
+        except (json.JSONDecodeError, TypeError):
+            allowed_domains = None
+
     return jsonify({
         'id': anchor.id,
         'issuer': anchor.issuer,
         'audience': anchor.audience,
         'tenant': anchor.tenant,
         'allowed_scopes': anchor.allowed_scopes,
+        'allowed_domains': allowed_domains,
         'subject_pattern': anchor.subject_pattern,
         'active': anchor.active,
         'created_at': anchor.created_at.isoformat(),

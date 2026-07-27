@@ -5,7 +5,7 @@ Handles zone and record CRUD with team-based access control.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
-from app.middleware.rbac import check_zone_access, filter_zones_by_access, requires_team_role
+from app.middleware.rbac import check_zone_access, filter_zones_by_access
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_domain_name, validate_dns_record_type, validate_ttl, validate_visibility
 

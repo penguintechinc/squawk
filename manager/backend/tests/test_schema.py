@@ -35,6 +35,8 @@ def test_schema_creates_all_tables():
         "machine_client", "oidc_trust_anchor",
         # DPoP sender-constrained tokens (RFC 9449)
         "dpop_replay",
+        # durable audit trail
+        "audit_event",
     }
     assert expected == tables
     engine.dispose()

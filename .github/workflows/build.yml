@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.13'
-  GO_VERSION: '1.24.2'
+  GO_VERSION: '1.25.12'
   NODE_VERSION: '18'
 
 jobs:
@@ -17,6 +17,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+    - name: Lint OpenAPI spec with Spectral
+      run: |
+        npx --yes @stoplight/spectral-cli@6.16.0 lint openapi/v1.yaml
 
     - name: Set up Python
       uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6

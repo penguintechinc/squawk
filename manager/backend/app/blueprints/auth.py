@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.services.auth_service import AuthService
 from app.middleware.auth import token_required, get_current_user
 from app.utils.decorators import validate_json, audit_log
+import json
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -44,6 +45,19 @@ def login():
     user = AuthService.authenticate_user(username, password)
     if not user:
         return jsonify({'error': 'Invalid username or password'}), 401
+
+    # Check if MFA is enabled
+    db = current_app.db
+    user_record = db.auth_user[user['id']]
+    if user_record and user_record.mfa_enabled:
+        # Return pre-auth token instead of full tokens
+        from app.services.mfa_service import MFAService
+        pre_auth_token = MFAService.create_pre_auth_token(user['id'])
+        return jsonify({
+            'mfa_required': True,
+            'pre_auth_token': pre_auth_token,
+            'message': 'MFA verification required'
+        }), 200
 
     # Generate tokens
     access_token = AuthService.create_access_token(
@@ -327,12 +341,24 @@ def token():
         else:
             granted_scopes = client['scopes']
 
+        # Fetch allowed_domains from DB and parse JSON
+        db = current_app.db
+        mc_record = db((db.machine_client.client_id == client['client_id']) &
+                       (db.machine_client.active == True)).select().first()
+        allowed_domains = None
+        if mc_record and mc_record.allowed_domains:
+            try:
+                allowed_domains = json.loads(mc_record.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+
         # Issue token (optionally DPoP-bound if proof provided)
         access_token = AuthService.create_machine_access_token(
             client_id=client['client_id'],
             tenant=client['tenant'],
             granted_scopes=granted_scopes,
-            dpop_jkt=dpop_jkt
+            dpop_jkt=dpop_jkt,
+            allowed_domains=allowed_domains
         )
 
         # Update last_used_at
@@ -422,12 +448,21 @@ def token():
         else:
             granted_scopes = trust_anchor.allowed_scopes
 
-        # Issue token (optionally DPoP-bound if proof provided)
+        # Fetch allowed_domains from trust anchor and parse JSON
+        allowed_domains = None
+        if trust_anchor.allowed_domains:
+            try:
+                allowed_domains = json.loads(trust_anchor.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+
+        # Issue token (with machine marker, tenant from anchor; optionally DPoP-bound)
         access_token = AuthService.create_machine_access_token(
             client_id=f"oidc:{subject}",  # Synthetic client_id for logging
             tenant=trust_anchor.tenant,
             granted_scopes=granted_scopes,
-            dpop_jkt=dpop_jkt
+            dpop_jkt=dpop_jkt,
+            allowed_domains=allowed_domains
         )
 
         ttl_config = current_app.config.get('MACHINE_ACCESS_TOKEN_EXPIRES')

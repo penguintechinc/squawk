@@ -9,8 +9,10 @@ from app.middleware.rbac import requires_system_admin
 from app.services.auth_service import AuthService
 from app.services.scopes import SUPERADMIN_SCOPE
 from app.utils.decorators import validate_json, audit_log
+from app.utils.domain_validation import validate_allowed_domains
 from datetime import datetime
 import logging
+import json
 
 machine_clients_bp = Blueprint('machine_clients', __name__)
 log = logging.getLogger(__name__)
@@ -62,19 +64,26 @@ def list_machine_clients():
         limitby=(offset, offset + limit)
     )
 
-    return jsonify([
-        {
+    result = []
+    for c in clients:
+        allowed_domains = None
+        if c.allowed_domains:
+            try:
+                allowed_domains = json.loads(c.allowed_domains)
+            except (json.JSONDecodeError, TypeError):
+                allowed_domains = None
+        result.append({
             'id': c.id,
             'client_id': c.client_id,
             'tenant': c.tenant,
             'scopes': c.scopes,
+            'allowed_domains': allowed_domains,
             'description': c.description,
             'active': c.active,
             'created_at': c.created_at.isoformat(),
             'last_used_at': c.last_used_at.isoformat() if c.last_used_at else None,
-        }
-        for c in clients
-    ]), 200
+        })
+    return jsonify(result), 200
 
 
 @machine_clients_bp.route('/api/v1/machine-clients', methods=['POST'])
@@ -109,9 +118,15 @@ def create_machine_client():
     scopes = data.get('scopes', '').strip()
     description = data.get('description', '').strip()
     tenant = data.get('tenant', 'default').strip()
+    allowed_domains = data.get('allowed_domains')  # None or list
 
     if not scopes:
         return jsonify({'error': 'scopes required and must be non-empty'}), 400
+
+    # Validate allowed_domains if provided
+    is_valid, error_msg = validate_allowed_domains(allowed_domains)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
 
     # Validate scopes exist in the system
     from app.services.scopes import ROLE_SCOPES, _READ_SCOPES
@@ -133,6 +148,14 @@ def create_machine_client():
         registered_scopes=scopes
     )
 
+    # Update allowed_domains if provided
+    if allowed_domains is not None:
+        db = current_app.db
+        db(db.machine_client.client_id == client_id).update(
+            allowed_domains=json.dumps(allowed_domains)
+        )
+        db.commit()
+
     # Log with client_id only (never secret)
     log.info(f"Machine client created: client_id={client_id}, scopes={scopes}",
              extra={'audit': True})
@@ -143,6 +166,7 @@ def create_machine_client():
         'client_secret': secret_plaintext,
         'tenant': tenant,
         'scopes': scopes,
+        'allowed_domains': allowed_domains,
         'description': description,
         'active': True,
         'created_at': datetime.utcnow().isoformat()
@@ -174,11 +198,19 @@ def get_machine_client(client_id: int):
     if not client:
         return jsonify({'error': 'Machine client not found'}), 404
 
+    allowed_domains = None
+    if client.allowed_domains:
+        try:
+            allowed_domains = json.loads(client.allowed_domains)
+        except (json.JSONDecodeError, TypeError):
+            allowed_domains = None
+
     return jsonify({
         'id': client.id,
         'client_id': client.client_id,
         'tenant': client.tenant,
         'scopes': client.scopes,
+        'allowed_domains': allowed_domains,
         'description': client.description,
         'active': client.active,
         'created_at': client.created_at.isoformat(),
@@ -236,6 +268,13 @@ def update_machine_client(client_id: int):
     if 'active' in data:
         update_fields['active'] = bool(data['active'])
 
+    if 'allowed_domains' in data:
+        allowed_domains = data['allowed_domains']
+        is_valid, error_msg = validate_allowed_domains(allowed_domains)
+        if not is_valid:
+            return jsonify({'error': error_msg}), 400
+        update_fields['allowed_domains'] = json.dumps(allowed_domains) if allowed_domains is not None else None
+
     if update_fields:
         db(db.machine_client.id == client_id).update(**update_fields)
         db.commit()
@@ -247,11 +286,19 @@ def update_machine_client(client_id: int):
     log.info(f"Machine client updated: client_id={client.client_id}",
              extra={'audit': True})
 
+    allowed_domains = None
+    if client.allowed_domains:
+        try:
+            allowed_domains = json.loads(client.allowed_domains)
+        except (json.JSONDecodeError, TypeError):
+            allowed_domains = None
+
     return jsonify({
         'id': client.id,
         'client_id': client.client_id,
         'tenant': client.tenant,
         'scopes': client.scopes,
+        'allowed_domains': allowed_domains,
         'description': client.description,
         'active': client.active,
         'created_at': client.created_at.isoformat(),

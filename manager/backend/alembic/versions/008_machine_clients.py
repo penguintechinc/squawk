@@ -1,7 +1,7 @@
 """Add machine_client table — OAuth2 client_credentials for machine identities.
 
 Revision ID: 008_machine_clients
-Revises: 007_revoked_token
+Revises: 008_audit_events
 """
 from alembic import op
 from sqlalchemy import (
@@ -9,7 +9,7 @@ from sqlalchemy import (
 )
 
 revision = "008_machine_clients"
-down_revision = "007_revoked_token"
+down_revision = "008_audit_events"
 branch_labels = None
 depends_on = None
 

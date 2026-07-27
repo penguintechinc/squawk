@@ -5,12 +5,17 @@ DPoP (RFC 9449) sender-constrained tokens use a unique jti (JWT ID) claim
 in each proof. This table tracks which jtis have been used to prevent replay.
 Expired entries are cleaned up opportunistically on each new write.
 
-Revision: 011
-Depends on: 009
+Revision ID: 011_dpop_replays
+Revises: 010_dns_domain_allowlists
 """
 
 from alembic import op
 import sqlalchemy as sa
+
+revision = "011_dpop_replays"
+down_revision = "010_dns_domain_allowlists"
+branch_labels = None
+depends_on = None
 
 
 def upgrade() -> None:

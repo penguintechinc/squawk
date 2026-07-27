@@ -1,0 +1,36 @@
+# Thin-wrapper values for the upstream spiffe/helm-charts-hardened "spire"
+# chart (pinned in Chart.yaml). Only the settings squawk actually needs are
+# overridden here — everything else uses the upstream chart's own,
+# security-reviewed defaults. See README.md before deploying to prod.
+#
+# Upstream default values: `helm show values spire --repo
+# https://spiffe.github.io/helm-charts-hardened/ --version 0.29.0`
+
+spire:
+  global:
+    spire:
+      # Must match SPIFFE_TRUST_DOMAIN in the squawk chart (values.yaml /
+      # production.yml) — see docs/ENTERPRISE_SECURITY.md section 6.
+      trustDomain: penguintech.io
+      clusterName: squawk
+
+      # Off by default upstream; turn on for a real (non-minikube) cluster.
+      # Enables production-leaning defaults (pod security contexts, priority
+      # classes, namespace PSS labels, prometheus exporters, strict value
+      # checking). Review `helm show values` output before flipping this on
+      # for the first time — strictMode will fail closed on unset production
+      # values (e.g. caSubject) once enabled.
+      recommendations:
+        enabled: false
+
+      # Creates the default spire-system/spire-server namespaces (upstream
+      # names, unchanged here) — see README.md for install order.
+      namespaces:
+        create: true
+
+  # spire-server.controllerManager.enabled (true upstream default) runs
+  # spire-controller-manager, which watches ClusterSPIFFEID custom resources
+  # and auto-registers matching workloads — this is how squawk's
+  # dns-server/dhcp-server/ntp-server entries get created; see README.md
+  # "Registering squawk workloads". spire-agent + spiffe-csi-driver are also
+  # on by default upstream (workload API socket delivery) — left as-is.

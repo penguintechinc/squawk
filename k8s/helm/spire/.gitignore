@@ -1,0 +1,3 @@
+# Downloaded dependency tarball — Chart.lock pins the exact version/digest;
+# `helm dependency update` re-fetches this at build/deploy time.
+charts/*.tgz

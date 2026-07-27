@@ -419,5 +419,145 @@ class TestResilienceManagerJWTVerification:
         assert result is False
 
 
+class TestKidBasedKeyRotation:
+    """Test kid-based JWT verification for key rotation overlap."""
+
+    @pytest.fixture
+    def key_rotation_setup(self) -> dict:
+        """Setup two keypairs simulating old and new signing keys."""
+        old_private, old_public = _gen_ec_pem()
+        new_private, new_public = _gen_ec_pem()
+
+        from app.utils.crypto import compute_kid_from_public_pem
+
+        old_kid = compute_kid_from_public_pem(old_public)
+        new_kid = compute_kid_from_public_pem(new_public)
+
+        return {
+            "old_private": old_private,
+            "old_public": old_public,
+            "old_kid": old_kid,
+            "new_private": new_private,
+            "new_public": new_public,
+            "new_kid": new_kid,
+        }
+
+    def test_kid_present_and_known_verifies(self, key_rotation_setup: dict) -> None:
+        """Token with kid that matches a loaded key verifies successfully."""
+        from app.utils.jwt_verify import verify_squawk_jwt
+
+        old_kid = key_rotation_setup["old_kid"]
+        old_public = key_rotation_setup["old_public"]
+        old_private = key_rotation_setup["old_private"]
+        new_kid = key_rotation_setup["new_kid"]
+        new_public = key_rotation_setup["new_public"]
+
+        # Create token with old key
+        token = create_jwt_token(old_private, teams=[TEST_TEAM])
+
+        # Available keys during rotation overlap
+        public_keys = {old_kid: old_public, new_kid: new_public}
+
+        result = verify_squawk_jwt(token, public_key=None, public_keys=public_keys)
+        assert result is not None
+        assert result["user_id"] == TEST_USER_ID
+
+    def test_kid_present_but_unknown_rejects(self, key_rotation_setup: dict) -> None:
+        """Token with unknown kid is rejected (fail-closed)."""
+        from app.utils.jwt_verify import verify_squawk_jwt
+
+        old_private = key_rotation_setup["old_private"]
+        unknown_kid = "unknown1234567890"  # 16 hex chars, but not in key set
+
+        # Create token with made-up kid in header
+        now = datetime.now(timezone.utc)
+        exp = now + timedelta(minutes=60)
+        payload = {
+            "sub": str(TEST_USER_ID),
+            "iss": "squawk-manager",
+            "aud": "squawk",
+            "tenant": "default",
+            "user_id": TEST_USER_ID,
+            "team_roles": {TEST_TEAM: "member"},
+            "role": "viewer",
+            "iat": int(now.timestamp()),
+            "exp": int(exp.timestamp()),
+        }
+        token = pyjwt.encode(
+            payload, old_private, algorithm="ES256", headers={"kid": unknown_kid}
+        )
+
+        # Only new key available (old key rotated out)
+        _, new_public = _gen_ec_pem()
+        new_kid = "newkeyidabcd1234"
+        public_keys = {new_kid: new_public}
+
+        result = verify_squawk_jwt(token, public_key=None, public_keys=public_keys)
+        assert result is None
+
+    def test_no_kid_tries_all_keys(self, key_rotation_setup: dict) -> None:
+        """Token without kid tries all available keys (backward compat)."""
+        from app.utils.jwt_verify import verify_squawk_jwt
+
+        old_public = key_rotation_setup["old_public"]
+        old_private = key_rotation_setup["old_private"]
+        old_kid = key_rotation_setup["old_kid"]
+        new_public = key_rotation_setup["new_public"]
+        new_kid = key_rotation_setup["new_kid"]
+
+        # Create token WITHOUT kid (legacy token)
+        now = datetime.now(timezone.utc)
+        exp = now + timedelta(minutes=60)
+        payload = {
+            "sub": str(TEST_USER_ID),
+            "iss": "squawk-manager",
+            "aud": "squawk",
+            "tenant": "default",
+            "user_id": TEST_USER_ID,
+            "team_roles": {TEST_TEAM: "member"},
+            "role": "viewer",
+            "iat": int(now.timestamp()),
+            "exp": int(exp.timestamp()),
+        }
+        token = pyjwt.encode(payload, old_private, algorithm="ES256")
+
+        # Verify without kid header
+        assert pyjwt.get_unverified_header(token).get("kid") is None
+
+        # Available keys during rotation overlap
+        public_keys = {old_kid: old_public, new_kid: new_public}
+
+        result = verify_squawk_jwt(token, public_key=None, public_keys=public_keys)
+        assert result is not None
+        assert result["user_id"] == TEST_USER_ID
+
+    def test_single_key_fallback(self, key_rotation_setup: dict) -> None:
+        """Fallback to single JWT_PUBLIC_KEY when JWT_PUBLIC_KEYS empty."""
+        from app.utils.jwt_verify import verify_squawk_jwt
+
+        old_private = key_rotation_setup["old_private"]
+        old_public = key_rotation_setup["old_public"]
+
+        # Create token without kid (legacy)
+        token = create_jwt_token(old_private, teams=[TEST_TEAM])
+
+        # Only single key, no multi-key rotation
+        result = verify_squawk_jwt(
+            token, public_key=old_public, public_keys={}
+        )
+        assert result is not None
+        assert result["user_id"] == TEST_USER_ID
+
+    def test_no_keys_configured_fails_closed(self) -> None:
+        """No public keys configured → access denied (fail-closed)."""
+        from app.utils.jwt_verify import verify_squawk_jwt
+
+        old_private, _ = _gen_ec_pem()
+        token = create_jwt_token(old_private, teams=[TEST_TEAM])
+
+        result = verify_squawk_jwt(token, public_key=None, public_keys={})
+        assert result is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

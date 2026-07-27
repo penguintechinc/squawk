@@ -47,7 +47,8 @@ def token_required(f):
             'scope': payload.get('scope', ''),
             'global_role': payload.get('global_role'),
             'team_roles': payload.get('team_roles', {}),
-            'token_type': payload.get('type')
+            'token_type': payload.get('type'),
+            'tenant': payload.get('tenant'),  # For audit trail tenant scoping
         }
 
         return f(*args, **kwargs)

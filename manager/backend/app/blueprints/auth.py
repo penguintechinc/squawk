@@ -232,28 +232,35 @@ def token():
     - client_credentials: Machine-to-machine authentication
     - urn:ietf:params:oauth:grant-type:token-exchange: Federated workload identity
 
+    DPoP (RFC 9449) sender-constrained tokens:
+    Optional DPoP header for both grant types. If present, token is bound to the
+    proof's public key via cnf.jkt claim, and token_type becomes DPoP instead of Bearer.
+
     --- client_credentials (Part 1) ---
     Request (HTTP Basic Auth):
         Authorization: Basic base64(client_id:client_secret)
         POST /api/v1/auth/token
         Content-Type: application/x-www-form-urlencoded
+        DPoP: <proof JWT> (optional)
 
         grant_type=client_credentials
         scope=optional_scope_subset (optional; defaults to registered scopes)
 
-    Or (Form body):
-        grant_type=client_credentials
-        client_id=...
-        client_secret=...
-        scope=optional (optional)
-
     Response (200 OK):
         {
             "access_token": "...",
-            "token_type": "Bearer",
+            "token_type": "Bearer" or "DPoP",
             "expires_in": 900,  (15 min in seconds)
             "scope": "granted scopes"
         }
+
+    --- token-exchange (Part 2) ---
+    Request:
+        DPoP: <proof JWT> (optional)
+        grant_type=urn:ietf:params:oauth:grant-type:token-exchange
+        subject_token=<JWT from external issuer>
+        subject_token_type=urn:ietf:params:oauth:token-type:jwt
+        scope=optional (optional; must be subset of anchor's allowed_scopes)
 
     Errors:
         400 Bad Request:
@@ -263,29 +270,34 @@ def token():
             }
         401 Unauthorized:
             {
-                "error": "invalid_client",
-                "error_description": "Client authentication failed"
-            }
-
-    --- token-exchange (Part 2) ---
-    Request:
-        grant_type=urn:ietf:params:oauth:grant-type:token-exchange
-        subject_token=<JWT from external issuer>
-        subject_token_type=urn:ietf:params:oauth:token-type:jwt
-        scope=optional (optional; must be subset of anchor's allowed_scopes)
-
-    Response (200 OK):
-        Same as client_credentials
-
-    Errors:
-        401 Unauthorized:
-            {
-                "error": "invalid_grant",
-                "error_description": "External token validation failed"
+                "error": "invalid_client" or "invalid_grant",
+                "error_description": "..."
             }
     """
+    from app.services.dpop_service import DPoPService
+
     # Determine grant type
     grant_type = request.form.get('grant_type') or ''
+
+    # Validate DPoP proof if present (applies to both grant types)
+    dpop_header = request.headers.get('DPoP', '').strip()
+    dpop_jkt = None
+    token_type = 'Bearer'
+
+    if dpop_header:
+        # Validate DPoP proof against this request
+        dpop_proof = DPoPService.validate_proof(
+            dpop_header,
+            http_method=request.method,
+            http_uri=request.base_url + (f'?{request.query_string.decode()}' if request.query_string else '')
+        )
+        if not dpop_proof:
+            return jsonify({
+                'error': 'invalid_request',
+                'error_description': 'Invalid DPoP proof'
+            }), 400
+        dpop_jkt = dpop_proof.jkt
+        token_type = 'DPoP'
 
     # ── client_credentials grant ─────────────────────────────────────────────
 
@@ -340,11 +352,12 @@ def token():
             except (json.JSONDecodeError, TypeError):
                 allowed_domains = None
 
-        # Issue token
+        # Issue token (optionally DPoP-bound if proof provided)
         access_token = AuthService.create_machine_access_token(
             client_id=client['client_id'],
             tenant=client['tenant'],
             granted_scopes=granted_scopes,
+            dpop_jkt=dpop_jkt,
             allowed_domains=allowed_domains
         )
 
@@ -356,7 +369,7 @@ def token():
 
         return jsonify({
             'access_token': access_token,
-            'token_type': 'Bearer',
+            'token_type': token_type,
             'expires_in': int(expires_in),
             'scope': granted_scopes
         }), 200
@@ -443,11 +456,12 @@ def token():
             except (json.JSONDecodeError, TypeError):
                 allowed_domains = None
 
-        # Issue token (with machine marker, tenant from anchor)
+        # Issue token (with machine marker, tenant from anchor; optionally DPoP-bound)
         access_token = AuthService.create_machine_access_token(
             client_id=f"oidc:{subject}",  # Synthetic client_id for logging
             tenant=trust_anchor.tenant,
             granted_scopes=granted_scopes,
+            dpop_jkt=dpop_jkt,
             allowed_domains=allowed_domains
         )
 
@@ -456,7 +470,7 @@ def token():
 
         return jsonify({
             'access_token': access_token,
-            'token_type': 'Bearer',
+            'token_type': token_type,
             'expires_in': int(expires_in),
             'scope': granted_scopes
         }), 200

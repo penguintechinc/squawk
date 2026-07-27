@@ -5,7 +5,6 @@ Handles domain and IP address WHOIS queries with caching and search.
 
 import os
 from functools import wraps
-from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
 

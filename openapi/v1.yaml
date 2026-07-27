@@ -1,0 +1,3166 @@
+openapi: 3.0.3
+info:
+  title: Squawk Manager API
+  description: Squawk DNS manager control plane REST API
+  version: 1.0.0
+  contact:
+    name: PenguinTech
+    url: https://penguintech.io
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://squawkmgr.app/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer JWT token required for authenticated endpoints
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        global_role:
+          type: string
+          enum: [SystemAdmin, OrgAdmin, TeamAdmin, TeamMember, Viewer]
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        global_role:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        teams:
+          type: array
+          items:
+            type: object
+            properties:
+              team_id:
+                type: integer
+                format: int64
+              team_name:
+                type: string
+              role:
+                type: string
+              joined_at:
+                type: string
+                format: date-time
+
+    LoginResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - user
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (15 min lifetime)
+        refreshToken:
+          type: string
+          description: JWT refresh token (long-lived, single-use)
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+            username:
+              type: string
+            email:
+              type: string
+              format: email
+            global_role:
+              type: string
+            team_roles:
+              type: object
+              additionalProperties:
+                type: string
+
+    RefreshTokenResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+      properties:
+        accessToken:
+          type: string
+          description: New JWT access token
+        refreshToken:
+          type: string
+          description: New JWT refresh token (single-use rotation)
+
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        member_count:
+          type: integer
+          format: int32
+
+    TeamMember:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        role:
+          type: string
+          enum: [Owner, Admin, Member, Viewer]
+        joined_at:
+          type: string
+          format: date-time
+
+    Zone:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: Domain name (FQDN)
+        visibility:
+          type: string
+          enum: [public, internal, restricted, private]
+        team_id:
+          type: integer
+          format: int64
+          nullable: true
+        description:
+          type: string
+        record_count:
+          type: integer
+          format: int32
+        created_at:
+          type: string
+          format: date-time
+
+    DNSRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        zone_id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: Record name (subdomain or @)
+        type:
+          type: string
+          enum: [A, AAAA, CNAME, MX, NS, TXT, SRV, PTR, SOA, CAA]
+        value:
+          type: string
+          description: Record value (IP, FQDN, or text)
+        ttl:
+          type: integer
+          format: int32
+          minimum: 60
+          maximum: 2592000
+        priority:
+          type: integer
+          format: int32
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    DNSServer:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        hostname:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, unhealthy]
+        version:
+          type: string
+        region:
+          type: string
+        last_heartbeat:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    DNSServerWithKey:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        joinKey:
+          type: string
+          description: 64-char hex key for server registration
+        region:
+          type: string
+
+    ServerRegistrationResponse:
+      type: object
+      required:
+        - jwt
+        - serverId
+        - config
+      properties:
+        jwt:
+          type: string
+          description: Server JWT token for subsequent requests
+        serverId:
+          type: integer
+          format: int64
+        serverName:
+          type: string
+        config:
+          type: object
+          description: Initial configuration (zones, ioc_feeds, cache_settings, etc.)
+          additionalProperties: true
+
+    ServerMetrics:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        queries_total:
+          type: integer
+          format: int64
+        cache_hits:
+          type: integer
+          format: int64
+        errors:
+          type: integer
+          format: int64
+        avg_response_ms:
+          type: number
+          format: double
+
+    Token:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        token:
+          type: string
+          description: Opaque token value
+        name:
+          type: string
+        team_id:
+          type: integer
+          format: int64
+        active:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_used:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    DHCPPool:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        start_ip:
+          type: string
+          format: ipv4
+        end_ip:
+          type: string
+          format: ipv4
+        gateway:
+          type: string
+          format: ipv4
+        netmask:
+          type: string
+          format: ipv4
+        lease_time:
+          type: integer
+          format: int32
+          description: Lease time in seconds
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    DHCPLease:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        pool_id:
+          type: integer
+          format: int64
+        mac_address:
+          type: string
+        ip_address:
+          type: string
+          format: ipv4
+        expires_at:
+          type: string
+          format: date-time
+        hostname:
+          type: string
+          nullable: true
+
+    DHCPReservation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        pool_id:
+          type: integer
+          format: int64
+        mac_address:
+          type: string
+        ip_address:
+          type: string
+          format: ipv4
+        hostname:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    TimeServer:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        address:
+          type: string
+        port:
+          type: integer
+          format: int32
+          default: 123
+        protocol:
+          type: string
+          enum: [NTP, SNTP]
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    TimeStatus:
+      type: object
+      properties:
+        synchronized:
+          type: boolean
+        current_time:
+          type: string
+          format: date-time
+        last_sync:
+          type: string
+          format: date-time
+          nullable: true
+        offset_ms:
+          type: number
+          format: double
+
+    TimeLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [success, failure, timeout]
+        offset_ms:
+          type: number
+          format: double
+          nullable: true
+
+    IOCFeed:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        feed_type:
+          type: string
+          enum: [domain, ip, url, hash]
+        format:
+          type: string
+          enum: [json, csv, txt, stix]
+        enabled:
+          type: boolean
+        last_sync:
+          type: string
+          format: date-time
+          nullable: true
+        sync_interval:
+          type: integer
+          format: int32
+          description: Sync interval in seconds
+        created_at:
+          type: string
+          format: date-time
+
+    WhoisLookup:
+      type: object
+      properties:
+        query:
+          type: string
+        type:
+          type: string
+          enum: [domain, ip]
+        result:
+          type: object
+          description: WHOIS lookup result (structure varies by type)
+          additionalProperties: true
+        cached:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    Analytics:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+          format: double
+
+    ClientConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        config_data:
+          type: object
+          description: Configuration data (structure varies)
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        jwt_key:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Authenticate user and obtain tokens
+      description: |
+        Authenticate with username and password to obtain JWT access and refresh tokens.
+        Both tokens are required for subsequent API access and client registration.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Rotate refresh token for new access token
+      description: |
+        Single-use refresh token rotation. The presented refresh token is revoked after use,
+        and a new access+refresh token pair is issued. Reusing a rotated token returns 401.
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '401':
+          description: Invalid, expired, or already-rotated refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout and revoke refresh token
+      description: Revoke the refresh token server-side to prevent further token rotation after logout.
+      operationId: logout
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current user information
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/change-password:
+    post:
+      tags:
+        - Auth
+      summary: Change user password
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Current password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users (requires users:write scope)
+      operationId: listUsers
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: role
+          in: query
+          schema:
+            type: string
+          description: Filter by global role
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+    post:
+      tags:
+        - Users
+      summary: Create a new user (requires users:write scope)
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - global_role
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                global_role:
+                  type: string
+                  enum: [SystemAdmin, OrgAdmin, TeamAdmin, TeamMember, Viewer]
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input (username, email, or role format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{user_id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID (requires users:write scope)
+      operationId: getUser
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User details including team memberships
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Users
+      summary: Update user (requires users:write scope)
+      operationId: updateUser
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                global_role:
+                  type: string
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user (requires users:admin scope)
+      operationId: deleteUser
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User deleted (soft delete - active set to false)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /teams:
+    get:
+      tags:
+        - Teams
+      summary: List teams accessible to current user
+      operationId: listTeams
+      responses:
+        '200':
+          description: List of accessible teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Team'
+
+    post:
+      tags:
+        - Teams
+      summary: Create a new team (requires teams:write scope)
+      operationId: createTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Team created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '409':
+          description: Team name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /teams/{team_id}:
+    get:
+      tags:
+        - Teams
+      summary: Get team by ID
+      operationId: getTeam
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '404':
+          description: Team not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Teams
+      summary: Update team (requires teams:write scope)
+      operationId: updateTeam
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Team updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '404':
+          description: Team not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Teams
+      summary: Delete team (requires teams:admin scope)
+      operationId: deleteTeam
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Team deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Team not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /teams/{team_id}/members:
+    get:
+      tags:
+        - Teams
+      summary: List team members
+      operationId: listTeamMembers
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamMember'
+        '404':
+          description: Team not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Teams
+      summary: Add user to team (requires teams:write scope)
+      operationId: addTeamMember
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - role
+              properties:
+                user_id:
+                  type: integer
+                  format: int64
+                role:
+                  type: string
+                  enum: [Owner, Admin, Member, Viewer]
+      responses:
+        '201':
+          description: Member added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMember'
+        '404':
+          description: Team or user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /teams/{team_id}/members/{user_id}:
+    put:
+      tags:
+        - Teams
+      summary: Update team member role (requires teams:write scope)
+      operationId: updateTeamMemberRole
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [Owner, Admin, Member, Viewer]
+      responses:
+        '200':
+          description: Member role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMember'
+        '404':
+          description: Team or member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Teams
+      summary: Remove user from team (requires teams:write scope)
+      operationId: removeTeamMember
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Member removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Team or member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /zones:
+    get:
+      tags:
+        - Zones
+      summary: List DNS zones accessible to current user
+      operationId: listZones
+      parameters:
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum: [public, internal, restricted, private]
+          description: Filter by visibility
+        - name: team_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by team
+      responses:
+        '200':
+          description: List of accessible zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Zone'
+
+    post:
+      tags:
+        - Zones
+      summary: Create a new DNS zone
+      operationId: createZone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - visibility
+              properties:
+                name:
+                  type: string
+                  description: Domain name (FQDN)
+                visibility:
+                  type: string
+                  enum: [public, internal, restricted, private]
+                team_id:
+                  type: integer
+                  format: int64
+                  nullable: true
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Zone created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone'
+        '400':
+          description: Invalid domain name or visibility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /zones/{zone_id}:
+    get:
+      tags:
+        - Zones
+      summary: Get zone by ID
+      operationId: getZone
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Zone details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone'
+        '404':
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Zones
+      summary: Update zone (name, visibility, description)
+      operationId: updateZone
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [public, internal, restricted, private]
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Zone updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Zone'
+        '404':
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Zones
+      summary: Delete zone
+      operationId: deleteZone
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Zone deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /zones/{zone_id}/records:
+    get:
+      tags:
+        - Zones
+      summary: List DNS records in zone
+      operationId: listZoneRecords
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of DNS records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DNSRecord'
+        '404':
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Zones
+      summary: Create DNS record in zone
+      operationId: createDNSRecord
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+                - value
+                - ttl
+              properties:
+                name:
+                  type: string
+                  description: Record name (@, subdomain, or full name)
+                type:
+                  type: string
+                  enum: [A, AAAA, CNAME, MX, NS, TXT, SRV, PTR, SOA, CAA]
+                value:
+                  type: string
+                  description: Record value (IP, FQDN, text, etc.)
+                ttl:
+                  type: integer
+                  format: int32
+                  minimum: 60
+                  maximum: 2592000
+                priority:
+                  type: integer
+                  format: int32
+                  nullable: true
+      responses:
+        '201':
+          description: Record created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DNSRecord'
+        '400':
+          description: Invalid record type, TTL, or value format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /zones/{zone_id}/records/{record_id}:
+    put:
+      tags:
+        - Zones
+      summary: Update DNS record
+      operationId: updateDNSRecord
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                value:
+                  type: string
+                ttl:
+                  type: integer
+                  format: int32
+                  minimum: 60
+                  maximum: 2592000
+                priority:
+                  type: integer
+                  format: int32
+                  nullable: true
+      responses:
+        '200':
+          description: Record updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DNSRecord'
+        '404':
+          description: Zone or record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Zones
+      summary: Delete DNS record
+      operationId: deleteDNSRecord
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Record deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Zone or record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers:
+    get:
+      tags:
+        - DNS Servers
+      summary: List all DNS servers (requires servers:write scope)
+      operationId: listDNSServers
+      responses:
+        '200':
+          description: List of DNS servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DNSServer'
+
+    post:
+      tags:
+        - DNS Servers
+      summary: Create DNS server and generate join key (requires servers:write scope)
+      operationId: createDNSServer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                region:
+                  type: string
+      responses:
+        '201':
+          description: Server created with join key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DNSServerWithKey'
+
+  /dns-servers/{server_id}:
+    get:
+      tags:
+        - DNS Servers
+      summary: Get DNS server details (requires servers:write scope)
+      operationId: getDNSServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: DNS server details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DNSServer'
+        '404':
+          description: DNS server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - DNS Servers
+      summary: Delete DNS server (requires servers:admin scope)
+      operationId: deleteDNSServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Server deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: DNS server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/{server_id}/regenerate-key:
+    post:
+      tags:
+        - DNS Servers
+      summary: Regenerate join key for DNS server (requires servers:admin scope)
+      operationId: regenerateJoinKey
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Join key regenerated; server must re-register
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  server_id:
+                    type: integer
+                    format: int64
+        '404':
+          description: DNS server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/register:
+    post:
+      tags:
+        - DNS Servers
+      summary: Register DNS server using join key
+      description: |
+        Called by newly-deployed DNS servers to exchange a join key for a server JWT token
+        and initial configuration. This endpoint is pre-authenticated (no bearer token required).
+      operationId: registerDNSServer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - joinKey
+              properties:
+                joinKey:
+                  type: string
+                  description: Join key (64-char hex)
+                hostname:
+                  type: string
+                version:
+                  type: string
+      responses:
+        '200':
+          description: Server registered; JWT and config provided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerRegistrationResponse'
+        '401':
+          description: Invalid join key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/{server_id}/config:
+    get:
+      tags:
+        - DNS Servers
+      summary: Get DNS server configuration
+      description: Requires server JWT token (obtained from registration).
+      operationId: getDNSServerConfig
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Server configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Configuration object with zones, ioc_feeds, cache_settings, etc.
+                additionalProperties: true
+        '403':
+          description: Server ID mismatch or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/{server_id}/heartbeat:
+    post:
+      tags:
+        - DNS Servers
+      summary: Record server heartbeat with metrics
+      description: Called periodically by running DNS servers to report status and metrics.
+      operationId: recordHeartbeat
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - queries_total
+                - cache_hits
+                - errors
+              properties:
+                queries_total:
+                  type: integer
+                  format: int64
+                cache_hits:
+                  type: integer
+                  format: int64
+                errors:
+                  type: integer
+                  format: int64
+                avg_response_ms:
+                  type: number
+                  format: double
+      responses:
+        '200':
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  config_version:
+                    type: integer
+                    format: int64
+                  should_sync:
+                    type: boolean
+                  timestamp:
+                    type: string
+                    format: date-time
+        '403':
+          description: Server ID mismatch or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/{server_id}/refresh-token:
+    post:
+      tags:
+        - DNS Servers
+      summary: Refresh server JWT token
+      description: Called by servers to obtain a new JWT token before expiration.
+      operationId: refreshServerToken
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: New server JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt:
+                    type: string
+        '403':
+          description: Server ID mismatch or invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dns-servers/{server_id}/metrics:
+    get:
+      tags:
+        - DNS Servers
+      summary: Get historical metrics for DNS server (requires servers:write scope)
+      operationId: getDNSServerMetrics
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 24
+          description: Hours of historical data to fetch
+      responses:
+        '200':
+          description: Historical metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServerMetrics'
+
+  /tokens:
+    get:
+      tags:
+        - Tokens
+      summary: List authentication tokens accessible to current user
+      operationId: listTokens
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: team_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by team
+      responses:
+        '200':
+          description: List of tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+
+    post:
+      tags:
+        - Tokens
+      summary: Create authentication token
+      operationId: createToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - team_id
+              properties:
+                name:
+                  type: string
+                team_id:
+                  type: integer
+                  format: int64
+                expires_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '201':
+          description: Token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+
+  /tokens/{token_id}:
+    get:
+      tags:
+        - Tokens
+      summary: Get token by ID
+      operationId: getToken
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Token details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Tokens
+      summary: Update token
+      operationId: updateToken
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                active:
+                  type: boolean
+                expires_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: Token updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Tokens
+      summary: Delete token
+      operationId: deleteToken
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Token deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tokens/{token_id}/revoke:
+    post:
+      tags:
+        - Tokens
+      summary: Revoke token immediately
+      operationId: revokeToken
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Token revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tokens/{token_id}/regenerate:
+    post:
+      tags:
+        - Tokens
+      summary: Regenerate token value (creates new opaque token)
+      operationId: regenerateToken
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Token regenerated with new value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/pools:
+    get:
+      tags:
+        - DHCP
+      summary: List DHCP pools
+      operationId: listDHCPPools
+      responses:
+        '200':
+          description: List of DHCP pools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DHCPPool'
+
+    post:
+      tags:
+        - DHCP
+      summary: Create DHCP pool
+      operationId: createDHCPPool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - start_ip
+                - end_ip
+                - gateway
+                - netmask
+              properties:
+                name:
+                  type: string
+                start_ip:
+                  type: string
+                  format: ipv4
+                end_ip:
+                  type: string
+                  format: ipv4
+                gateway:
+                  type: string
+                  format: ipv4
+                netmask:
+                  type: string
+                  format: ipv4
+                lease_time:
+                  type: integer
+                  format: int32
+                  default: 3600
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Pool created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DHCPPool'
+        '400':
+          description: Invalid IP range or pool configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/pools/{pool_id}:
+    get:
+      tags:
+        - DHCP
+      summary: Get DHCP pool details
+      operationId: getDHCPPool
+      parameters:
+        - name: pool_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Pool details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DHCPPool'
+        '404':
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - DHCP
+      summary: Update DHCP pool
+      operationId: updateDHCPPool
+      parameters:
+        - name: pool_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                lease_time:
+                  type: integer
+                  format: int32
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Pool updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DHCPPool'
+        '404':
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - DHCP
+      summary: Delete DHCP pool
+      operationId: deleteDHCPPool
+      parameters:
+        - name: pool_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Pool deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/pools/{pool_id}/leases:
+    get:
+      tags:
+        - DHCP
+      summary: List active leases in pool
+      operationId: listPoolLeases
+      parameters:
+        - name: pool_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of active leases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DHCPLease'
+        '404':
+          description: Pool not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/pools/{pool_id}/leases/{lease_id}:
+    delete:
+      tags:
+        - DHCP
+      summary: Release DHCP lease
+      operationId: releaseLease
+      parameters:
+        - name: pool_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: lease_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Lease released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Pool or lease not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/reservations:
+    get:
+      tags:
+        - DHCP
+      summary: List DHCP reservations
+      operationId: listReservations
+      responses:
+        '200':
+          description: List of reservations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DHCPReservation'
+
+    post:
+      tags:
+        - DHCP
+      summary: Create DHCP reservation
+      operationId: createReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pool_id
+                - mac_address
+                - ip_address
+              properties:
+                pool_id:
+                  type: integer
+                  format: int64
+                mac_address:
+                  type: string
+                ip_address:
+                  type: string
+                  format: ipv4
+                hostname:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Reservation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DHCPReservation'
+        '400':
+          description: Invalid MAC address or IP format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dhcp/reservations/{reservation_id}:
+    delete:
+      tags:
+        - DHCP
+      summary: Delete DHCP reservation
+      operationId: deleteReservation
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Reservation deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Reservation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /time/servers:
+    get:
+      tags:
+        - Time
+      summary: List NTP/SNTP time servers
+      operationId: listTimeServers
+      responses:
+        '200':
+          description: List of time servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeServer'
+
+    post:
+      tags:
+        - Time
+      summary: Create time server entry
+      operationId: createTimeServer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - address
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+                port:
+                  type: integer
+                  format: int32
+                  default: 123
+                protocol:
+                  type: string
+                  enum: [NTP, SNTP]
+                  default: NTP
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Time server created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeServer'
+
+  /time/servers/{server_id}:
+    get:
+      tags:
+        - Time
+      summary: Get time server details
+      operationId: getTimeServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Time server details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeServer'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Time
+      summary: Update time server
+      operationId: updateTimeServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                address:
+                  type: string
+                port:
+                  type: integer
+                  format: int32
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Time server updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeServer'
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Time
+      summary: Delete time server
+      operationId: deleteTimeServer
+      parameters:
+        - name: server_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Server deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Server not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /time/status:
+    get:
+      tags:
+        - Time
+      summary: Get current time sync status
+      operationId: getTimeStatus
+      responses:
+        '200':
+          description: Current time status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeStatus'
+
+  /time/sync:
+    post:
+      tags:
+        - Time
+      summary: Trigger time synchronization
+      operationId: triggerTimeSync
+      responses:
+        '200':
+          description: Time sync triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /time/logs:
+    get:
+      tags:
+        - Time
+      summary: List time synchronization logs
+      operationId: listTimeLogs
+      responses:
+        '200':
+          description: List of sync logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeLog'
+
+  /ioc-feeds:
+    get:
+      tags:
+        - IOC Feeds
+      summary: List IOC feeds
+      operationId: listIOCFeeds
+      responses:
+        '200':
+          description: List of IOC feeds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IOCFeed'
+
+    post:
+      tags:
+        - IOC Feeds
+      summary: Create IOC feed
+      operationId: createIOCFeed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - url
+                - feed_type
+                - format
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                feed_type:
+                  type: string
+                  enum: [domain, ip, url, hash]
+                format:
+                  type: string
+                  enum: [json, csv, txt, stix]
+                enabled:
+                  type: boolean
+                  default: true
+                sync_interval:
+                  type: integer
+                  format: int32
+                  description: Sync interval in seconds
+      responses:
+        '201':
+          description: Feed created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IOCFeed'
+
+  /ioc-feeds/{feed_id}:
+    get:
+      tags:
+        - IOC Feeds
+      summary: Get IOC feed details
+      operationId: getIOCFeed
+      parameters:
+        - name: feed_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Feed details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IOCFeed'
+        '404':
+          description: Feed not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - IOC Feeds
+      summary: Update IOC feed
+      operationId: updateIOCFeed
+      parameters:
+        - name: feed_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                  format: uri
+                enabled:
+                  type: boolean
+                sync_interval:
+                  type: integer
+                  format: int32
+      responses:
+        '200':
+          description: Feed updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IOCFeed'
+        '404':
+          description: Feed not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - IOC Feeds
+      summary: Delete IOC feed
+      operationId: deleteIOCFeed
+      parameters:
+        - name: feed_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Feed deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Feed not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ioc-feeds/{feed_id}/sync:
+    post:
+      tags:
+        - IOC Feeds
+      summary: Trigger IOC feed synchronization
+      operationId: triggerIOCFeedSync
+      parameters:
+        - name: feed_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Sync triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: Feed not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /whois/domain/{domain}:
+    get:
+      tags:
+        - WHOIS
+      summary: Perform WHOIS lookup for domain
+      operationId: whoisDomainLookup
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: WHOIS lookup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhoisLookup'
+
+  /whois/ip/{ip}:
+    get:
+      tags:
+        - WHOIS
+      summary: Perform WHOIS lookup for IP address
+      operationId: whoisIPLookup
+      parameters:
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: WHOIS lookup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhoisLookup'
+
+  /whois/search:
+    get:
+      tags:
+        - WHOIS
+      summary: Search WHOIS database
+      operationId: whoisSearch
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /whois/stats:
+    get:
+      tags:
+        - WHOIS
+      summary: Get WHOIS lookup statistics
+      operationId: getWhoisStats
+      responses:
+        '200':
+          description: WHOIS statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Statistics object (structure varies)
+                additionalProperties: true
+
+  /analytics/queries:
+    get:
+      tags:
+        - Analytics
+      summary: Get query analytics
+      operationId: getQueryAnalytics
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 24
+      responses:
+        '200':
+          description: Query analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Analytics'
+
+  /analytics/performance:
+    get:
+      tags:
+        - Analytics
+      summary: Get performance analytics
+      operationId: getPerformanceAnalytics
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            format: int32
+            default: 24
+      responses:
+        '200':
+          description: Performance analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Analytics'
+
+  /analytics/servers:
+    get:
+      tags:
+        - Analytics
+      summary: Get per-server analytics
+      operationId: getServerAnalytics
+      responses:
+        '200':
+          description: Per-server analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /analytics/summary:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics summary
+      operationId: getAnalyticsSummary
+      responses:
+        '200':
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Summary object (queries, errors, cache_hit_rate, etc.)
+                additionalProperties: true
+
+  /client-config/domains:
+    post:
+      tags:
+        - Client Config
+      summary: Create domain configuration
+      operationId: createDomain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Domain configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+
+  /client-config/domains/{domain_id}/jwt-rollover:
+    post:
+      tags:
+        - Client Config
+      summary: Rollover JWT key for domain
+      operationId: rolloverJWT
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: JWT key rolled over
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /client-config/domains/{domain_id}/configs:
+    post:
+      tags:
+        - Client Config
+      summary: Create client configuration for domain
+      operationId: createConfig
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                config_data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientConfig'
+
+  /client-config/configs/{config_id}:
+    put:
+      tags:
+        - Client Config
+      summary: Update client configuration
+      operationId: updateConfig
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                config_data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientConfig'
+
+  /client-config/register:
+    post:
+      tags:
+        - Client Config
+      summary: Register client
+      operationId: registerClient
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+                client_id:
+                  type: string
+      responses:
+        '200':
+          description: Client registered
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /client-config/pull:
+    post:
+      tags:
+        - Client Config
+      summary: Pull latest client configuration
+      operationId: pullConfig
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain:
+                  type: string
+                client_id:
+                  type: string
+      responses:
+        '200':
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /client-config/assign:
+    post:
+      tags:
+        - Client Config
+      summary: Assign configuration to client
+      operationId: assignConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                config_id:
+                  type: integer
+                  format: int64
+      responses:
+        '200':
+          description: Configuration assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /client-config/domains/{domain_id}/clients:
+    get:
+      tags:
+        - Client Config
+      summary: List clients for domain
+      operationId: getDomainClients
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /client-config/stats:
+    get:
+      tags:
+        - Client Config
+      summary: Get client configuration statistics
+      operationId: getConfigStats
+      responses:
+        '200':
+          description: Configuration statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true

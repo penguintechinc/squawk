@@ -55,7 +55,7 @@ jwt_public_key_*.pem
 */*.tgz
 */*.whl
 */*.zip
-*/password.txt 
+*/password.txt
 *secret*
 .idea/
 id_rsa*
@@ -113,6 +113,15 @@ venv/
 **/venv/
 __pycache__/
 .coverage
+.pytest_cache/
+
+# Coverage reports (Python coverage.py + JS/TS jest/vitest lcov-html) --
+# generated output, regenerate with `make test-coverage` / `npm test -- --coverage`
+htmlcov/
+coverage/
+**/coverage/
+coverage.xml
+*.lcov
 
 # SQLite artifacts (test/dev)
 **/*.db
@@ -121,6 +130,10 @@ storage.db
 
 # Track the pre-commit hook config despite the broad *.yaml ignore
 !.pre-commit-config.yaml
+
+# Track OpenAPI specs and Spectral config despite the broad *.yaml ignore
+!openapi/*.yaml
+!.spectral.yaml
 
 # Requirements files must always be tracked despite the broad *.txt ignore
 !requirements*.txt

@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "squawk.dnsServer.labels" . | nindent 4 }}
 spec:
+{{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.dnsServer.replicas }}
+{{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:

@@ -3,7 +3,7 @@ Data Models for DHCP Server
 Slotted dataclasses for memory efficiency and type safety.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 

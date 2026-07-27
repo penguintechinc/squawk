@@ -6,7 +6,6 @@ Distributes zones, IOC feeds, and settings to DNS servers.
 from typing import Dict, List, Optional
 from flask import current_app
 from datetime import datetime
-import json
 
 
 class ConfigService:

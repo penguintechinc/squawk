@@ -1,13 +1,13 @@
 """Add MFA (TOTP) fields to auth_user table.
 
 Revision ID: 008_add_mfa_fields
-Revises: 007_revoked_token
+Revises: 011_dpop_replays
 """
 from alembic import op
 from sqlalchemy import Column, Boolean, String, Text, Integer, func
 
 revision = "008_add_mfa_fields"
-down_revision = "007_revoked_token"
+down_revision = "011_dpop_replays"
 branch_labels = None
 depends_on = None
 

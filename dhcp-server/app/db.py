@@ -3,15 +3,14 @@ Database Module for DHCP Server
 Uses penguin-dal for all runtime database operations.
 """
 
-import asyncio
 import logging
 import ipaddress
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 
 from penguin_dal import DB
 from app.config import LEASE_TIME, POOL_START, POOL_END
-from app.models import DHCPLease, DHCPReservation
+from app.models import DHCPLease
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class DHCPDatabase:
             )
 
             if existing_lease and not self._is_expired(existing_lease):
-                return existing_lease.ip_address
+                return str(existing_lease.ip_address)
 
             # Check for static reservation for this MAC
             reservation = (
@@ -85,7 +84,7 @@ class DHCPDatabase:
             )
 
             if reservation:
-                return reservation.ip_address
+                return str(reservation.ip_address)
 
             # Check if requested IP is available
             if requested_ip:
@@ -296,7 +295,7 @@ class DHCPDatabase:
 
     def _is_expired(self, lease) -> bool:
         """Check if lease is expired."""
-        return datetime.utcnow() > lease.lease_end
+        return bool(datetime.utcnow() > lease.lease_end)
 
     def expire_old_leases(self, pool_id: int) -> int:
         """

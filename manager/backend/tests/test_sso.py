@@ -275,6 +275,228 @@ class TestNonceValidation:
                 assert validated is None
 
 
+class TestIDTokenValidation:
+    """Comprehensive ID token validation tests with real jwt.decode path coverage.
+
+    These tests ensure validate_id_token properly validates:
+    - Signature verification via JWKS
+    - Claims (iss, aud, exp, iat, nonce)
+    - Algorithm constraints (RS256/ES256 only)
+    - Email verification requirement
+    """
+
+    def test_valid_id_token_accepted(self, app):
+        """Valid ID token with correct nonce and all claims → accepted."""
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        with app.app_context():
+            private_key = rsa.generate_private_key(65537, 2048)
+
+            config = OIDCConfig(
+                name='okta', display_name='Okta',
+                issuer='https://okta.example.com', client_id='client123',
+                client_secret='secret',
+                authorization_endpoint='https://okta.example.com/auth',
+                token_endpoint='https://okta.example.com/token',
+                jwks_url='https://okta.example.com/keys',
+                scopes='openid email'
+            )
+
+            payload = {
+                'sub': 'user123',
+                'email': 'user@example.com',
+                'email_verified': True,
+                'name': 'Test User',
+                'iss': config.issuer,
+                'aud': config.client_id,
+                'exp': datetime.utcnow() + timedelta(hours=1),
+                'iat': datetime.utcnow(),
+                'nonce': 'valid-nonce'
+            }
+            id_token = jwt.encode(payload, private_key, algorithm='RS256')
+
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks:
+                mock_client = MagicMock()
+                mock_key = MagicMock()
+                mock_key.key = private_key.public_key()
+                mock_client.get_signing_key_from_jwt.return_value = mock_key
+                mock_jwks.return_value = mock_client
+
+                # Validate with correct nonce
+                validated = SSOService.validate_id_token(config, id_token, 'valid-nonce')
+
+                assert validated is not None
+                assert validated.sub == 'user123'
+                assert validated.email == 'user@example.com'
+                assert validated.email_verified is True
+                assert validated.name == 'Test User'
+
+    def test_wrong_audience_rejected(self, app):
+        """ID token with wrong aud claim → rejected."""
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        with app.app_context():
+            private_key = rsa.generate_private_key(65537, 2048)
+
+            config = OIDCConfig(
+                name='okta', display_name='Okta',
+                issuer='https://okta.example.com', client_id='client123',
+                client_secret='secret',
+                authorization_endpoint='https://okta.example.com/auth',
+                token_endpoint='https://okta.example.com/token',
+                jwks_url='https://okta.example.com/keys',
+                scopes='openid email'
+            )
+
+            payload = {
+                'sub': 'user123',
+                'email': 'user@example.com',
+                'email_verified': True,
+                'iss': config.issuer,
+                'aud': 'wrong-client-id',  # Wrong audience
+                'exp': datetime.utcnow() + timedelta(hours=1),
+                'iat': datetime.utcnow(),
+                'nonce': 'valid-nonce'
+            }
+            id_token = jwt.encode(payload, private_key, algorithm='RS256')
+
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks:
+                mock_client = MagicMock()
+                mock_key = MagicMock()
+                mock_key.key = private_key.public_key()
+                mock_client.get_signing_key_from_jwt.return_value = mock_key
+                mock_jwks.return_value = mock_client
+
+                # Validate - should fail due to wrong aud
+                validated = SSOService.validate_id_token(config, id_token, 'valid-nonce')
+
+                assert validated is None
+
+    def test_expired_token_rejected(self, app):
+        """Expired ID token → rejected."""
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        with app.app_context():
+            private_key = rsa.generate_private_key(65537, 2048)
+
+            config = OIDCConfig(
+                name='okta', display_name='Okta',
+                issuer='https://okta.example.com', client_id='client123',
+                client_secret='secret',
+                authorization_endpoint='https://okta.example.com/auth',
+                token_endpoint='https://okta.example.com/token',
+                jwks_url='https://okta.example.com/keys',
+                scopes='openid email'
+            )
+
+            payload = {
+                'sub': 'user123',
+                'email': 'user@example.com',
+                'email_verified': True,
+                'iss': config.issuer,
+                'aud': config.client_id,
+                'exp': datetime.utcnow() - timedelta(hours=1),  # EXPIRED
+                'iat': datetime.utcnow() - timedelta(hours=2),
+                'nonce': 'valid-nonce'
+            }
+            id_token = jwt.encode(payload, private_key, algorithm='RS256')
+
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks:
+                mock_client = MagicMock()
+                mock_key = MagicMock()
+                mock_key.key = private_key.public_key()
+                mock_client.get_signing_key_from_jwt.return_value = mock_key
+                mock_jwks.return_value = mock_client
+
+                # Validate - should fail due to expiration
+                validated = SSOService.validate_id_token(config, id_token, 'valid-nonce')
+
+                assert validated is None
+
+    def test_algorithm_confusion_hs256_rejected(self, app):
+        """ID token signed with HS256 (algorithm confusion) → rejected."""
+        with app.app_context():
+            config = OIDCConfig(
+                name='okta', display_name='Okta',
+                issuer='https://okta.example.com', client_id='client123',
+                client_secret='secret',
+                authorization_endpoint='https://okta.example.com/auth',
+                token_endpoint='https://okta.example.com/token',
+                jwks_url='https://okta.example.com/keys',
+                scopes='openid email'
+            )
+
+            payload = {
+                'sub': 'user123',
+                'email': 'user@example.com',
+                'email_verified': True,
+                'iss': config.issuer,
+                'aud': config.client_id,
+                'exp': datetime.utcnow() + timedelta(hours=1),
+                'iat': datetime.utcnow(),
+                'nonce': 'valid-nonce'
+            }
+            # Attacker signs with HS256 using client_secret (algorithm confusion attack)
+            id_token = jwt.encode(payload, config.client_secret, algorithm='HS256')
+
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks:
+                mock_client = MagicMock()
+                mock_key = MagicMock()
+                # Even if key resolves, jwt.decode will reject HS256 (not in ALLOWED_ALGS)
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                rsa_key = rsa.generate_private_key(65537, 2048)
+                mock_key.key = rsa_key.public_key()
+                mock_client.get_signing_key_from_jwt.return_value = mock_key
+                mock_jwks.return_value = mock_client
+
+                # Validate - should fail due to algorithm rejection
+                validated = SSOService.validate_id_token(config, id_token, 'valid-nonce')
+
+                assert validated is None
+
+    def test_email_verified_false_ignored_in_validation(self, app):
+        """email_verified=false in token is accepted by validate_id_token (JIT layer checks it)."""
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        with app.app_context():
+            private_key = rsa.generate_private_key(65537, 2048)
+
+            config = OIDCConfig(
+                name='okta', display_name='Okta',
+                issuer='https://okta.example.com', client_id='client123',
+                client_secret='secret',
+                authorization_endpoint='https://okta.example.com/auth',
+                token_endpoint='https://okta.example.com/token',
+                jwks_url='https://okta.example.com/keys',
+                scopes='openid email'
+            )
+
+            payload = {
+                'sub': 'user123',
+                'email': 'user@example.com',
+                'email_verified': False,  # Not verified, but validate_id_token still accepts
+                'iss': config.issuer,
+                'aud': config.client_id,
+                'exp': datetime.utcnow() + timedelta(hours=1),
+                'iat': datetime.utcnow(),
+                'nonce': 'valid-nonce'
+            }
+            id_token = jwt.encode(payload, private_key, algorithm='RS256')
+
+            with patch('app.services.sso_service.PyJWKClient') as mock_jwks:
+                mock_client = MagicMock()
+                mock_key = MagicMock()
+                mock_key.key = private_key.public_key()
+                mock_client.get_signing_key_from_jwt.return_value = mock_key
+                mock_jwks.return_value = mock_client
+
+                # validate_id_token returns the token (JIT layer rejects it)
+                validated = SSOService.validate_id_token(config, id_token, 'valid-nonce')
+
+                assert validated is not None
+                assert validated.email_verified is False
+
+
 class TestNullPasswordHash:
     """Test Finding 6: SSO users have NULL password; login rejection before bcrypt."""
 

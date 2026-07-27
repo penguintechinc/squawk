@@ -18,6 +18,10 @@ def create_app(config_class: type = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+    from app.observability import init_tracing
+    init_tracing(app)
+
     # CORS with allowlist (default deny cross-origin if ALLOWED_ORIGINS unset)
     allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
     allowed_origins: list[str] = [
@@ -101,6 +105,7 @@ def create_app(config_class: type = Config) -> Flask:
 
     # Register blueprints
     from app.blueprints.auth import auth_bp
+    from app.blueprints.mfa import mfa_bp
     from app.blueprints.users import users_bp
     from app.blueprints.teams import teams_bp
     from app.blueprints.tokens import tokens_bp
@@ -112,8 +117,12 @@ def create_app(config_class: type = Config) -> Flask:
     from app.blueprints.analytics import analytics_bp
     from app.blueprints.dhcp import dhcp_bp
     from app.blueprints.time import time_bp
+    from app.blueprints.machine_clients import machine_clients_bp
+    from app.blueprints.oidc_trust_anchors import oidc_trust_anchors_bp
+    from app.blueprints.audit import audit_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(mfa_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(tokens_bp)
@@ -125,6 +134,9 @@ def create_app(config_class: type = Config) -> Flask:
     app.register_blueprint(analytics_bp)
     app.register_blueprint(dhcp_bp)
     app.register_blueprint(time_bp)
+    app.register_blueprint(machine_clients_bp)
+    app.register_blueprint(oidc_trust_anchors_bp)
+    app.register_blueprint(audit_bp)
 
     # Health check endpoint
     @app.route('/health')

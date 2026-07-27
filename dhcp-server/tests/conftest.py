@@ -58,6 +58,13 @@ def setup_env(monkeypatch, jwt_keypair):
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     monkeypatch.setenv("POSTHOG_KEY", "")
+
+    # Force fresh import of app modules with correct env vars set
+    # (modules may have been imported at collection time without env vars)
+    for module_name in list(sys.modules.keys()):
+        if module_name.startswith("app") or module_name == "bins.server":
+            del sys.modules[module_name]
+
     yield
 
 

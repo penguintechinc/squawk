@@ -40,6 +40,7 @@ ROLE_SCOPES: Dict[str, List[str]] = {
         "time:write", "time:admin",
         "dhcp:write", "dhcp:admin",
         "ioc:admin",
+        "audit:read",  # SystemAdmin only (no least-privilege leak to other roles)
     ] + _READ_SCOPES,
     "OrgAdmin": [
         "servers:write", "teams:write", "time:write", "dhcp:write",

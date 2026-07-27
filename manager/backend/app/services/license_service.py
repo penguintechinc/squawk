@@ -3,7 +3,7 @@ License service for Squawk DNS Manager.
 Validates with https://license.squawkdns.com and gates SSO features.
 """
 
-from typing import Dict, Optional
+from typing import Dict
 import requests
 import os
 from datetime import datetime, timedelta

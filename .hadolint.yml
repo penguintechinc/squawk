@@ -1,0 +1,22 @@
+# hadolint config for the pre-commit `hadolint-docker` hook.
+#
+# failure-threshold: warning means both `error` and `warning` severity
+# findings block the hook -- including DL3002 ("Last USER should not be
+# root"), which is the mandatory Dockerfile non-root check. `info`/`style`
+# findings (e.g. DL3059 "consolidate consecutive RUN") stay visible but
+# non-blocking.
+failure-threshold: warning
+
+# Explicitly ignored: pre-existing, non-security style debt found across
+# every Dockerfile in the repo (unpinned apt/pip package versions, missing
+# --no-install-recommends, apt list cleanup, RUN consolidation, missing
+# `SHELL -o pipefail`). None of these are the non-root check and fixing them
+# is a separate Dockerfile-hardening effort, not part of lint/hook wiring.
+# Do not add DL3002 (or any other root/privilege-related rule) here.
+ignored:
+  - DL3008 # Pin apt package versions
+  - DL3009 # Delete apt lists after install
+  - DL3013 # Pin pip package versions
+  - DL3015 # Use --no-install-recommends
+  - DL3059 # Consolidate consecutive RUN instructions
+  - DL4006 # Set SHELL -o pipefail before a RUN with a pipe

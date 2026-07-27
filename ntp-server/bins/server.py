@@ -451,7 +451,7 @@ def verify_jwt(token: str, required_scope: Optional[str] = None) -> bool:
             keys_to_try[None] = public_key
 
     # Try each key until one succeeds
-    for kid_val, key in keys_to_try.items():
+    for _kid_val, key in keys_to_try.items():
         if not key:
             continue
         try:
@@ -614,7 +614,7 @@ class NTSKEServer:
         finally:
             try:
                 conn.close()
-            except:
+            except OSError:
                 pass
 
     def _build_nts_ke_response(self, aead_id: int, cookies: List[NTSCookie]) -> bytes:

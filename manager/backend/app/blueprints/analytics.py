@@ -5,7 +5,6 @@ Provides aggregated DNS query statistics and performance metrics.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
-from app.middleware.rbac import filter_teams_by_access
 from datetime import datetime, timedelta
 
 analytics_bp = Blueprint('analytics', __name__)

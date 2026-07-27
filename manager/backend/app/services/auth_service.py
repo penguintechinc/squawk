@@ -10,7 +10,7 @@ import bcrypt
 import secrets
 import fnmatch
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from flask import current_app
 from jwt.exceptions import (
     ExpiredSignatureError, InvalidSignatureError, InvalidTokenError,
@@ -417,7 +417,8 @@ class AuthService:
     @staticmethod
     def create_machine_access_token(client_id: str, tenant: str,
                                    granted_scopes: str,
-                                   expires_in: Optional[int] = None) -> str:
+                                   expires_in: Optional[int] = None,
+                                   allowed_domains: Optional[List[str]] = None) -> str:
         """
         Create a short-lived JWT access token for a machine client.
 
@@ -426,6 +427,7 @@ class AuthService:
             tenant: Tenant ID
             granted_scopes: Space-separated scope grant (validated subset)
             expires_in: Token TTL in seconds (default 15 min from config)
+            allowed_domains: List of allowed DNS domains (or None for unrestricted)
 
         Returns:
             Signed JWT access token
@@ -450,6 +452,11 @@ class AuthService:
             'exp': datetime.utcnow() + ttl,
             'iat': datetime.utcnow()
         }
+
+        # Include dns_domains claim ONLY if allowed_domains is non-NULL
+        if allowed_domains is not None:
+            payload['dns_domains'] = allowed_domains
+
         return jwt.encode(
             payload,
             current_app.config['JWT_PRIVATE_KEY'],

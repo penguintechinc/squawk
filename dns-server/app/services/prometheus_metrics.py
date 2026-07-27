@@ -162,6 +162,13 @@ class PrometheusMetrics:
             registry=self.registry,
         )
 
+        self.dns_policy_denials = Counter(
+            "squawk_dns_policy_denials_total",
+            "Total DNS queries denied by domain policy",
+            ["outcome"],
+            registry=self.registry,
+        )
+
         # System Resource Metrics
         self.dns_memory_usage_bytes = Gauge(
             "squawk_dns_memory_usage_bytes", "Memory usage in bytes",
@@ -272,6 +279,14 @@ class PrometheusMetrics:
     def record_authentication_failure(self, failure_type: str):
         """Record authentication failure"""
         self.dns_authentication_failures.labels(failure_type=failure_type).inc()
+
+    def record_policy_denial(self, outcome: str):
+        """Record DNS query denied by domain policy.
+
+        Args:
+            outcome: Denial reason (e.g., 'policy_denied', 'empty_policy')
+        """
+        self.dns_policy_denials.labels(outcome=outcome).inc()
 
     def record_rate_limited_query(
         self,

@@ -753,3 +753,247 @@ class TestOIDCTokenExchange:
         assert response.status_code == 401
         data = response.get_json()
         assert data['error'] == 'invalid_grant'
+
+
+class TestDomainAllowlists:
+    """Test DNS domain allowlists for machine clients and OIDC anchors."""
+
+    def test_create_machine_client_with_allowed_domains(self, app, client, jwt_token_factory):
+        """Create machine client with domain allowlist."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        response = client.post(
+            '/api/v1/machine-clients',
+            json={
+                'scopes': 'users:read',
+                'description': 'Restricted client',
+                'allowed_domains': ['example.com', '*.test.org'],
+                'tenant': 'default'
+            },
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data['allowed_domains'] == ['example.com', '*.test.org']
+
+    def test_create_machine_client_allowed_domains_null(self, app, client, jwt_token_factory):
+        """Create machine client with NULL allowed_domains (unrestricted)."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        response = client.post(
+            '/api/v1/machine-clients',
+            json={
+                'scopes': 'users:read',
+                'description': 'Unrestricted client',
+                'allowed_domains': None,
+                'tenant': 'default'
+            },
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data['allowed_domains'] is None
+
+    def test_create_machine_client_invalid_domain(self, app, client, jwt_token_factory):
+        """Create fails with invalid domain pattern."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        response = client.post(
+            '/api/v1/machine-clients',
+            json={
+                'scopes': 'users:read',
+                'description': 'Bad domains',
+                'allowed_domains': ['invalid..domain'],
+                'tenant': 'default'
+            },
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert 'Invalid domain pattern' in data['error']
+
+    def test_create_machine_client_oversized_domain_list(self, app, client, jwt_token_factory):
+        """Create fails with >256 domains."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        domains = [f'domain{i}.com' for i in range(257)]
+
+        response = client.post(
+            '/api/v1/machine-clients',
+            json={
+                'scopes': 'users:read',
+                'description': 'Too many domains',
+                'allowed_domains': domains,
+                'tenant': 'default'
+            },
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert '256' in data['error']
+
+    def test_update_machine_client_allowed_domains(self, app, client, jwt_token_factory):
+        """Update machine client with new allowed_domains."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        with app.app_context():
+            db = app.db
+            client_id, _, _ = AuthService.create_machine_client(
+                'default', 'Test', 'users:read'
+            )
+            record = db(db.machine_client.client_id == client_id).select().first()
+            record_id = record.id
+
+        response = client.patch(
+            f'/api/v1/machine-clients/{record_id}',
+            json={'allowed_domains': ['example.com', '*.api.example.com']},
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['allowed_domains'] == ['example.com', '*.api.example.com']
+
+    def test_machine_client_token_includes_dns_domains_claim(self, app, client, jwt_keypair):
+        """Machine client token includes dns_domains claim when set."""
+        with app.app_context():
+            db = app.db
+            client_id, secret, _ = AuthService.create_machine_client(
+                'default', 'Test', 'users:read'
+            )
+            # Update with allowed_domains
+            import json
+            db(db.machine_client.client_id == client_id).update(
+                allowed_domains=json.dumps(['example.com', '*.test.org'])
+            )
+            db.commit()
+
+        auth_header = base64.b64encode(f'{client_id}:{secret}'.encode()).decode()
+
+        response = client.post(
+            '/api/v1/auth/token',
+            data={'grant_type': 'client_credentials'},
+            headers={'Authorization': f'Basic {auth_header}'}
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        access_token = data['access_token']
+
+        payload = jwt.decode(
+            access_token,
+            jwt_keypair['public'],
+            algorithms=['ES256'],
+            audience='squawk'
+        )
+
+        assert 'dns_domains' in payload
+        assert payload['dns_domains'] == ['example.com', '*.test.org']
+
+    def test_machine_client_token_no_dns_domains_claim_when_null(self, app, client, jwt_keypair):
+        """Machine client token has NO dns_domains claim when allowed_domains is NULL."""
+        with app.app_context():
+            client_id, secret, _ = AuthService.create_machine_client(
+                'default', 'Test', 'users:read'
+            )
+
+        auth_header = base64.b64encode(f'{client_id}:{secret}'.encode()).decode()
+
+        response = client.post(
+            '/api/v1/auth/token',
+            data={'grant_type': 'client_credentials'},
+            headers={'Authorization': f'Basic {auth_header}'}
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        access_token = data['access_token']
+
+        payload = jwt.decode(
+            access_token,
+            jwt_keypair['public'],
+            algorithms=['ES256'],
+            audience='squawk'
+        )
+
+        # dns_domains claim should NOT be present
+        assert 'dns_domains' not in payload
+
+    def test_oidc_trust_anchor_with_allowed_domains(self, app, client, jwt_token_factory):
+        """Create OIDC trust anchor with allowed_domains."""
+        auth_token = jwt_token_factory(global_role='SystemAdmin')
+
+        response = client.post(
+            '/api/v1/oidc-trust-anchors',
+            json={
+                'issuer': 'https://k8s.example.com',
+                'audience': 'squawk-api',
+                'static_jwks_pem': '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----',
+                'allowed_scopes': 'users:read',
+                'allowed_domains': ['k8s.local', '*.internal.example.com'],
+                'subject_pattern': 'system:serviceaccount:*:*'
+            },
+            headers={'Authorization': f'Bearer {auth_token}'}
+        )
+
+        assert response.status_code == 201
+        data = response.get_json()
+        assert data['allowed_domains'] == ['k8s.local', '*.internal.example.com']
+
+    def test_oidc_trust_anchor_token_includes_dns_domains(self, app, client, jwt_keypair):
+        """OIDC token exchange includes dns_domains claim."""
+        with app.app_context():
+            db = app.db
+            import json
+            db.oidc_trust_anchor.insert(
+                issuer='https://external-oidc.example.com',
+                audience='squawk-api',
+                static_jwks_pem=jwt_keypair['public'],
+                tenant='default',
+                allowed_scopes='users:read',
+                allowed_domains=json.dumps(['k8s.internal', '*.test.local']),
+                subject_pattern='system:serviceaccount:*:*',
+                active=True
+            )
+            db.commit()
+
+        # Create external token
+        external_payload = {
+            'iss': 'https://external-oidc.example.com',
+            'aud': 'squawk-api',
+            'sub': 'system:serviceaccount:default:my-sa',
+            'exp': datetime.utcnow() + timedelta(hours=1),
+            'iat': datetime.utcnow()
+        }
+        external_token = jwt.encode(
+            external_payload,
+            jwt_keypair['private'],
+            algorithm='ES256'
+        )
+
+        response = client.post(
+            '/api/v1/auth/token',
+            data={
+                'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
+                'subject_token': external_token,
+                'subject_token_type': 'urn:ietf:params:oauth:token-type:jwt'
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        access_token = data['access_token']
+
+        payload = jwt.decode(
+            access_token,
+            jwt_keypair['public'],
+            algorithms=['ES256'],
+            audience='squawk'
+        )
+
+        assert 'dns_domains' in payload
+        assert payload['dns_domains'] == ['k8s.internal', '*.test.local']

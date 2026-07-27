@@ -9,7 +9,7 @@ from quart import Quart, request, jsonify
 from typing import Optional
 
 from app.config import (
-    DNS_PORT, SYNC_INTERVAL, HEARTBEAT_INTERVAL, LOG_LEVEL,
+    DNS_PORT, SYNC_INTERVAL, HEARTBEAT_INTERVAL, LOG_LEVEL, JWT_PUBLIC_KEY,
     SQUAWK_RATE_LIMIT_ENABLED, SQUAWK_RATE_LIMIT_RPS, SQUAWK_RATE_LIMIT_BURST,
     SQUAWK_RATE_LIMIT_BACKEND
 )
@@ -21,6 +21,8 @@ from app.services.selective_router import SelectiveRouter
 from app.utils.resilience import ResilienceManager
 from app.services.prometheus_metrics import init_prometheus_metrics
 from app.services.http3_serving import build_serving_config
+from app.utils.domain_policy import matches_policy
+from app.utils.jwt_verify import verify_squawk_jwt
 from app.services.rate_limiter import RateLimiter
 
 # Configure logging
@@ -129,9 +131,6 @@ async def dns_query():
     # Verify JWT and extract identity for rate limiting (if token provided)
     token_identity = None
     if token:
-        from app.utils.jwt_verify import verify_squawk_jwt
-        from app.config import JWT_PUBLIC_KEY
-
         payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
         if payload:
             token_identity = payload.get('sub')  # Use subject (user ID) as identity
@@ -175,6 +174,24 @@ async def dns_query():
             identity_type=identity_type
         )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
+
+    # Check DNS domain policy (per-identity allowlist)
+    if token:
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        if payload:
+            allowed_domains = payload.get('dns_domains')
+            if not matches_policy(domain, allowed_domains):
+                logger.info(f"Domain policy denial for {domain}: dns_domains={allowed_domains}")
+                metrics_reporter.record_policy_denial('policy_denied')
+                metrics_reporter.record_query(
+                    domain=domain,
+                    record_type=record_type,
+                    status='policy_denied',
+                    response_time=0.0,
+                    cache_hit=False,
+                    source=token or 'unknown'
+                )
+                return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
     # Check IOC feeds
     if ioc_checker.is_blocked(domain):

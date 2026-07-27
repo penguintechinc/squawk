@@ -91,7 +91,7 @@ pip install -r requirements.txt || \
 
 pip install -r requirements-dev.txt
 
-cd ../dns-client  
+cd ../dns-client
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip wheel setuptools
@@ -231,10 +231,10 @@ def parse_dns_query(query_string: str) -> Tuple[str, str]:
 # dns-server/libs/auth.py
 class TokenManager:
     """Handle token operations"""
-    
+
     def validate_token(self, token: str) -> Optional[Dict]:
         """Validate authentication token"""
-    
+
     def check_permissions(self, token_id: int, domain: str) -> bool:
         """Check domain permissions"""
 ```
@@ -257,10 +257,10 @@ def sanitize_input(user_input: str) -> str:
 # dns-client/libs/client.py
 class DNSOverHTTPSClient:
     """DoH client implementation"""
-    
+
     def query(self, domain: str, record_type: str = "A") -> Dict:
         """Perform DNS query"""
-    
+
     def set_auth_token(self, token: str) -> None:
         """Set authentication token"""
 ```
@@ -269,10 +269,10 @@ class DNSOverHTTPSClient:
 # dns-client/libs/forwarder.py
 class DNSForwarder:
     """Local DNS forwarding service"""
-    
+
     def start_udp_server(self) -> None:
         """Start UDP DNS server"""
-    
+
     def start_tcp_server(self) -> None:
         """Start TCP DNS server"""
 ```
@@ -399,9 +399,9 @@ class TestTokenManager:
         """Test successful token validation"""
         with patch.object(token_manager, 'get_token') as mock_get:
             mock_get.return_value = sample_token
-            
+
             result = token_manager.validate_token('test-token-12345')
-            
+
             assert result is not None
             assert result['name'] == 'Test Token'
             mock_get.assert_called_once_with('test-token-12345')
@@ -410,14 +410,14 @@ class TestTokenManager:
         """Test token not found"""
         with patch.object(token_manager, 'get_token') as mock_get:
             mock_get.return_value = None
-            
+
             result = token_manager.validate_token('invalid-token')
-            
+
             assert result is None
 
     @pytest.mark.parametrize("domain,expected", [
         ("example.com", True),
-        ("sub.example.com", True), 
+        ("sub.example.com", True),
         ("test.com", True),
         ("other.com", False),
     ])
@@ -446,9 +446,9 @@ class TestEndToEnd:
     def test_dns_query_with_valid_token(self, running_server):
         """Test complete DNS query flow"""
         client = DNSOverHTTPSClient("http://localhost:8080", "valid-test-token")
-        
+
         response = client.query("example.com", "A")
-        
+
         assert response['Status'] == 0
         assert 'Answer' in response
         assert len(response['Answer']) > 0
@@ -456,10 +456,10 @@ class TestEndToEnd:
     def test_dns_query_with_invalid_token(self, running_server):
         """Test DNS query with invalid token"""
         client = DNSOverHTTPSClient("http://localhost:8080", "invalid-token")
-        
+
         with pytest.raises(requests.exceptions.HTTPError) as exc_info:
             client.query("example.com", "A")
-        
+
         assert exc_info.value.response.status_code == 403
 ```
 
@@ -478,7 +478,7 @@ class TestSecurityInjection:
             "' OR '1'='1",
             "admin'/**/AND/**/1=1--",
         ]
-        
+
         for token in malicious_tokens:
             result = token_manager.validate_token(token)
             assert result is None  # Should not succeed
@@ -486,14 +486,14 @@ class TestSecurityInjection:
     def test_domain_validation_bypass(self):
         """Test domain validation bypass attempts"""
         from dns_server.libs.validators import validate_domain_name
-        
+
         bypass_attempts = [
             "../admin.example.com",
             "example.com/../admin",
             "example.com\x00admin.com",
             "example.com;admin.com",
         ]
-        
+
         for attempt in bypass_attempts:
             assert not validate_domain_name(attempt)
 
@@ -504,7 +504,7 @@ class TestSecurityInjection:
             "javascript:alert('xss')",
             "<img src=x onerror=alert('xss')>",
         ]
-        
+
         for input_str in malicious_inputs:
             # Test that input is properly escaped
             pass
@@ -523,18 +523,18 @@ class TestPerformance:
     def test_concurrent_queries(self):
         """Test performance under concurrent load"""
         client = DNSOverHTTPSClient("http://localhost:8080", "test-token")
-        
+
         def make_query():
             return client.query("example.com", "A")
-        
+
         start_time = time.time()
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
             futures = [executor.submit(make_query) for _ in range(100)]
             results = [f.result() for f in futures]
-        
+
         end_time = time.time()
-        
+
         # Assertions
         assert len(results) == 100
         assert all(r['Status'] == 0 for r in results)
@@ -544,19 +544,19 @@ class TestPerformance:
         """Test memory usage during operation"""
         import psutil
         import os
-        
+
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss
-        
+
         client = DNSOverHTTPSClient("http://localhost:8080", "test-token")
-        
+
         # Make many queries
         for _ in range(1000):
             client.query("example.com", "A")
-        
+
         final_memory = process.memory_info().rss
         memory_increase = final_memory - initial_memory
-        
+
         # Memory increase should be reasonable (< 50MB)
         assert memory_increase < 50 * 1024 * 1024
 ```
@@ -569,7 +569,7 @@ make test
 
 # Run specific test categories
 pytest tests/unit/
-pytest tests/integration/ 
+pytest tests/integration/
 pytest tests/security/
 pytest tests/performance/
 
@@ -601,7 +601,7 @@ pytest --pdb
 [flake8]
 max-line-length = 88
 extend-ignore = E203, W503
-exclude = 
+exclude =
     .git,
     __pycache__,
     venv,
@@ -693,11 +693,11 @@ repos:
 ```python
 def authenticate_token(token: str, domain: str, db_connection) -> bool:
     """Authenticate token for domain access.
-    
+
     Validates the provided authentication token and checks if it has
     permission to access the specified domain. Supports both exact
     domain matching and wildcard permissions.
-    
+
     Args:
         token: The authentication token to validate. Must be a valid
             base64url encoded string of at least 32 characters.
@@ -705,23 +705,23 @@ def authenticate_token(token: str, domain: str, db_connection) -> bool:
             or subdomain following RFC 1035 standards.
         db_connection: Database connection object for token lookup.
             Should be an active SQLite, PostgreSQL, or MySQL connection.
-    
+
     Returns:
         True if the token is valid and has permission for the domain,
         False otherwise.
-    
+
     Raises:
         ValueError: If token format is invalid or domain is malformed.
         DatabaseError: If database connection fails or query errors occur.
         AuthenticationError: If token validation process fails.
-    
+
     Example:
         >>> db = sqlite3.connect(':memory:')
         >>> authenticate_token('abc123def456', 'example.com', db)
         True
         >>> authenticate_token('invalid', 'example.com', db)
         False
-    
+
     Note:
         This function performs timing-attack resistant token comparison
         and logs all authentication attempts for security auditing.
@@ -749,7 +749,7 @@ def up(db):
             active BOOLEAN DEFAULT TRUE
         )
     ''')
-    
+
     db.executesql('''
         CREATE TABLE domains (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -758,7 +758,7 @@ def up(db):
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
     db.executesql('''
         CREATE TABLE token_domains (
             token_id INTEGER REFERENCES tokens(id) ON DELETE CASCADE,
@@ -790,7 +790,7 @@ def up(db):
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
     # Add indexes for performance
     db.executesql('CREATE INDEX idx_query_logs_timestamp ON query_logs(timestamp DESC)')
     db.executesql('CREATE INDEX idx_query_logs_token ON query_logs(token_id)')
@@ -811,16 +811,16 @@ from pydal import DAL, Field
 def test_db():
     """Test database fixture"""
     db = DAL('sqlite://test.db')
-    
+
     # Define tables
     db.define_table('tokens',
         Field('token', 'string'),
         Field('name', 'string'),
         Field('active', 'boolean', default=True)
     )
-    
+
     yield db
-    
+
     # Cleanup
     db.close()
 
@@ -830,9 +830,9 @@ def test_token_creation(test_db):
         token='test-token-123',
         name='Test Token'
     )
-    
+
     assert token_id is not None
-    
+
     token = test_db.tokens[token_id]
     assert token.token == 'test-token-123'
     assert token.name == 'Test Token'
@@ -841,7 +841,7 @@ def test_token_creation(test_db):
 def test_token_uniqueness(test_db):
     """Test token uniqueness constraint"""
     test_db.tokens.insert(token='duplicate-token', name='Token 1')
-    
+
     with pytest.raises(Exception):  # Should raise constraint violation
         test_db.tokens.insert(token='duplicate-token', name='Token 2')
 ```
@@ -884,7 +884,7 @@ DELETE /api/v1/permissions/{token_id}/{domain_id}  # Revoke permission
     "message": "Token created successfully"
 }
 
-# Error responses  
+# Error responses
 {
     "success": false,
     "error": {
@@ -927,9 +927,9 @@ class TestTokenAPI:
             "name": "Test API Token",
             "description": "Created via API test"
         }
-        
+
         response = requests.post(f"{api_base_url}/tokens", json=payload)
-        
+
         assert response.status_code == 201
         data = response.json()
         assert data["success"] is True
@@ -939,7 +939,7 @@ class TestTokenAPI:
     def test_list_tokens(self, api_base_url, sample_tokens):
         """Test token listing API"""
         response = requests.get(f"{api_base_url}/tokens")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -948,9 +948,9 @@ class TestTokenAPI:
     def test_invalid_token_creation(self, api_base_url):
         """Test invalid token creation"""
         payload = {}  # Missing required fields
-        
+
         response = requests.post(f"{api_base_url}/tokens", json=payload)
-        
+
         assert response.status_code == 400
         data = response.json()
         assert data["success"] is False
@@ -969,7 +969,7 @@ class TestTokenAPI:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>[[=title or "DNS Console"]] - Squawk</title>
-    
+
     <!-- CSS Framework -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <!-- Custom CSS -->
@@ -988,17 +988,17 @@ class TestTokenAPI:
             </div>
         </div>
     </nav>
-    
+
     <main class="container mx-auto mt-8 px-4">
         [[if flash:]]
         <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6" role="alert">
             [[=flash]]
         </div>
         [[pass]]
-        
+
         [[include]]
     </main>
-    
+
     <!-- JavaScript -->
     <script src="[[=URL('static', 'js/app.js')]]"></script>
 </body>
@@ -1014,12 +1014,12 @@ class SquawkConsole {
         this.baseUrl = '/dns_console/api';
         this.init();
     }
-    
+
     init() {
         this.setupEventListeners();
         this.loadDashboardData();
     }
-    
+
     setupEventListeners() {
         // Permission matrix checkboxes
         document.addEventListener('change', (e) => {
@@ -1027,7 +1027,7 @@ class SquawkConsole {
                 this.togglePermission(e.target);
             }
         });
-        
+
         // Token form submission
         const tokenForm = document.getElementById('token-form');
         if (tokenForm) {
@@ -1036,11 +1036,11 @@ class SquawkConsole {
             });
         }
     }
-    
+
     async togglePermission(checkbox) {
         const tokenId = checkbox.dataset.tokenId;
         const domainId = checkbox.dataset.domainId;
-        
+
         try {
             const response = await fetch(`${this.baseUrl}/permissions/toggle`, {
                 method: 'POST',
@@ -1052,9 +1052,9 @@ class SquawkConsole {
                     domain_id: domainId
                 })
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 checkbox.checked = result.new_state;
                 this.showNotification('Permission updated successfully', 'success');
@@ -1067,27 +1067,27 @@ class SquawkConsole {
             this.showNotification('Network error occurred', 'error');
         }
     }
-    
+
     showNotification(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `fixed top-4 right-4 p-4 rounded-md shadow-md z-50 ${
-            type === 'success' ? 'bg-green-500' : 
+            type === 'success' ? 'bg-green-500' :
             type === 'error' ? 'bg-red-500' : 'bg-blue-500'
         } text-white`;
         notification.textContent = message;
-        
+
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 3000);
     }
-    
+
     async loadDashboardData() {
         try {
             const response = await fetch(`${this.baseUrl}/stats`);
             const data = await response.json();
-            
+
             if (data.success) {
                 this.updateDashboardStats(data.data);
             }
@@ -1095,14 +1095,14 @@ class SquawkConsole {
             console.error('Failed to load dashboard data:', error);
         }
     }
-    
+
     updateDashboardStats(stats) {
         const elements = {
             tokenCount: document.getElementById('token-count'),
             domainCount: document.getElementById('domain-count'),
             queryCount: document.getElementById('query-count')
         };
-        
+
         if (elements.tokenCount) {
             elements.tokenCount.textContent = stats.tokens;
         }
@@ -1170,27 +1170,27 @@ def debug_token_validation(token: str, domain: str, result: bool):
 # troubleshooting.py
 class TroubleshootingGuide:
     """Common issues and their solutions"""
-    
+
     @staticmethod
     def diagnose_auth_failure(token: str, domain: str) -> Dict[str, Any]:
         """Diagnose authentication failures"""
         issues = []
-        
+
         # Check token format
         if len(token) < 32:
             issues.append("Token too short - should be at least 32 characters")
-        
+
         # Check domain format
         if not re.match(r'^[a-zA-Z0-9.-]+$', domain):
             issues.append("Invalid domain format")
-        
+
         # Check database connection
         try:
             # Test database connection
             pass
         except Exception as e:
             issues.append(f"Database connection failed: {e}")
-        
+
         return {
             'token_format_valid': len(token) >= 32,
             'domain_format_valid': bool(re.match(r'^[a-zA-Z0-9.-]+$', domain)),
@@ -1201,7 +1201,7 @@ class TroubleshootingGuide:
                 "Review server logs for detailed errors"
             ]
         }
-    
+
     @staticmethod
     def check_server_health() -> Dict[str, Any]:
         """Check server health status"""
@@ -1228,10 +1228,10 @@ def timing_decorator(func: Callable) -> Callable:
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
-        
+
         logger = logging.getLogger('performance')
         logger.debug(f"{func.__name__} took {end_time - start_time:.4f} seconds")
-        
+
         return result
     return wrapper
 
@@ -1243,27 +1243,27 @@ def validate_token_with_timing(token: str, domain: str) -> bool:
 
 class PerformanceMonitor:
     """Monitor performance metrics"""
-    
+
     def __init__(self):
         self.metrics = {}
-    
+
     def record_request(self, duration: float, status_code: int):
         """Record request metrics"""
         if status_code not in self.metrics:
             self.metrics[status_code] = []
-        
+
         self.metrics[status_code].append(duration)
-    
+
     def get_stats(self) -> Dict[str, float]:
         """Get performance statistics"""
         stats = {}
-        
+
         for status_code, durations in self.metrics.items():
             stats[f'avg_time_{status_code}'] = sum(durations) / len(durations)
             stats[f'max_time_{status_code}'] = max(durations)
             stats[f'min_time_{status_code}'] = min(durations)
             stats[f'requests_{status_code}'] = len(durations)
-        
+
         return stats
 ```
 
@@ -1279,7 +1279,7 @@ CREATE INDEX CONCURRENTLY idx_token_domains_covering ON token_domains(token_id, 
 
 -- Analyze table statistics
 ANALYZE tokens;
-ANALYZE domains; 
+ANALYZE domains;
 ANALYZE token_domains;
 ANALYZE query_logs;
 
@@ -1300,29 +1300,29 @@ from functools import lru_cache
 
 class TokenPermissionCache:
     """Cache for token permissions"""
-    
+
     def __init__(self, ttl: int = 300):  # 5 minute TTL
         self.cache = {}
         self.ttl = ttl
-    
+
     def get(self, token: str, domain: str) -> Optional[bool]:
         """Get cached permission result"""
         key = f"{token}:{domain}"
-        
+
         if key in self.cache:
             result, timestamp = self.cache[key]
             if time.time() - timestamp < self.ttl:
                 return result
             else:
                 del self.cache[key]
-        
+
         return None
-    
+
     def set(self, token: str, domain: str, result: bool) -> None:
         """Cache permission result"""
         key = f"{token}:{domain}"
         self.cache[key] = (result, time.time())
-    
+
     def invalidate(self, token: str = None) -> None:
         """Invalidate cache entries"""
         if token:
@@ -1357,30 +1357,30 @@ def sanitize_domain_input(domain: str) -> str:
     """Sanitize domain name input"""
     # Remove dangerous characters
     domain = re.sub(r'[^a-zA-Z0-9.-]', '', domain)
-    
+
     # Limit length
     domain = domain[:253]  # Max domain length per RFC
-    
+
     # Remove leading/trailing dots
     domain = domain.strip('.')
-    
+
     return domain.lower()
 
 def sanitize_html_input(user_input: str) -> str:
     """Sanitize HTML input to prevent XSS"""
     # Escape HTML entities
     sanitized = html.escape(user_input)
-    
+
     # Remove potentially dangerous protocols
     dangerous_patterns = [
         r'javascript:',
         r'data:',
         r'vbscript:',
     ]
-    
+
     for pattern in dangerous_patterns:
         sanitized = re.sub(pattern, '', sanitized, flags=re.IGNORECASE)
-    
+
     return sanitized
 
 def validate_token_format(token: str) -> bool:
@@ -1388,11 +1388,11 @@ def validate_token_format(token: str) -> bool:
     # Check length
     if len(token) < 32 or len(token) > 128:
         return False
-    
+
     # Check character set (base64url)
     if not re.match(r'^[A-Za-z0-9_-]+$', token):
         return False
-    
+
     return True
 ```
 
@@ -1406,26 +1406,26 @@ from typing import Dict, Deque
 
 class RateLimiter:
     """Token bucket rate limiter"""
-    
+
     def __init__(self, requests_per_minute: int = 60):
         self.requests_per_minute = requests_per_minute
         self.requests: Dict[str, Deque[float]] = defaultdict(deque)
-    
+
     def is_allowed(self, identifier: str) -> bool:
         """Check if request is allowed"""
         now = time.time()
         minute_ago = now - 60
-        
+
         # Clean old requests
         request_times = self.requests[identifier]
         while request_times and request_times[0] < minute_ago:
             request_times.popleft()
-        
+
         # Check if under limit
         if len(request_times) < self.requests_per_minute:
             request_times.append(now)
             return True
-        
+
         return False
 
 # Usage in DNS handler
@@ -1435,6 +1435,100 @@ def check_rate_limit(self, client_ip: str) -> bool:
     """Check rate limit for client"""
     return rate_limiter.is_allowed(client_ip)
 ```
+
+## Observability & Monitoring
+
+### OpenTelemetry Tracing
+
+Squawk includes opt-in OpenTelemetry (OTel) tracing for both the manager control plane and DNS server data plane. Tracing is completely disabled by default (zero overhead) and only initializes when explicitly enabled.
+
+#### Enabling Tracing
+
+Set the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable to enable tracing:
+
+```bash
+# Enable tracing with OTLP HTTP exporter
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Start the manager
+python3 -m app
+
+# Start the DNS server
+python3 -m app.main
+```
+
+If the env var is not set, the applications boot normally with **no tracing overhead** — the OpenTelemetry SDK is not even initialized.
+
+#### Tracing Configuration
+
+**Common environment variables:**
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP collector endpoint (e.g., `http://localhost:4318`) | Not set (tracing disabled) |
+| `OTEL_TRACES_SAMPLER` | Trace sampling strategy: `always_on`, `always_off`, or `parentbased_*` | `always_on` (if tracing enabled) |
+| `OTEL_TRACES_SAMPLER_ARG` | Argument for sampler (e.g., `0.5` for 50% sampling) | Depends on sampler |
+| `OTEL_SERVICE_NAME` | Override service name | `squawk-manager` or `squawk-dns-server` |
+
+#### Instrumented Components
+
+**Manager (Flask):**
+- Flask request/response handling
+- Outbound HTTP requests (via `requests` library)
+- W3C trace context propagation (automatic)
+
+**DNS Server (Quart/ASGI):**
+- ASGI middleware for request handling
+- Outbound HTTP requests (via `requests` library)
+- W3C trace context propagation (automatic)
+
+#### What's Captured in Traces
+
+- **Span attributes:** HTTP method, URL, status code, response time
+- **Service metadata:** `service.name`, `service.version`
+- **Trace context:** Parent-child span relationships via W3C `traceparent` header
+
+#### Testing with Jaeger (Local Development)
+
+```bash
+# Start Jaeger all-in-one container
+docker run -d \
+  --name jaeger \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  -p 4318:4318 \
+  -p 16686:16686 \
+  jaegertracing/all-in-one
+
+# Enable tracing in Squawk
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Start manager and DNS server (they will send traces to Jaeger)
+
+# View traces at http://localhost:16686
+```
+
+#### Sampling for Production
+
+To reduce trace volume in production, configure sampling:
+
+```bash
+# 10% sampling
+export OTEL_TRACES_SAMPLER=parentbased_traceidratio
+export OTEL_TRACES_SAMPLER_ARG=0.1
+
+# Disable tracing
+unset OTEL_EXPORTER_OTLP_ENDPOINT
+```
+
+#### Logs vs Metrics vs Traces
+
+Squawk separates observability signals:
+
+- **Logs:** Structured JSON logs via Python `logging` module (separate from tracing)
+- **Metrics:** Prometheus metrics via `prometheus-client` (separate from tracing)
+- **Traces:** OpenTelemetry traces (this section)
+
+Each signal is independent; enable/disable them as needed without affecting the others.
 
 ## Release Process
 
@@ -1500,23 +1594,23 @@ jobs:
       - uses: actions/checkout@v3
       - name: Run tests
         run: make test-all
-  
+
   build:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Build Docker images
         run: |
           docker build -t squawk:${{ github.ref_name }} .
           docker tag squawk:${{ github.ref_name }} squawk:latest
-      
+
       - name: Push to registry
         run: |
           docker push squawk:${{ github.ref_name }}
           docker push squawk:latest
-  
+
   release:
     needs: build
     runs-on: ubuntu-latest

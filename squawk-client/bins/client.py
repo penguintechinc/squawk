@@ -9,7 +9,6 @@ import threading
 import logging
 import yaml
 import os
-import ssl
 import ipaddress
 import re
 from urllib.parse import urlparse
@@ -18,7 +17,6 @@ import time
 # gRPC imports (optional)
 try:
     import grpc
-    from concurrent import futures
 
     GRPC_AVAILABLE = True
 except ImportError:

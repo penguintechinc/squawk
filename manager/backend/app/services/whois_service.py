@@ -12,7 +12,7 @@ import logging
 import re
 import socket
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
 

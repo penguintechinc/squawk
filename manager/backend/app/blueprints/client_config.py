@@ -5,7 +5,6 @@ Handles client configuration management and retrieval.
 
 import os
 from functools import wraps
-from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
 from app.utils.responses import internal_error

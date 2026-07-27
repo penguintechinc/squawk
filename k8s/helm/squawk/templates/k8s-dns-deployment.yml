@@ -7,7 +7,9 @@ metadata:
     {{- include "squawk.labels" . | nindent 4 }}
     app.kubernetes.io/component: k8s-dns
 spec:
+{{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.k8sDns.replicas }}
+{{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "squawk.name" . }}

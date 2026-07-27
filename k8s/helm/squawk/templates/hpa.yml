@@ -1,0 +1,125 @@
+{{/*
+HorizontalPodAutoscalers for stateless, horizontally-scaled services
+(dns-server, dhcp-server, ntp-server, squawk-client, k8s-dns). Off by
+default everywhere (autoscaling.enabled: false in values.yaml); enabled
+ONLY in production values per the house resource-tier standard — alpha/
+beta/gamma stay fixed-replica. valkey (stateful cache) and manager-scheduler
+(singleton cron runner) are intentionally excluded.
+*/}}
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dns-server
+  minReplicas: {{ .Values.dnsServer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.dnsServer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.dnsServer.autoscaling.targetCPUUtilizationPercentage }}
+{{- if .Values.dhcpServer.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dhcp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dhcpServer.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dhcp-server
+  minReplicas: {{ .Values.dhcpServer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.dhcpServer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.dhcpServer.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if .Values.ntpServer.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ntp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.ntpServer.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ntp-server
+  minReplicas: {{ .Values.ntpServer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.ntpServer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.ntpServer.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: squawk-client
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsClient.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: squawk-client
+  minReplicas: {{ .Values.dnsClient.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.dnsClient.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.dnsClient.autoscaling.targetCPUUtilizationPercentage }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: k8s-dns
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-dns
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: k8s-dns
+  minReplicas: {{ .Values.k8sDns.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.k8sDns.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.k8sDns.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

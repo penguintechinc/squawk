@@ -37,6 +37,32 @@ except ImportError:
     from sqlalchemy import MetaData
     _schema_metadata = MetaData()
 
+# Generate ephemeral ES256 keypair for testing (module-level, before any app.* import)
+# This must happen BEFORE JWT_PUBLIC_KEY env var is set, so tests can verify tokens correctly.
+_test_private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+_test_private_pem = _test_private_key.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption()
+).decode('utf-8')
+_test_public_key = _test_private_key.public_key()
+_test_public_pem = _test_public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+).decode('utf-8')
+_test_keypair = {
+    'private': _test_private_pem,
+    'public': _test_public_pem
+}
+
+# Create a temp cache directory for this test session (must happen BEFORE any app.* import,
+# since app.config.CACHE_DIR is read at module import time by ManagerClient.__init__)
+_test_cache_dir = tempfile.mkdtemp(prefix="squawk_test_cache_")
+os.environ["CACHE_DIR"] = _test_cache_dir
+
+# Set JWT_PUBLIC_KEY for app.config (must happen BEFORE any app.* import)
+os.environ["JWT_PUBLIC_KEY"] = _test_public_pem
+
 # Create a temp SQLite file for this test session
 _fd, _test_db_tmp = tempfile.mkstemp(suffix=".db", prefix="squawk_test_")
 os.close(_fd)
@@ -132,28 +158,12 @@ def valid_domains() -> list[str]:
 
 @pytest.fixture(scope="session")
 def jwt_keypair():
-    """Generate an ephemeral ES256 keypair for testing."""
-    # Generate EC private key (P-256)
-    private_key = ec.generate_private_key(
-        ec.SECP256R1(), default_backend()
-    )
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ).decode('utf-8')
+    """Return the ephemeral ES256 keypair generated at module level for testing.
 
-    # Extract public key
-    public_key = private_key.public_key()
-    public_pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode('utf-8')
-
-    return {
-        'private': private_pem,
-        'public': public_pem
-    }
+    The keypair is generated before any app.* import so that JWT_PUBLIC_KEY env var
+    can be set correctly for app.config verification.
+    """
+    return _test_keypair
 
 
 @pytest.fixture
@@ -189,8 +199,28 @@ def jwt_token_factory(jwt_keypair):
     return _make_token
 
 
+@pytest.fixture
+def app_with_rate_limiting():
+    """Create a test app with rate limiting enabled."""
+    from app.main import app, rate_limiter
+    from app.services.rate_limiter import InMemoryBackend
+
+    # Enable rate limiting for tests
+    rate_limiter.enabled = True
+    rate_limiter.rps = 2.0
+    rate_limiter.burst = 3.0
+
+    # Reinitialize backend with new burst value (fixture changes don't propagate to already-initialized backend)
+    rate_limiter.backend = InMemoryBackend(rps=rate_limiter.rps, burst=rate_limiter.burst)
+
+    return app
+
+
 def pytest_unconfigure(config: Any) -> None:
-    """Clean up test database."""
-    global _test_db_tmp
+    """Clean up test database and cache directory."""
+    global _test_db_tmp, _test_cache_dir
     if _test_db_tmp and os.path.exists(_test_db_tmp):
         os.unlink(_test_db_tmp)
+    if _test_cache_dir and os.path.exists(_test_cache_dir):
+        import shutil
+        shutil.rmtree(_test_cache_dir, ignore_errors=True)

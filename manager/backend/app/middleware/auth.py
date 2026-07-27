@@ -47,7 +47,8 @@ def token_required(f):
             'scope': payload.get('scope', ''),
             'global_role': payload.get('global_role'),
             'team_roles': payload.get('team_roles', {}),
-            'token_type': payload.get('type')
+            'token_type': payload.get('type'),
+            'tenant': payload.get('tenant'),  # For audit trail tenant scoping
         }
 
         return f(*args, **kwargs)
@@ -205,3 +206,116 @@ def get_current_user():
 def get_current_server():
     """Get current server from g context."""
     return getattr(g, 'current_server', None)
+
+
+def verify_jwt(auth_header: str) -> dict | None:
+    """Extract and validate JWT from Authorization header.
+
+    Args:
+        auth_header: Authorization header value (e.g., "Bearer <token>")
+
+    Returns:
+        Decoded JWT payload if valid, None otherwise
+    """
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+
+    token = auth_header[7:]  # Strip "Bearer "
+    return AuthService.decode_token(token)
+
+
+def has_scope(scope_string: str, required_scope: str) -> bool:
+    """Check if a scope string contains a required scope.
+
+    Scope string is space-delimited per RFC 8693.
+
+    Args:
+        scope_string: Space-delimited scope string from token
+        required_scope: Scope to check for
+
+    Returns:
+        True if required_scope is in scope_string, False otherwise
+    """
+    if not scope_string:
+        return False
+    return required_scope in scope_string.split()
+
+
+def dpop_bound_token(f):
+    """
+    Decorator to enforce DPoP sender-constraint on tokens with cnf claim.
+
+    Per RFC 9449, if an access token carries a cnf.jkt claim, the client MUST
+    present a valid DPoP proof whose JWK thumbprint matches cnf.jkt for each
+    request. The proof's htm and htu must match the current request.
+
+    Tokens without cnf claim (bearer tokens) bypass this check — they continue
+    to work as before (backward compatible).
+
+    Applied after @token_required, which sets g.current_user.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        from app.services.dpop_service import DPoPService
+
+        user = get_current_user()
+        if not user:
+            return jsonify({'error': 'Authentication required'}), 401
+
+        # Get the original token payload from auth middleware
+        token = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            try:
+                token = auth_header.split(' ')[1]
+            except IndexError:
+                pass
+
+        if not token:
+            return jsonify({'error': 'Token required'}), 401
+
+        payload = AuthService.decode_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid token'}), 401
+
+        # Check if token is DPoP-bound (has cnf claim)
+        cnf = payload.get('cnf')
+        if not cnf or not isinstance(cnf, dict):
+            # No DPoP binding; token is bearer, allow through
+            return f(*args, **kwargs)
+
+        required_jkt = cnf.get('jkt')
+        if not required_jkt:
+            # Malformed cnf claim
+            return jsonify({'error': 'Invalid token'}), 401
+
+        # Token is DPoP-bound; validate proof on this request
+        dpop_header = request.headers.get('DPoP', '').strip()
+        if not dpop_header:
+            return jsonify({
+                'error': 'invalid_token',
+                'error_description': 'DPoP proof required for this token'
+            }), 401
+
+        dpop_proof = DPoPService.validate_proof(
+            dpop_header,
+            http_method=request.method,
+            http_uri=request.base_url + (f'?{request.query_string.decode()}' if request.query_string else '')
+        )
+        if not dpop_proof:
+            return jsonify({
+                'error': 'invalid_token',
+                'error_description': 'Invalid or expired DPoP proof'
+            }), 401
+
+        # Verify jkt matches (binding)
+        if dpop_proof.jkt != required_jkt:
+            return jsonify({
+                'error': 'invalid_token',
+                'error_description': 'DPoP proof does not match token binding'
+            }), 401
+
+        # All checks passed; continue
+        return f(*args, **kwargs)
+
+    return decorated

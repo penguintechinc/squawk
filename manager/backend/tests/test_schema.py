@@ -33,6 +33,14 @@ def test_schema_creates_all_tables():
         "revoked_token",
         # enterprise SSO (migrations)
         "sso_providers", "sso_login_attempts",
+        # SCIM 2.0 provisioning
+        "scim_tokens",
+        # machine identities (OAuth2 client_credentials + OIDC token exchange)
+        "machine_client", "oidc_trust_anchor",
+        # DPoP sender-constrained tokens (RFC 9449)
+        "dpop_replay",
+        # durable audit trail
+        "audit_event",
     }
     assert expected == tables
     engine.dispose()

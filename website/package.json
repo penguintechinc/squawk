@@ -11,18 +11,23 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.5.18",
+    "next": "15.5.22",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
     "eslint": "9.0.0",
-    "eslint-config-next": "15.5.18"
+    "eslint-config-next": "15.5.22"
   },
   "overrides": {
+    "brace-expansion@1": "1.1.16",
+    "brace-expansion@2": "2.1.2",
     "flatted": "3.4.2",
+    "js-yaml": "4.3.0",
     "minimatch": "9.0.7",
-    "picomatch": "4.0.4"
+    "picomatch": "4.0.4",
+    "postcss": "8.5.18",
+    "sharp": "0.35.3"
   },
   "keywords": [
     "dns",

@@ -3,13 +3,13 @@
 SAML 2.0 is deliberately deferred to a later revision.
 
 Revision ID: 009_add_sso_providers
-Revises: 008_add_mfa_fields
+Revises: 010_add_scim_provisioning
 """
 from alembic import op
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, func
 
 revision = "009_add_sso_providers"
-down_revision = "008_add_mfa_fields"
+down_revision = "010_add_scim_provisioning"
 branch_labels = None
 depends_on = None
 

@@ -68,9 +68,18 @@ def create_app(config_class: type = Config) -> Flask:
     from app.services.whois_service import WHOISManager
     app.whois_manager = WHOISManager(db_url=app.config['DB_URL'])
 
-    # Initialize Client Config manager
+    # Initialize Client Config manager. Deployment-domain tokens are signed
+    # asymmetrically with the manager's configured JWT keypair (ES256 default,
+    # RS256 fallback) so they verify across replicas and restarts.
     from app.services.client_config_service import ClientConfigManager
-    app.client_config_manager = ClientConfigManager(db_url=app.config['DB_URL'])
+    app.client_config_manager = ClientConfigManager(
+        db_url=app.config['DB_URL'],
+        private_key=app.config.get('JWT_PRIVATE_KEY'),
+        public_key=app.config.get('JWT_PUBLIC_KEY'),
+        algorithm=app.config.get('JWT_ALGORITHM', 'ES256'),
+        issuer=app.config.get('JWT_ISSUER', 'squawk-manager'),
+        audience=app.config.get('JWT_AUDIENCE', 'squawk'),
+    )
 
     # Register blueprints
     from app.blueprints.auth import auth_bp

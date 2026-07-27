@@ -14,15 +14,43 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import jwt
 from penguin_dal import DB
 
 logger = logging.getLogger(__name__)
+
+# Verifiers accept asymmetric algorithms only. HS256/none are rejected to block
+# the public-key-as-HMAC algorithm-confusion attack, consistent with the rest of
+# the platform (dns-server/dhcp-server/ntp-server verifiers).
+_DOMAIN_JWT_ALGORITHMS = ["ES256", "RS256"]
+
+
+def _generate_ephemeral_es256_keypair() -> tuple[str, str]:
+    """Generate an in-process ES256 keypair (PEM strings).
+
+    Used only when no manager keypair is supplied (standalone/dev/test). In a
+    real deployment the manager passes its configured JWT_PRIVATE_KEY /
+    JWT_PUBLIC_KEY so domain tokens are verifiable across replicas and restarts.
+    """
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.backends import default_backend
+
+    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("utf-8")
+    return private_pem, public_pem
 
 
 @dataclass(slots=True)
@@ -57,15 +85,44 @@ class OverrideRecord:
 class ClientConfigManager:
     """Manages client configurations using penguin-dal."""
 
-    def __init__(self, db_url: str, jwt_secret: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        db_url: str,
+        private_key: Optional[str] = None,
+        public_key: Optional[str] = None,
+        algorithm: str = "ES256",
+        issuer: str = "squawk-manager",
+        audience: str = "squawk",
+    ) -> None:
         """Initialize client config manager.
+
+        Deployment-domain tokens are signed asymmetrically (ES256 default,
+        RS256 fallback) with the manager's private key and verified with the
+        public key — matching the platform-wide JWT scheme. Supply the manager's
+        configured keypair so tokens remain valid across replicas/restarts; if
+        omitted, an ephemeral keypair is generated for the process (dev/test).
 
         Args:
             db_url: Database connection string
-            jwt_secret: JWT signing secret (generated if not provided)
+            private_key: PEM private key used to sign domain tokens
+            public_key: PEM public key used to verify domain tokens
+            algorithm: Signing algorithm (ES256 or RS256)
+            issuer: Expected/emitted `iss` claim
+            audience: Expected/emitted `aud` claim
         """
         self.db_url = db_url
-        self.jwt_secret = jwt_secret or secrets.token_urlsafe(32)
+        if not private_key or not public_key:
+            private_key, public_key = _generate_ephemeral_es256_keypair()
+            logger.warning(
+                "ClientConfigManager: no JWT keypair supplied; using an "
+                "ephemeral in-process keypair. Domain tokens will not be "
+                "verifiable across replicas or restarts."
+            )
+        self.private_key = private_key
+        self.public_key = public_key
+        self.algorithm = algorithm if algorithm in _DOMAIN_JWT_ALGORITHMS else "ES256"
+        self.issuer = issuer
+        self.audience = audience
         self._initialize_default_roles()
 
     def _get_db(self) -> DB:
@@ -73,14 +130,21 @@ class ClientConfigManager:
         return DB(self.db_url)
 
     def _generate_domain_jwt(self, domain_name: str) -> str:
-        """Generate JWT token for deployment domain."""
+        """Generate an asymmetrically-signed JWT for a deployment domain.
+
+        Signed with the manager's private key (ES256/RS256). Uses standard
+        `iat`/`exp` claims so PyJWT enforces expiry natively, plus `iss`/`aud`.
+        """
+        now = datetime.now(timezone.utc)
         payload = {
             "domain": domain_name,
             "type": "deployment_domain",
-            "issued_at": datetime.now().timestamp(),
-            "expires_at": (datetime.now() + timedelta(days=365)).timestamp(),
+            "iss": self.issuer,
+            "aud": self.audience,
+            "iat": now,
+            "exp": now + timedelta(days=365),
         }
-        return jwt.encode(payload, self.jwt_secret, algorithm="HS256")
+        return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
 
     def _validate_config_data(self, config_data: Dict[str, Any]) -> bool:
         """Validate client configuration data structure.
@@ -329,13 +393,16 @@ class ClientConfigManager:
         """Verify domain JWT token and return domain info."""
         db = self._get_db()
         try:
-            # Decode JWT
-            payload = jwt.decode(jwt_token, self.jwt_secret, algorithms=["HS256"])
-
-            # Check if token is expired
-            expires_at = payload.get("expires_at")
-            if expires_at and datetime.now().timestamp() > expires_at:
-                return None
+            # Verify signature with the public key. Expiry (`exp`) is enforced
+            # natively by PyJWT; iss/aud are validated. HS256/none are rejected.
+            payload = jwt.decode(
+                jwt_token,
+                self.public_key,
+                algorithms=_DOMAIN_JWT_ALGORITHMS,
+                issuer=self.issuer,
+                audience=self.audience,
+                options={"require": ["exp", "iat"]},
+            )
 
             domain_name = payload.get("domain")
             if not domain_name:

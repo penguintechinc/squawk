@@ -1,10 +1,10 @@
 """
 Authentication and Authorization Module
-JWT ES256/RS256 verification with scope-based access control.
+JWT ES256/RS256 verification with scope-based access control and kid-based key rotation.
 """
 
 import logging
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 import jwt
 from jwt.exceptions import (
     InvalidSignatureError, ExpiredSignatureError, InvalidTokenError,
@@ -12,7 +12,7 @@ from jwt.exceptions import (
 )
 
 from app.config import (
-    JWT_ISSUER, JWT_AUDIENCE, _load_key_from_env_or_file
+    JWT_ISSUER, JWT_AUDIENCE, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,8 @@ def extract_token(auth_header: str) -> Optional[str]:
 def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
     """
     Verify JWT token signature and expiration (ES256/RS256).
-    Fail closed: returns (False, None) if JWT_PUBLIC_KEY not configured.
+    Supports kid-based key selection for rotation overlap.
+    Fail closed: returns (False, None) if no public key configured.
 
     Args:
         token: JWT token string
@@ -44,48 +45,83 @@ def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
     Returns:
         (is_valid, payload) where payload is None if invalid
     """
-    # Read the public key at call time (supports key rotation without restart
-    # and keeps verification testable via env override).
-    public_key = _load_key_from_env_or_file("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE")
-    if not public_key:
-        logger.error("JWT_PUBLIC_KEY not configured; denying all auth")
-        return False, None
-
     if not token:
         logger.warning("Missing token")
         return False, None
 
+    # Decode header to extract kid (without verifying signature yet)
     try:
-        payload = jwt.decode(
-            token,
-            public_key,
-            algorithms=["ES256", "RS256"],
-            audience=JWT_AUDIENCE,
-            issuer=JWT_ISSUER,
-            options={"require": ["exp", "iat", "tenant"]}
-        )
+        header = jwt.get_unverified_header(token)
+    except Exception:
+        logger.warning("Failed to extract JWT header")
+        return False, None
 
-        # Fail closed: tenant claim must be present and non-empty
-        if not payload.get('tenant'):
-            logger.warning("Token missing or empty tenant claim")
+    kid = header.get('kid')
+
+    # Determine which key(s) to try
+    keys_to_try: Dict[Optional[str], str] = {}
+
+    if kid:
+        # Token has kid: must match in JWT_PUBLIC_KEYS (if provided)
+        if JWT_PUBLIC_KEYS and kid in JWT_PUBLIC_KEYS:
+            keys_to_try[kid] = JWT_PUBLIC_KEYS[kid]
+        else:
+            # Kid present but not found: reject (unknown key)
+            logger.warning(f"Unknown kid '{kid}' in token; denying access")
+            return False, None
+    else:
+        # Token has no kid: try all keys (backward compat during rotation)
+        if JWT_PUBLIC_KEYS:
+            keys_to_try = JWT_PUBLIC_KEYS.copy()
+        elif JWT_PUBLIC_KEY:
+            keys_to_try[None] = JWT_PUBLIC_KEY
+        else:
+            logger.error("No JWT_PUBLIC_KEY or JWT_PUBLIC_KEYS configured; denying all auth")
             return False, None
 
-        return True, payload
-    except ExpiredSignatureError:
-        logger.warning("Token expired")
-        return False, None
-    except InvalidSignatureError:
-        logger.warning("Invalid token signature")
-        return False, None
-    except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
-        logger.warning(f"JWT claim validation failed: {e}")
-        return False, None
-    except InvalidTokenError as e:
-        logger.warning(f"Invalid token: {e}")
-        return False, None
-    except Exception as e:
-        logger.error(f"Token validation error: {e}")
-        return False, None
+    # Try each key until one succeeds
+    for _kid_val, key in keys_to_try.items():
+        if not key:
+            continue
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["ES256", "RS256"],
+                audience=JWT_AUDIENCE,
+                issuer=JWT_ISSUER,
+                options={"require": ["exp", "iat", "tenant"]}
+            )
+
+            # Fail closed: tenant claim must be present and non-empty
+            if not payload.get('tenant'):
+                logger.warning("Token missing or empty tenant claim")
+                return False, None
+
+            return True, payload
+        except (InvalidSignatureError, ExpiredSignatureError):
+            if kid:
+                # Signature mismatch for known kid
+                logger.warning(f"Token signature verification failed for kid '{kid}'")
+                return False, None
+            # For no-kid tokens, signature mismatch is expected when trying multiple keys
+            continue
+        except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
+            logger.warning(f"JWT claim validation failed: {e}")
+            return False, None
+        except InvalidTokenError as e:
+            logger.warning(f"Invalid token: {e}")
+            return False, None
+        except Exception as e:
+            logger.error(f"Token validation error: {e}")
+            return False, None
+
+    # No keys succeeded
+    if kid:
+        logger.warning(f"Token signature verification failed for kid '{kid}'")
+    else:
+        logger.warning("Token signature verification failed with all available keys")
+    return False, None
 
 
 def check_scope(payload: dict, required_scope: str) -> bool:

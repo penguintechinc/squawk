@@ -24,4 +24,7 @@ regexes = [
   '''StrongPass123''',
   # Filename literal (gen-jwt-keys.sh output path), not key material.
   '''jwt_private_key_es256\.pem''',
+  # Well-known pyotp/Google Authenticator tutorial example TOTP secret
+  # (base32 for "Hello!!!") -- used in docstrings/tests, never a live secret.
+  '''JBSWY3DPEBLW64TMMQ=*''',
 ]

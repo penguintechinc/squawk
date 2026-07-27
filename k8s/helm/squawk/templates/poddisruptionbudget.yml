@@ -1,0 +1,101 @@
+{{/*
+PodDisruptionBudgets for every Deployment whose CONFIGURED replica count is
+>= 2 in the values being rendered (dynamic per environment — e.g. beta sets
+replicas: 1 so no PDB renders there, prod sets replicas: 3 so it does).
+minAvailable defaults to pdb.minAvailable (1) and is overridable per service
+via <service>.pdb.minAvailable.
+*/}}
+{{- if .Values.pdb.enabled }}
+{{- if ge (.Values.dnsServer.replicas | int) 2 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.dnsServer }}
+  selector:
+    matchLabels:
+      {{- include "squawk.dnsServer.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- if and .Values.dhcpServer.enabled (ge (.Values.dhcpServer.replicas | int) 2) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dhcp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dhcpServer.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.dhcpServer }}
+  selector:
+    matchLabels:
+      {{- include "squawk.dhcpServer.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- if and .Values.ntpServer.enabled (ge (.Values.ntpServer.replicas | int) 2) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ntp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.ntpServer.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.ntpServer }}
+  selector:
+    matchLabels:
+      {{- include "squawk.ntpServer.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- if ge (.Values.dnsClient.replicas | int) 2 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: squawk-client
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsClient.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.dnsClient }}
+  selector:
+    matchLabels:
+      {{- include "squawk.dnsClient.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- if ge (.Values.k8sDns.replicas | int) 2 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: k8s-dns
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-dns
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.k8sDns }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/component: k8s-dns
+{{- end }}
+{{- if ge (.Values.manager.replicas | int) 2 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: manager
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.manager.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ dig "pdb" "minAvailable" .Values.pdb.minAvailable .Values.manager }}
+  selector:
+    matchLabels:
+      {{- include "squawk.manager.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- end }}

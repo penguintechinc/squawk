@@ -69,6 +69,7 @@ Produces `jwt_private_key_es256.pem` (manager only) and
 | `JWT_AUDIENCE`                          | all             | `squawk`         | must match across services |
 | `JWT_PRIVATE_KEY` / `JWT_PRIVATE_KEY_FILE` | manager      | —                | signer only; PEM inline or file path |
 | `JWT_PUBLIC_KEY` / `JWT_PUBLIC_KEY_FILE`   | all          | —                | verify key; PEM inline or file path |
+| `JWT_PUBLIC_KEYS_DIR`                   | all (verifiers) | —                | directory of `.pem` files for key rotation overlap; loads all keys indexed by kid |
 | `TENANT_ID`                             | manager         | `default`        | tenant stamped into issued tokens |
 | `SECRET_KEY`                            | manager         | — (required in prod) | Flask session secret |
 
@@ -123,6 +124,35 @@ for Sealed Secrets / External Secrets input). Prefer `kubectl create secret
 
 For zero-downtime rotation, publish the new public key to verifiers first, then
 cut the manager over to the new private key.
+
+### Key rotation with kid (key ID) support
+
+Every JWT issued by the manager includes a `kid` (key ID) header—the first 16 hex
+characters of SHA-256 over the public key's DER-encoded SubjectPublicKeyInfo. This
+enables seamless key rotation without flag-day cutoffs.
+
+**Rotation runbook (graceful overlap):**
+
+1. **Generate new keypair** and store in secrets manager (e.g., `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`).
+2. **Distribute new public key to verifiers** (dns-server, dhcp-server, ntp-server):
+   - Place `.pem` files in a directory (e.g., `/etc/squawk/jwt-keys/`)
+   - Set `JWT_PUBLIC_KEYS_DIR` env var to that directory
+   - Or use `JWT_PUBLIC_KEY_FILE` for a single key (backward compat)
+   - Verifiers load keys at startup and on environment changes (no restart needed if using env var override)
+3. **Wait for propagation** (a few seconds; verifiers try all loaded keys for kid-less tokens)
+4. **Switch manager to new private key**:
+   - Update `JWT_PRIVATE_KEY` env var or secret
+   - Restart manager (new tokens issued with new key's kid)
+5. **Monitor for old-key rejections** (should be none if overlap window is long enough):
+   - Old tokens still verifiable against old public key in `JWT_PUBLIC_KEYS_DIR`
+   - New tokens carry new kid, matched to new public key
+6. **Retire old public key** (after TTL of longest-lived token):
+   - Remove old `.pem` from `JWT_PUBLIC_KEYS_DIR`
+   - Restart verifiers if not using env-var reload
+
+**Backward compatibility:** tokens without `kid` (legacy, pre-rotation) try all
+loaded keys. This enables seamless upgrades — old tokens remain valid throughout
+rotation and can coexist with kid-bearing tokens.
 
 ### Deployment-domain tokens
 

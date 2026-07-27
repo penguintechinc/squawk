@@ -56,6 +56,12 @@ Squawk is a secure, scalable DNS-over-HTTPS (DoH) proxy system that provides aut
 - **Per-domain access control lists**: Granular permission management
 - **SSL/TLS support**: Encrypted communications with HTTP/3
 - **Input validation**: Comprehensive security checks
+- **Asymmetric JWT (ES256/RS256)**: Manager-signed, public-key-verified tokens with required tenant claim
+- **Signed images + SBOM**: cosign keyless signatures and SPDX SBOM attestation on release images
+
+For enterprise deployment hardening — asymmetric JWT key setup, tenant isolation,
+image signature verification, Kubernetes runtime hardening, and Renovate — see
+[docs/ENTERPRISE_SECURITY.md](docs/ENTERPRISE_SECURITY.md).
 
 ## Architecture
 

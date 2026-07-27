@@ -27,6 +27,7 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
+import jwt
 from jwt.exceptions import InvalidSignatureError, InvalidTokenError
 from jwt import PyJWKClient
 from flask import current_app

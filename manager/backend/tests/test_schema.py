@@ -31,6 +31,8 @@ def test_schema_creates_all_tables():
         "mtls_certificate", "mtls_revocation",
         # refresh-token rotation/revocation
         "revoked_token",
+        # machine identities (OAuth2 client_credentials + OIDC token exchange)
+        "machine_client", "oidc_trust_anchor",
         # durable audit trail
         "audit_event",
     }

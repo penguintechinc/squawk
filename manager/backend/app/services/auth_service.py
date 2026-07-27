@@ -1,13 +1,16 @@
 """
 Authentication service for Squawk DNS Manager.
-Handles JWT generation (asymmetric ES256/RS256), token refresh, and password hashing.
+Handles JWT generation (asymmetric ES256/RS256), token refresh, password hashing,
+machine-client OAuth2 client_credentials, and OIDC token exchange.
 """
 
 import uuid
 import jwt
 import bcrypt
+import secrets
+import fnmatch
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 from flask import current_app
 from jwt.exceptions import (
     ExpiredSignatureError, InvalidSignatureError, InvalidTokenError,
@@ -328,3 +331,194 @@ class AuthService:
             'team_id': token_record.team_id,
             'allowed_zones': allowed_zones
         }
+
+    @staticmethod
+    def create_machine_client(tenant: str, description: str,
+                             registered_scopes: str) -> Tuple[str, str, str]:
+        """
+        Create a new machine client for OAuth2 client_credentials.
+
+        Args:
+            tenant: Tenant ID for multi-tenancy
+            description: Human-readable description
+            registered_scopes: Space-separated scopes (must be valid)
+
+        Returns:
+            Tuple of (client_id, client_secret_plaintext, hashed_secret)
+            Plaintext secret is returned ONCE for the client to store securely.
+        """
+        client_id = f"sqk_mc_{secrets.token_urlsafe(16)}"
+        client_secret = secrets.token_urlsafe(32)
+        secret_hash = bcrypt.hashpw(client_secret.encode('utf-8'),
+                                    bcrypt.gensalt()).decode('utf-8')
+
+        db = current_app.db
+        db.machine_client.insert(
+            client_id=client_id,
+            client_secret_hash=secret_hash,
+            tenant=tenant,
+            scopes=registered_scopes,
+            description=description,
+            active=True,
+            created_at=datetime.utcnow()
+        )
+        db.commit()
+
+        return client_id, client_secret, secret_hash
+
+    @staticmethod
+    def verify_machine_client(client_id: str, client_secret: str) -> Optional[Dict]:
+        """
+        Verify machine client credentials (constant-time comparison).
+
+        Args:
+            client_id: Client identifier
+            client_secret: Client secret
+
+        Returns:
+            Client record dict if valid and active, None otherwise
+        """
+        db = current_app.db
+        client = db((db.machine_client.client_id == client_id) &
+                    (db.machine_client.active == True)).select().first()
+
+        if not client:
+            return None
+
+        # Use bcrypt constant-time comparison to prevent timing attacks
+        if not bcrypt.checkpw(client_secret.encode('utf-8'),
+                            client.client_secret_hash.encode('utf-8')):
+            return None
+
+        return {
+            'id': client.id,
+            'client_id': client.client_id,
+            'tenant': client.tenant,
+            'scopes': client.scopes,
+        }
+
+    @staticmethod
+    def create_machine_access_token(client_id: str, tenant: str,
+                                   granted_scopes: str,
+                                   expires_in: Optional[int] = None) -> str:
+        """
+        Create a short-lived JWT access token for a machine client.
+
+        Args:
+            client_id: Machine client identifier
+            tenant: Tenant ID
+            granted_scopes: Space-separated scope grant (validated subset)
+            expires_in: Token TTL in seconds (default 15 min from config)
+
+        Returns:
+            Signed JWT access token
+        """
+        ttl_seconds = expires_in or current_app.config.get(
+            'MACHINE_ACCESS_TOKEN_EXPIRES', timedelta(minutes=15)
+        )
+        if isinstance(ttl_seconds, timedelta):
+            ttl = ttl_seconds
+        else:
+            ttl = timedelta(seconds=ttl_seconds)
+
+        payload = {
+            'sub': f'client:{client_id}',
+            'iss': current_app.config['JWT_ISSUER'],
+            'aud': current_app.config['JWT_AUDIENCE'],
+            'tenant': tenant,
+            'client_id': client_id,
+            'scope': granted_scopes,
+            'type': 'access',
+            'machine': True,  # Marker for machine vs. user token
+            'exp': datetime.utcnow() + ttl,
+            'iat': datetime.utcnow()
+        }
+        return jwt.encode(
+            payload,
+            current_app.config['JWT_PRIVATE_KEY'],
+            algorithm=current_app.config['JWT_ALGORITHM']
+        )
+
+    @staticmethod
+    def validate_scope_subset(requested_scopes: str,
+                            registered_scopes: str) -> bool:
+        """
+        Check if requested scopes are a subset of registered scopes.
+
+        Args:
+            requested_scopes: Space-separated scopes requested
+            registered_scopes: Space-separated scopes registered
+
+        Returns:
+            True if requested ⊆ registered, False otherwise
+        """
+        requested = set(requested_scopes.split()) if requested_scopes else set()
+        registered = set(registered_scopes.split()) if registered_scopes else set()
+        return requested.issubset(registered)
+
+    @staticmethod
+    def update_machine_client_last_used(client_id: str) -> None:
+        """Update last_used_at timestamp for a machine client."""
+        db = current_app.db
+        db(db.machine_client.client_id == client_id).update(
+            last_used_at=datetime.utcnow()
+        )
+        db.commit()
+
+    @staticmethod
+    def validate_oidc_token(external_token: str,
+                           trust_anchor: Dict) -> Optional[Dict]:
+        """
+        Validate an external OIDC token against a trust anchor.
+
+        Args:
+            external_token: JWT token from external issuer
+            trust_anchor: Trust anchor record with issuer, audience, jwks_url, etc.
+
+        Returns:
+            Decoded payload if valid, None otherwise
+        """
+        try:
+            # For simplicity in this implementation, use PyJWT with direct public key.
+            # In production, use PyJWKClient for dynamic JWKS fetching.
+            # Here we support static PEM JWKS for testing/simple cases.
+            if trust_anchor.get('static_jwks_pem'):
+                # Use provided PEM (for testing)
+                public_key = trust_anchor['static_jwks_pem']
+            else:
+                # In production, fetch from jwks_url using PyJWKClient
+                # For now, raise to indicate jwks_url is not yet implemented
+                raise NotImplementedError(
+                    "Dynamic JWKS fetching (jwks_url) requires PyJWKClient "
+                    "implementation (deferred to Part 2 detailed work)"
+                )
+
+            payload = jwt.decode(
+                external_token,
+                public_key,
+                algorithms=['RS256', 'ES256'],  # Restrict to safe algorithms
+                audience=trust_anchor['audience'],
+                issuer=trust_anchor['issuer'],
+                options={'require': ['exp', 'iat']}
+            )
+            return payload
+
+        except (ExpiredSignatureError, InvalidSignatureError, InvalidTokenError,
+                InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError):
+            return None
+
+    @staticmethod
+    def subject_matches_pattern(subject: str, pattern: Optional[str]) -> bool:
+        """
+        Check if subject claim matches the configured pattern (glob).
+
+        Args:
+            subject: Subject claim from token
+            pattern: Glob pattern (e.g. 'system:serviceaccount:*:*')
+
+        Returns:
+            True if pattern matches or is None (match-all), False otherwise
+        """
+        if not pattern:
+            return True  # No pattern = match all subjects
+        return fnmatch.fnmatch(subject, pattern)

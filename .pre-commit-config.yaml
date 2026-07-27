@@ -8,7 +8,7 @@ repos:
     hooks:
       - id: gitleaks
         name: Detect secrets with gitleaks
-        entry: gitleaks detect --source . --no-git
+        entry: gitleaks protect --staged --source .
         language: system
         pass_filenames: false
         stages: [commit, push]
@@ -37,7 +37,7 @@ repos:
     hooks:
       - id: flake8
         name: Lint Python with flake8
-        args: [--max-line-length=120, --select=E9,F63,F7,F821]
+        args: ["--max-line-length=120", "--select=E9,F63,F7,F821"]
         files: ^(dns-server|squawk-client|manager).*\.py$
         exclude: (venv|\.venv|migrations|alembic)
 
@@ -65,7 +65,7 @@ repos:
 
   # Docker linting
   - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.0
+    rev: v2.13.1
     hooks:
       - id: hadolint-docker
         name: Lint Dockerfiles

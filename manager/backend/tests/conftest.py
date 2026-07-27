@@ -136,6 +136,8 @@ def jwt_token_factory(jwt_keypair):
         else:
             exp = now + timedelta(hours=1)
 
+        from app.services.scopes import scope_string
+
         payload = {
             'sub': str(user_id),
             'iss': issuer,
@@ -143,6 +145,7 @@ def jwt_token_factory(jwt_keypair):
             'tenant': tenant,
             'user_id': user_id,
             'username': username,
+            'scope': scope_string(global_role, team_roles),
             'global_role': global_role,
             'team_roles': team_roles or {},
             'type': token_type,

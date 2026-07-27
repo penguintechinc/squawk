@@ -5,7 +5,7 @@ Handles time servers (PTP/NTP), sync operations, and logging.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
-from app.middleware.rbac import requires_role
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 from datetime import datetime, timedelta
 
@@ -88,7 +88,7 @@ def list_time_servers():
 
 @time_bp.route('/api/v1/time/servers', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('time:write')
 @validate_json('name', 'serverUrl', 'protocol')
 @audit_log('time_server_created')
 def create_time_server():
@@ -203,7 +203,7 @@ def get_time_server(server_id):
 
 @time_bp.route('/api/v1/time/servers/<int:server_id>', methods=['PUT'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('time:write')
 @audit_log('time_server_updated')
 def update_time_server(server_id):
     """Update time server configuration."""
@@ -236,7 +236,7 @@ def update_time_server(server_id):
 
 @time_bp.route('/api/v1/time/servers/<int:server_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin')
+@requires_scope('time:admin')
 @audit_log('time_server_deleted')
 def delete_time_server(server_id):
     """Delete a time server."""
@@ -321,7 +321,7 @@ def get_time_status():
 
 @time_bp.route('/api/v1/time/sync', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('time:write')
 @audit_log('time_sync_triggered')
 def trigger_time_sync():
     """

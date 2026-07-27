@@ -41,6 +41,7 @@ def token_required(f):
             'user_id': payload.get('user_id'),
             'server_id': payload.get('server_id'),
             'username': payload.get('username'),
+            'scope': payload.get('scope', ''),
             'global_role': payload.get('global_role'),
             'team_roles': payload.get('team_roles', {}),
             'token_type': payload.get('type')
@@ -132,6 +133,7 @@ def optional_token(f):
                 g.current_user = {
                     'user_id': payload.get('user_id'),
                     'username': payload.get('username'),
+                    'scope': payload.get('scope', ''),
                     'global_role': payload.get('global_role'),
                     'team_roles': payload.get('team_roles', {}),
                     'token_type': payload.get('type')

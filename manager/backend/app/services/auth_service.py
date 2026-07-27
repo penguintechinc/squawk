@@ -43,6 +43,11 @@ class AuthService:
         # TODO: extract tenant from user.org if schema adds org/tenant column
         tenant = current_app.config.get('TENANT_ID', 'default')
 
+        # Expand the role into its concrete scope bundle at issuance. Authz
+        # decisions are made on `scope`; global_role/team_roles are retained
+        # for audit and per-team membership checks only.
+        from app.services.scopes import scope_string
+
         payload = {
             'sub': str(user_id),
             'iss': current_app.config['JWT_ISSUER'],
@@ -50,6 +55,7 @@ class AuthService:
             'tenant': tenant,
             'user_id': user_id,
             'username': username,
+            'scope': scope_string(global_role, team_roles),
             'global_role': global_role,
             'team_roles': team_roles or {},
             'type': 'access',

@@ -27,8 +27,15 @@ class TestSquawkInstaller:
     
     def test_check_admin_windows(self):
         """Test admin check on Windows"""
+        import ctypes
+        from unittest.mock import MagicMock
+
+        # ctypes.windll only exists on Windows — attach a mock (create=True)
+        # so the Windows code path is exercisable on Linux/macOS CI.
+        windll = MagicMock()
+        windll.shell32.IsUserAnAdmin.return_value = 1
         with patch('platform.system', return_value='Windows'):
-            with patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=1):
+            with patch.object(ctypes, 'windll', windll, create=True):
                 installer = SquawkInstaller()
                 assert installer.is_admin is True
     

@@ -99,24 +99,10 @@ class DevelopmentConfig(Config):
         super().__init__()
         # If no keys configured, generate an ephemeral ES256 keypair in-memory
         if not self.JWT_PRIVATE_KEY or not self.JWT_PUBLIC_KEY:
-            from cryptography.hazmat.primitives.asymmetric import ec
-            from cryptography.hazmat.primitives import serialization
-            from cryptography.hazmat.backends import default_backend
-
-            private_key = ec.generate_private_key(
-                ec.SECP256R1(), default_backend()
+            from app.utils.crypto import generate_ephemeral_es256_keypair
+            self.JWT_PRIVATE_KEY, self.JWT_PUBLIC_KEY = (
+                generate_ephemeral_es256_keypair()
             )
-            self.JWT_PRIVATE_KEY = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ).decode('utf-8')
-
-            public_key = private_key.public_key()
-            self.JWT_PUBLIC_KEY = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ).decode('utf-8')
 
 
 class ProductionConfig(Config):
@@ -156,24 +142,10 @@ class TestingConfig(Config):
         """Generate ephemeral ES256 keypair for testing."""
         super().__init__()
         # Always generate a fresh ES256 keypair for tests
-        from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
-
-        private_key = ec.generate_private_key(
-            ec.SECP256R1(), default_backend()
+        from app.utils.crypto import generate_ephemeral_es256_keypair
+        self.JWT_PRIVATE_KEY, self.JWT_PUBLIC_KEY = (
+            generate_ephemeral_es256_keypair()
         )
-        self.JWT_PRIVATE_KEY = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
-
-        public_key = private_key.public_key()
-        self.JWT_PUBLIC_KEY = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode('utf-8')
 
 
 # Config dictionary

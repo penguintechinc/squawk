@@ -13,9 +13,6 @@ from unittest.mock import MagicMock
 import pytest
 import jwt
 from sqlalchemy import create_engine, text
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
 
 # Ensure app package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -95,24 +92,10 @@ def clean_tables(db):
 
 @pytest.fixture(scope="session")
 def jwt_keypair():
-    """Generate an ephemeral ES256 keypair for testing."""
-    # Generate EC private key (P-256)
-    private_key = ec.generate_private_key(
-        ec.SECP256R1(), default_backend()
-    )
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ).decode('utf-8')
+    """Generate an ephemeral ES256 keypair for testing (shared helper)."""
+    from app.utils.crypto import generate_ephemeral_es256_keypair
 
-    # Extract public key
-    public_key = private_key.public_key()
-    public_pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode('utf-8')
-
+    private_pem, public_pem = generate_ephemeral_es256_keypair()
     return {
         'private': private_pem,
         'public': public_pem

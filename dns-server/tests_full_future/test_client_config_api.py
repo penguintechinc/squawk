@@ -14,10 +14,13 @@ from client_config_api import ClientConfigManager
 class TestClientConfigManager:
     
     @pytest.fixture
-    def config_manager(self, temp_db, test_jwt_secret):
-        """Create client config manager instance with test database"""
+    def config_manager(self, temp_db):
+        """Create client config manager instance with test database.
+
+        No keypair supplied -> ephemeral ES256 keypair (asymmetric signing).
+        """
         db_url = f"sqlite://{temp_db._uri[9:]}"  # Extract path from DAL URI
-        return ClientConfigManager(db_url, test_jwt_secret)
+        return ClientConfigManager(db_url)
     
     def test_create_deployment_domain(self, config_manager):
         """Test creating a new deployment domain"""
@@ -34,7 +37,10 @@ class TestClientConfigManager:
         
         # Verify JWT token is valid
         token = result['jwt_token']
-        decoded = jwt.decode(token, config_manager.jwt_secret, algorithms=['HS256'])
+        decoded = jwt.decode(
+            token, config_manager.public_key, algorithms=['ES256', 'RS256'],
+            audience=config_manager.audience, issuer=config_manager.issuer,
+        )
         assert decoded['domain'] == "test-domain"
         assert decoded['type'] == 'deployment_domain'
     
@@ -65,7 +71,10 @@ class TestClientConfigManager:
         
         # Verify new JWT is valid
         new_token = rollover_result['new_jwt']
-        decoded = jwt.decode(new_token, config_manager.jwt_secret, algorithms=['HS256'])
+        decoded = jwt.decode(
+            new_token, config_manager.public_key, algorithms=['ES256', 'RS256'],
+            audience=config_manager.audience, issuer=config_manager.issuer,
+        )
         assert decoded['domain'] == "rollover-test"
     
     def test_create_client_config(self, config_manager, mock_client_config):
@@ -353,16 +362,21 @@ class TestClientConfigManager:
         clients = config_manager.get_domain_clients(domain_result['id'])
         assert len(clients) == 0
     
-    def test_expired_jwt_rejection(self, config_manager, test_jwt_secret):
+    def test_expired_jwt_rejection(self, config_manager):
         """Test that expired JWT tokens are rejected"""
-        # Create expired JWT manually
+        # Create a genuinely expired ES256 domain token (signed with the
+        # manager's own private key so only expiry causes the rejection)
         expired_payload = {
             'domain': 'expired-test',
             'type': 'deployment_domain',
-            'issued_at': (datetime.now() - timedelta(days=2)).timestamp(),
-            'expires_at': (datetime.now() - timedelta(days=1)).timestamp()  # Expired
+            'iss': config_manager.issuer,
+            'aud': config_manager.audience,
+            'iat': datetime.now() - timedelta(days=2),
+            'exp': datetime.now() - timedelta(days=1),  # Expired
         }
-        expired_jwt = jwt.encode(expired_payload, test_jwt_secret, algorithm='HS256')
+        expired_jwt = jwt.encode(
+            expired_payload, config_manager.private_key, algorithm='ES256'
+        )
         
         # Try to register client with expired JWT
         register_result = config_manager.register_client(

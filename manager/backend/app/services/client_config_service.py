@@ -12,9 +12,9 @@ Features:
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import wraps
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -27,30 +27,6 @@ logger = logging.getLogger(__name__)
 # the public-key-as-HMAC algorithm-confusion attack, consistent with the rest of
 # the platform (dns-server/dhcp-server/ntp-server verifiers).
 _DOMAIN_JWT_ALGORITHMS = ["ES256", "RS256"]
-
-
-def _generate_ephemeral_es256_keypair() -> tuple[str, str]:
-    """Generate an in-process ES256 keypair (PEM strings).
-
-    Used only when no manager keypair is supplied (standalone/dev/test). In a
-    real deployment the manager passes its configured JWT_PRIVATE_KEY /
-    JWT_PUBLIC_KEY so domain tokens are verifiable across replicas and restarts.
-    """
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.backends import default_backend
-
-    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).decode("utf-8")
-    public_pem = private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode("utf-8")
-    return private_pem, public_pem
 
 
 @dataclass(slots=True)
@@ -80,6 +56,49 @@ class OverrideRecord:
     created_by: Optional[str] = None
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
+
+
+
+def _generate_ephemeral_es256_keypair() -> tuple[str, str]:
+    """Generate an in-process ES256 keypair (PEM strings).
+
+    Intentionally self-contained (duplicates app.utils.crypto): this module is
+    imported BARE (as ``client_config_service``) by the acceptance-test harness
+    with the services dir on sys.path, where ``app.*`` resolves to a different
+    package — so it must not import from ``app.*``.
+    """
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.backends import default_backend
+
+    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("utf-8")
+    return private_pem, public_pem
+
+
+def _with_db(method):
+    """Open a DB connection for the wrapped method and guarantee it closes.
+
+    The wrapped method receives the connection as its first argument after
+    ``self``. Centralizes the get/close lifecycle previously duplicated in
+    every method (``db = self._get_db()`` ... ``finally: db.close()``).
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        db = self._get_db()
+        try:
+            return method(self, db, *args, **kwargs)
+        finally:
+            db.close()
+    return wrapper
 
 
 class ClientConfigManager:
@@ -187,9 +206,9 @@ class ClientConfigManager:
             pass
         return None
 
-    def _initialize_default_roles(self) -> None:
+    @_with_db
+    def _initialize_default_roles(self, db: DB) -> None:
         """Create default configuration roles if they don't exist."""
-        db = self._get_db()
         try:
             # Define default roles
             default_roles = [
@@ -222,17 +241,16 @@ class ClientConfigManager:
             db.commit()
         except Exception as e:
             logger.warning(f"Failed to initialize default roles: {e}")
-        finally:
-            db.close()
 
+    @_with_db
     def create_deployment_domain(
         self,
+        db: DB,
         name: str,
         description: str = "",
         created_by: str = "",
     ) -> Dict[str, Any]:
         """Create a new deployment domain with JWT token."""
-        db = self._get_db()
         try:
             # Check for duplicate
             existing = db(db.deployment_domain.name == name).select().first()
@@ -263,12 +281,10 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to create deployment domain: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
-    def rollover_domain_jwt(self, domain_id: int, admin_user: str = "") -> Dict[str, Any]:
+    @_with_db
+    def rollover_domain_jwt(self, db: DB, domain_id: int, admin_user: str = "") -> Dict[str, Any]:
         """Generate new JWT token for deployment domain."""
-        db = self._get_db()
         try:
             domain = db(db.deployment_domain.id == domain_id).select().first()
             if not domain:
@@ -294,11 +310,11 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to rollover JWT: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
+    @_with_db
     def create_client_config(
         self,
+        db: DB,
         name: str,
         domain_id: int,
         config_data: Dict[str, Any],
@@ -306,7 +322,6 @@ class ClientConfigManager:
         created_by: str = "",
     ) -> Dict[str, Any]:
         """Create a new client configuration."""
-        db = self._get_db()
         try:
             # Validate config data
             if not self._validate_config_data(config_data):
@@ -339,18 +354,17 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to create client config: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
+    @_with_db
     def update_client_config(
         self,
+        db: DB,
         config_id: int,
         config_data: Dict[str, Any],
         description: str = "",
         changed_by: str = "",
     ) -> Dict[str, Any]:
         """Update an existing client configuration."""
-        db = self._get_db()
         try:
             config = db(db.client_config.id == config_id).select().first()
             if not config:
@@ -386,12 +400,10 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to update client config: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
-    def _verify_domain_jwt(self, jwt_token: str) -> Optional[Dict[str, Any]]:
+    @_with_db
+    def _verify_domain_jwt(self, db: DB, jwt_token: str) -> Optional[Dict[str, Any]]:
         """Verify domain JWT token and return domain info."""
-        db = self._get_db()
         try:
             # Verify signature with the public key. Expiry (`exp`) is enforced
             # natively by PyJWT; iss/aud are validated. HS256/none are rejected.
@@ -428,8 +440,6 @@ class ClientConfigManager:
             logger.warning("Invalid JWT token used for domain verification")
         except Exception as e:
             logger.error(f"JWT verification failed: {e}")
-        finally:
-            db.close()
 
         return None
 
@@ -471,8 +481,10 @@ class ClientConfigManager:
             logger.error(f"User token verification failed: {e}")
             return {"valid": False, "reason": "Token verification error"}
 
+    @_with_db
     def register_client(
         self,
+        db: DB,
         client_id: str,
         domain_jwt: str,
         hostname: str,
@@ -483,8 +495,6 @@ class ClientConfigManager:
         client_cert_subject: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Register a new client instance."""
-        db = self._get_db()
-
         try:
             # Verify user auth if provided
             if user_token:
@@ -555,19 +565,17 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to register client: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
+    @_with_db
     def pull_client_config(
         self,
+        db: DB,
         client_id: str,
         domain_jwt: str,
         user_token: Optional[str] = None,
         client_cert_subject: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Pull configuration for a client."""
-        db = self._get_db()
-
         try:
             # Verify user auth if provided
             if user_token:
@@ -633,18 +641,16 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to pull client config: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
+    @_with_db
     def assign_config_to_client(
         self,
+        db: DB,
         client_id: str,
         config_id: int,
         assigned_by: str = "",
     ) -> Dict[str, Any]:
         """Assign a specific configuration to a client."""
-        db = self._get_db()
-
         try:
             client = db(db.client_instance.client_id == client_id).select().first()
             if not client:
@@ -675,13 +681,10 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to assign config to client: {e}")
             return {"success": False, "error": str(e)}
-        finally:
-            db.close()
 
-    def get_domain_clients(self, domain_id: int) -> List[Dict[str, Any]]:
+    @_with_db
+    def get_domain_clients(self, db: DB, domain_id: int) -> List[Dict[str, Any]]:
         """Get all clients in a deployment domain."""
-        db = self._get_db()
-
         try:
             clients = db(db.client_instance.domain_id == domain_id).select()
 
@@ -717,13 +720,10 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to get domain clients: {e}")
             return []
-        finally:
-            db.close()
 
-    def get_client_stats(self) -> Dict[str, Any]:
+    @_with_db
+    def get_client_stats(self, db: DB) -> Dict[str, Any]:
         """Get client configuration statistics."""
-        db = self._get_db()
-
         try:
             # Domain stats
             all_domains = db(db.deployment_domain.id > 0).count()  # All deployment domains
@@ -763,13 +763,10 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to get client stats: {e}")
             return {}
-        finally:
-            db.close()
 
-    def cleanup_inactive_clients(self, inactive_days: int = 30) -> int:
+    @_with_db
+    def cleanup_inactive_clients(self, db: DB, inactive_days: int = 30) -> int:
         """Remove clients that haven't checked in for specified days."""
-        db = self._get_db()
-
         try:
             cutoff_time = datetime.now() - timedelta(days=inactive_days)
 
@@ -786,5 +783,3 @@ class ClientConfigManager:
         except Exception as e:
             logger.error(f"Failed to cleanup inactive clients: {e}")
             return 0
-        finally:
-            db.close()

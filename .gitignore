@@ -125,3 +125,4 @@ storage.db
 # Requirements files must always be tracked despite the broad *.txt ignore
 !requirements*.txt
 !**/requirements*.txt
+.worktrees/

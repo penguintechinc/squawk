@@ -8,7 +8,7 @@ repos:
     hooks:
       - id: gitleaks
         name: Detect secrets with gitleaks
-        entry: gitleaks detect --source . --no-git
+        entry: gitleaks protect --staged --source .
         language: system
         pass_filenames: false
         stages: [commit, push]
@@ -65,7 +65,7 @@ repos:
 
   # Docker linting
   - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.0
+    rev: v2.13.1
     hooks:
       - id: hadolint-docker
         name: Lint Dockerfiles

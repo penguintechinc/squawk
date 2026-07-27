@@ -148,4 +148,3 @@ class SCIMTokenService:
         db(db.scim_tokens.id == token_id).update(active=False)
         db.commit()
         return True
-

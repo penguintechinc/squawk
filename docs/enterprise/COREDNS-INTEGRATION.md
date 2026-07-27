@@ -233,7 +233,7 @@ data:
       forward . 8.8.8.8:53 8.8.4.4:53
       prometheus :9153
     }
-    
+
     # Stub domain: special.example.com -> Squawk only
     special.example.com:53 {
       errors
@@ -294,4 +294,3 @@ kubectl rollout restart deployment/coredns -n kube-system
 - Verify Valkey is running: `kubectl logs -n squawk deployment/valkey`
 - Check dns-server replicas: `kubectl get pods -n squawk -l app.kubernetes.io/component=dns-server`
 - Scale up dns-server if cache hit rate is low: `kubectl scale deployment dns-server -n squawk --replicas=5`
-

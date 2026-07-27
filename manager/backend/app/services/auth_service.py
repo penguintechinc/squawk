@@ -38,6 +38,9 @@ class AuthService:
         """
         Create JWT access token (15 minutes expiry) signed with ES256/RS256 private key.
 
+        Every token includes a `kid` header derived from the public key so
+        rotation can select the correct key for verification.
+
         Args:
             user_id: User ID
             username: Username
@@ -51,6 +54,7 @@ class AuthService:
         # decisions are made on `scope`; global_role/team_roles are retained
         # for audit and per-team membership checks only.
         from app.services.scopes import scope_string
+        from app.utils.crypto import compute_kid_from_private_pem
 
         payload = {
             'sub': str(user_id),
@@ -66,15 +70,23 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
+        kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
         return jwt.encode(
             payload,
             current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM']
+            algorithm=current_app.config['JWT_ALGORITHM'],
+            headers={'kid': kid}
         )
 
     @staticmethod
     def create_refresh_token(user_id: int) -> str:
-        """Create JWT refresh token (7 days expiry) signed with ES256/RS256 private key."""
+        """Create JWT refresh token (7 days expiry) signed with ES256/RS256 private key.
+
+        Every token includes a `kid` header derived from the public key so
+        rotation can select the correct key for verification.
+        """
+        from app.utils.crypto import compute_kid_from_private_pem
+
         tenant = current_app.config.get('TENANT_ID', 'default')
 
         payload = {
@@ -89,10 +101,12 @@ class AuthService:
             'exp': datetime.utcnow() + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'],
             'iat': datetime.utcnow()
         }
+        kid = compute_kid_from_private_pem(current_app.config['JWT_PRIVATE_KEY'])
         return jwt.encode(
             payload,
             current_app.config['JWT_PRIVATE_KEY'],
-            algorithm=current_app.config['JWT_ALGORITHM']
+            algorithm=current_app.config['JWT_ALGORITHM'],
+            headers={'kid': kid}
         )
 
     @staticmethod

@@ -153,7 +153,10 @@ class ClientConfigManager:
 
         Signed with the manager's private key (ES256/RS256). Uses standard
         `iat`/`exp` claims so PyJWT enforces expiry natively, plus `iss`/`aud`.
+        Includes a `kid` header derived from the public key for key rotation.
         """
+        from app.utils.crypto import compute_kid_from_private_pem
+
         now = datetime.now(timezone.utc)
         payload = {
             "domain": domain_name,
@@ -163,7 +166,13 @@ class ClientConfigManager:
             "iat": now,
             "exp": now + timedelta(days=365),
         }
-        return jwt.encode(payload, self.private_key, algorithm=self.algorithm)
+        kid = compute_kid_from_private_pem(self.private_key)
+        return jwt.encode(
+            payload,
+            self.private_key,
+            algorithm=self.algorithm,
+            headers={'kid': kid}
+        )
 
     def _validate_config_data(self, config_data: Dict[str, Any]) -> bool:
         """Validate client configuration data structure.

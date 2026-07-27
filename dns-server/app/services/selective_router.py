@@ -4,7 +4,7 @@ Implements per-user/group zone access control.
 """
 import logging
 from typing import Dict, List, Optional
-from app.config import JWT_PUBLIC_KEY
+from app.config import JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
 from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
@@ -66,8 +66,8 @@ class SelectiveRouter:
             return False
 
         # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
-        # exp/iat/tenant, fail closed) — authorization stays here.
-        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+        # exp/iat/tenant, fail closed; supports kid-based key selection) — authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS)
         if payload is None:
             logger.debug(
                 f"Access denied to {visibility} zone {zone['name']}: token verification failed"

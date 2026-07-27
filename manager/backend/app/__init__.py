@@ -114,6 +114,7 @@ def create_app(config_class: type = Config) -> Flask:
     from app.blueprints.time import time_bp
     from app.blueprints.machine_clients import machine_clients_bp
     from app.blueprints.oidc_trust_anchors import oidc_trust_anchors_bp
+    from app.blueprints.audit import audit_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
@@ -129,6 +130,7 @@ def create_app(config_class: type = Config) -> Flask:
     app.register_blueprint(time_bp)
     app.register_blueprint(machine_clients_bp)
     app.register_blueprint(oidc_trust_anchors_bp)
+    app.register_blueprint(audit_bp)
 
     # Health check endpoint
     @app.route('/health')

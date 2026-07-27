@@ -31,6 +31,7 @@ auth_user = Table(
     Column("mfa_secret", String(255)),  # Encrypted TOTP secret (Fernet)
     Column("mfa_recovery_codes", Text),  # JSON array of hashed recovery codes
     Column("mfa_last_totp_counter", Integer, default=0),  # Tracks last used TOTP counter for replay prevention
+    Column("external_id", String(255), unique=True, index=True),  # SCIM provisioning identifier
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
@@ -585,6 +586,20 @@ revoked_token = Table(
     Column("expires_at", DateTime, nullable=False),
 )
 Index("idx_revoked_token_expires", revoked_token.c.expires_at)
+
+# ── SCIM 2.0 Provisioning ───────────────────────────────────────────────────
+
+scim_token = Table(
+    "scim_tokens",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("token_hash", String(255), nullable=False, unique=True, index=True),
+    Column("description", String(255), nullable=True),
+    Column("tenant", String(100), nullable=False),
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("last_used_at", DateTime, nullable=True),
+)
 
 # ── Machine Identities (OAuth2 client_credentials) ─────────────────────────────
 

@@ -208,6 +208,39 @@ def get_current_server():
     return getattr(g, 'current_server', None)
 
 
+def verify_jwt(auth_header: str) -> dict | None:
+    """Extract and validate JWT from Authorization header.
+
+    Args:
+        auth_header: Authorization header value (e.g., "Bearer <token>")
+
+    Returns:
+        Decoded JWT payload if valid, None otherwise
+    """
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+
+    token = auth_header[7:]  # Strip "Bearer "
+    return AuthService.decode_token(token)
+
+
+def has_scope(scope_string: str, required_scope: str) -> bool:
+    """Check if a scope string contains a required scope.
+
+    Scope string is space-delimited per RFC 8693.
+
+    Args:
+        scope_string: Space-delimited scope string from token
+        required_scope: Scope to check for
+
+    Returns:
+        True if required_scope is in scope_string, False otherwise
+    """
+    if not scope_string:
+        return False
+    return required_scope in scope_string.split()
+
+
 def dpop_bound_token(f):
     """
     Decorator to enforce DPoP sender-constraint on tokens with cnf claim.

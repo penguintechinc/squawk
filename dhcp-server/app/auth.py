@@ -12,7 +12,7 @@ from jwt.exceptions import (
 )
 
 from app.config import (
-    JWT_ISSUER, JWT_AUDIENCE, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS, _load_key_from_env_or_file
+    JWT_ISSUER, JWT_AUDIENCE, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
 )
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def verify_token(token: str) -> Tuple[bool, Optional[dict]]:
             return False, None
 
     # Try each key until one succeeds
-    for kid_val, key in keys_to_try.items():
+    for _kid_val, key in keys_to_try.items():
         if not key:
             continue
         try:
@@ -160,7 +160,7 @@ def check_auth(auth_header: str, required_scope: str) -> Tuple[int, Optional[dic
         return 403, None
 
     is_valid, payload = verify_token(token)
-    if not is_valid:
+    if not is_valid or payload is None:
         logger.warning(f"Invalid token for scope {required_scope}")
         return 401, None
 

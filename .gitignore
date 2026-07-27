@@ -55,7 +55,7 @@ jwt_public_key_*.pem
 */*.tgz
 */*.whl
 */*.zip
-*/password.txt 
+*/password.txt
 *secret*
 .idea/
 id_rsa*
@@ -113,6 +113,15 @@ venv/
 **/venv/
 __pycache__/
 .coverage
+.pytest_cache/
+
+# Coverage reports (Python coverage.py + JS/TS jest/vitest lcov-html) --
+# generated output, regenerate with `make test-coverage` / `npm test -- --coverage`
+htmlcov/
+coverage/
+**/coverage/
+coverage.xml
+*.lcov
 
 # SQLite artifacts (test/dev)
 **/*.db

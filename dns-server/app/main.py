@@ -19,7 +19,7 @@ from app.services.cache_manager import CacheManager
 from app.services.ioc_checker import IOCChecker
 from app.services.selective_router import SelectiveRouter
 from app.utils.resilience import ResilienceManager
-from app.services.prometheus_metrics import PrometheusMetrics, init_prometheus_metrics
+from app.services.prometheus_metrics import init_prometheus_metrics
 from app.services.http3_serving import build_serving_config
 from app.services.rate_limiter import RateLimiter
 

@@ -5,7 +5,7 @@ Handles DHCP pools, reservations, and leases.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
-from app.middleware.rbac import requires_scope, check_team_access
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 from datetime import datetime
 

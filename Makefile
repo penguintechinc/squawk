@@ -1,14 +1,18 @@
 # Makefile for Squawk DNS System
 .PHONY: help setup test test-unit test-integration test-security test-performance clean build run stop logs shell fix-lint install-hooks smoke-test test-e2e test-functional
 
-PYTHON := venv/bin/python3
-PIP := venv/bin/pip3
-PYTEST := venv/bin/pytest
-FLAKE8 := venv/bin/flake8
-BLACK := venv/bin/black
-MYPY := venv/bin/mypy
-BANDIT := venv/bin/bandit
-SAFETY := venv/bin/safety
+# NOTE: no root-level venv/ is created by this Makefile (setup-venv only
+# creates dns-server/venv and squawk-client/venv) -- these resolve via PATH so
+# targets work with whatever interpreter/tools are active (system, pyenv, or
+# a manually activated venv), instead of pointing at a venv/ that never exists.
+PYTHON := python3
+PIP := pip3
+PYTEST := pytest
+FLAKE8 := flake8
+BLACK := black
+MYPY := mypy
+BANDIT := bandit
+SAFETY := safety
 
 # Default target
 help:
@@ -82,10 +86,19 @@ install-hooks:
 # Testing targets
 test: test-unit test-integration
 
+# Each service's tests/ package is literally named "tests" with its own
+# __init__.py, so combining any two of them in a single pytest invocation
+# trips the same conftest/module-name collision as mypy's "Duplicate module
+# named app" (see type-check below) -- pytest registers both as the plugin
+# "tests.conftest" and errors. Run each service as its own invocation.
 test-unit:
 	@echo "Running unit tests..."
-	python3 -m pytest tests/unit/ dns-server/tests/ squawk-client/tests/ manager/backend/tests/ \
-		-v --tb=short
+	python3 -m pytest tests/unit/ -v --tb=short
+	python3 -m pytest dns-server/tests/ -v --tb=short
+	python3 -m pytest squawk-client/tests/ -v --tb=short
+	python3 -m pytest manager/backend/tests/ -v --tb=short
+	python3 -m pytest dhcp-server/tests/ -v --tb=short
+	python3 -m pytest ntp-server/tests/ -v --tb=short
 
 test-integration:
 	@echo "Running integration tests..."
@@ -95,12 +108,20 @@ test-performance:
 	@echo "Running performance tests..."
 	cd dns-server && $(PYTHON) -m pytest tests/ -m "performance" -v
 
+# Run + accumulate coverage per service (see test-unit note on why these
+# can't be combined into one pytest invocation), then report against the
+# combined data file so the 90% threshold applies across all services.
 test-coverage:
-	@echo "Running tests with coverage..."
-	$(PYTHON) -m pytest dns-server/tests squawk-client/tests \
-		--cov=dns-server/app --cov=squawk-client/bins \
-		--cov-report=html:htmlcov --cov-report=term-missing --cov-report=xml:coverage.xml \
-		--cov-fail-under=98
+	@echo "Running tests with coverage (90% house threshold)..."
+	rm -f .coverage
+	$(PYTHON) -m pytest dns-server/tests --cov=dns-server/app --cov-append -q
+	$(PYTHON) -m pytest squawk-client/tests --cov=squawk-client/bins --cov-append -q
+	$(PYTHON) -m pytest manager/backend/tests --cov=manager/backend/app --cov-append -q
+	$(PYTHON) -m pytest dhcp-server/tests --cov=dhcp-server/app --cov-append -q
+	$(PYTHON) -m pytest ntp-server/tests --cov=ntp-server/bins --cov-append -q
+	$(PYTHON) -m coverage html -d htmlcov
+	$(PYTHON) -m coverage xml -o coverage.xml
+	$(PYTHON) -m coverage report -m --fail-under=90
 
 # Code quality targets
 lint:
@@ -108,19 +129,19 @@ lint:
 	@exit_code=0; \
 	if command -v flake8 >/dev/null 2>&1; then \
 		echo "-- flake8 --"; \
-		python3 -m flake8 dns-server/app manager/backend/app squawk-client/bins --config=.flake8 || exit_code=1; \
+		python3 -m flake8 dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --config=.flake8 || exit_code=1; \
 	else \
 		echo "flake8 not installed, skipping"; \
 	fi; \
 	if command -v black >/dev/null 2>&1; then \
 		echo "-- black (check) --"; \
-		black --check dns-server/app manager/backend/app squawk-client/bins --line-length=120 || true; \
+		black --check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --line-length=120 || true; \
 	else \
 		echo "black not installed, skipping"; \
 	fi; \
 	if command -v isort >/dev/null 2>&1; then \
 		echo "-- isort (check, advisory) --"; \
-		isort --check-only dns-server/app manager/backend/app squawk-client/bins --profile=black --line-length=120 2>&1 || true; \
+		isort --check-only dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --profile=black --line-length=120 2>&1 || true; \
 	else \
 		echo "isort not installed, skipping"; \
 	fi; \
@@ -156,10 +177,20 @@ format:
 	@echo "Formatting code..."
 	cd dns-server && $(BLACK) app/ tests/
 	cd squawk-client && $(BLACK) bins/ tests/
+	cd manager/backend && $(BLACK) app/ tests/ --line-length=120
+	cd dhcp-server && $(BLACK) app/ tests/ --line-length=120
+	cd ntp-server && $(BLACK) bins/ tests/ --line-length=120
 
+# Run per-service (`cd <service> && mypy <dir>/`), never all at once --
+# dns-server/app, manager/backend/app, and dhcp-server/app are each their own
+# top-level "app" package, so a single combined invocation trips mypy's
+# "Duplicate module named app" check. See [tool.mypy] in pyproject.toml.
 type-check:
 	@echo "Running type checks..."
 	cd dns-server && $(MYPY) app/
+	cd manager/backend && $(MYPY) app/
+	cd dhcp-server && $(MYPY) app/
+	cd ntp-server && $(MYPY) bins/
 	cd squawk-client && $(MYPY) bins/
 
 test-security:
@@ -167,7 +198,7 @@ test-security:
 	@exit_code=0; \
 	if command -v bandit >/dev/null 2>&1; then \
 		echo "-- bandit --"; \
-		bandit -r dns-server/app manager/backend/app squawk-client/bins -ll -q || exit_code=1; \
+		bandit -r dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins -ll -q || exit_code=1; \
 	else \
 		echo "bandit not installed, skipping"; \
 	fi; \
@@ -237,8 +268,11 @@ smoke-test:
 	python3 -m pytest tests/smoke/ -v --tb=short -m "not slow"
 
 test-e2e:
-	@echo "Running end-to-end tests..."
-	python3 -m pytest tests/integration/ tests/load/ -v --tb=short
+	@echo "Running end-to-end tests (Playwright, tests/e2e)..."
+	npm run test:e2e; \
+	status=$$?; \
+	npm run test:e2e:cleanup >/dev/null 2>&1 || true; \
+	exit $$status
 
 test-functional:
 	@echo "Running functional tests..."

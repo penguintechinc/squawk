@@ -8,7 +8,6 @@ import os
 import subprocess
 import logging
 import time
-import asyncio
 from client import DNSOverHTTPSClient, DNSForwarder, load_config
 
 
@@ -69,7 +68,7 @@ class DNSClientTray:
 
             font = ImageFont.load_default()
             draw.text((24, 26), "DNS", fill=(255, 255, 255, 255), font=font)
-        except:
+        except Exception:
             # If font loading fails, just draw simple lines
             draw.text((24, 26), "DNS", fill=(255, 255, 255, 255))
 
@@ -321,7 +320,6 @@ class DNSClientTray:
         try:
             # Test DNS resolution with a simple query
             import requests
-            import time as time_module
 
             # Get server URLs from config
             server_urls = self.config.get("dns_server_urls", [])
@@ -569,7 +567,7 @@ class DNSClientTray:
                                 capture_output=True,
                                 timeout=10,
                             )
-                    except:
+                    except (OSError, subprocess.SubprocessError):
                         continue
 
             else:

@@ -4,7 +4,7 @@ Handles team CRUD and member management.
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from app.middleware.auth import token_required, get_current_user
+from app.middleware.auth import token_required
 from app.middleware.rbac import requires_scope, requires_team_role, can_access_team, filter_teams_by_access
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_team_role

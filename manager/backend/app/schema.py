@@ -600,3 +600,76 @@ scim_token = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("last_used_at", DateTime, nullable=True),
 )
+
+# ── Machine Identities (OAuth2 client_credentials) ─────────────────────────────
+
+machine_client = Table(
+    "machine_client",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("client_id", String(64), unique=True, nullable=False, index=True),
+    Column("client_secret_hash", String(255), nullable=False),
+    Column("tenant", String(255), nullable=False, server_default="default"),
+    Column("scopes", String(1024), nullable=False),  # Space-separated scope list
+    Column("allowed_domains", Text),  # JSON list of allowed FQDNs or *.suffix wildcards; NULL=unrestricted
+    Column("description", Text),
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("last_used_at", DateTime),
+)
+Index("idx_machine_client_active", machine_client.c.client_id,
+      machine_client.c.active)
+
+# ── OIDC Trust Anchors (Token Exchange) ──────────────────────────────────────
+
+oidc_trust_anchor = Table(
+    "oidc_trust_anchor",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("issuer", String(1024), nullable=False, unique=True, index=True),
+    Column("audience", String(512), nullable=False),
+    Column("jwks_url", String(1024)),  # For dynamic JWKS; if NULL, use static_jwks_pem
+    Column("static_jwks_pem", Text),  # Static PEM-encoded JWKS (alternative to jwks_url)
+    Column("tenant", String(255), nullable=False, server_default="default"),
+    Column("allowed_scopes", String(1024), nullable=False),  # Space-separated
+    Column("subject_pattern", String(255)),  # Glob pattern for subject claim
+    Column("allowed_domains", Text),  # JSON list of allowed FQDNs or *.suffix wildcards; NULL=unrestricted
+    Column("active", Boolean, nullable=False, server_default="1"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, onupdate=func.now()),
+)
+Index("idx_oidc_trust_anchor_active", oidc_trust_anchor.c.issuer,
+      oidc_trust_anchor.c.active)
+
+# ── DPoP Replay Defense (RFC 9449) ──────────────────────────────────────────
+
+dpop_replay = Table(
+    "dpop_replay",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("jti", String(36), nullable=False, unique=True, index=True),
+    Column("expires_at", DateTime, nullable=False),
+)
+Index("idx_dpop_replay_expires", dpop_replay.c.expires_at)
+
+# ── Audit events (durable, SIEM-exportable) ──────────────────────────────────
+
+audit_event = Table(
+    "audit_event",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("created_at", DateTime, nullable=False, server_default=func.now(), index=True),
+    Column("actor_id", Integer, ForeignKey("auth_user.id", ondelete="SET NULL")),
+    Column("tenant", String(100), index=True),  # Multi-tenancy support; nullable for cross-tenant audit
+    Column("action", String(100), nullable=False, index=True),
+    Column("resource_type", String(50), index=True),  # E.g., 'dns_server', 'token', 'user'
+    Column("resource_id", Integer, index=True),
+    Column("outcome", String(20), nullable=False, server_default="success"),  # 'success' | 'failure'
+    Column("status_code", Integer),  # HTTP status or error code
+    Column("request_id", String(36), index=True),  # For request tracing
+    Column("source_ip", String(45)),  # IPv4 or IPv6
+)
+Index("idx_audit_event_actor", audit_event.c.actor_id)
+Index("idx_audit_event_action_created", audit_event.c.action, audit_event.c.created_at)
+Index("idx_audit_event_tenant_created", audit_event.c.tenant, audit_event.c.created_at)
+Index("idx_audit_event_resource", audit_event.c.resource_type, audit_event.c.resource_id)

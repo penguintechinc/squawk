@@ -1,0 +1,19 @@
+apiVersion: v2
+name: spire
+description: >-
+  Thin wrapper around the upstream SPIFFE/SPIRE stack
+  (spiffe/helm-charts-hardened) providing squawk service-to-service mTLS
+  identity for the SPIFFE_ENABLED path in the squawk manager. Does not
+  hand-roll any spire-server/spire-agent manifests — see README.md for
+  install order and workload registration.
+type: application
+version: 0.1.0
+appVersion: "1.14.5"
+dependencies:
+  # Verified via `helm search hub spire --output json` (Artifact Hub) and
+  # `helm show chart spire --repo https://spiffe.github.io/helm-charts-hardened/`
+  # on 2026-07-25 — chart version 0.29.0, appVersion 1.14.5. Pinned to this
+  # exact version; do not bump without re-verifying against the upstream repo.
+  - name: spire
+    version: 0.29.0
+    repository: https://spiffe.github.io/helm-charts-hardened/

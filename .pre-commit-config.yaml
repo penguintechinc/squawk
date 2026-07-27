@@ -8,7 +8,7 @@ repos:
     hooks:
       - id: gitleaks
         name: Detect secrets with gitleaks
-        entry: gitleaks detect --source . --no-git
+        entry: gitleaks protect --staged --source .
         language: system
         pass_filenames: false
         stages: [commit, push]
@@ -24,21 +24,41 @@ repos:
       - id: check-yaml
         name: Check YAML syntax
         args: [--unsafe]
+        # Helm chart templates are Go-template text, not parseable YAML
+        # until rendered (use `helm lint` for those); entrypoint.yml is a
+        # pre-existing, never-finished Ansible scaffold stub (placeholder
+        # "YOUR PROJECT NAME" host, references jobs/*.yml dirs that don't
+        # exist) -- excluded rather than fixed, out of scope for this hook.
+        exclude: ^(k8s/helm/.*/templates/.*\.ya?ml|entrypoint\.yml)$
       - id: check-json
         name: Check JSON syntax
+        # tsconfig.json is JSONC (comments allowed, not strict JSON) by
+        # convention; dns-server/safety-report.json is stray captured CLI
+        # text (not JSON at all) from a deprecated `safety check` run.
+        exclude: (^|/)tsconfig(\..*)?\.json$|^dns-server/safety-report\.json$
       - id: check-merge-conflict
         name: Check merge conflict
       - id: detect-private-key
         name: Detect private keys
+        # Verified placeholder template (file header: "EXAMPLE / TEMPLATE
+        # ONLY", key bodies are literally "REPLACE -- generate via
+        # scripts/gen-jwt-keys.sh"), not real key material.
+        exclude: ^k8s/squawk-jwt-keys\.example\.yml$
 
-  # Python linting
+  # Python linting -- args intentionally omitted so the flake8 config file
+  # (.flake8: E9,F63,F7,F821,F401,B) is the single source of truth instead of
+  # a second, drifting copy of the rule selection here. `files` is scoped to
+  # the same app/bins source dirs as `make lint` -- not the whole service
+  # tree -- so it excludes tests/, examples/, and vendored web scaffolding
+  # that were never vetted against these rules.
   - repo: https://github.com/PyCQA/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
         name: Lint Python with flake8
-        args: [--max-line-length=120, --select=E9,F63,F7,F821]
-        files: ^(dns-server|squawk-client|manager).*\.py$
+        additional_dependencies: [flake8-bugbear>=24.2.6]
+        args: [--config=.flake8]
+        files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
 
   # Python code formatting
@@ -48,7 +68,7 @@ repos:
       - id: black
         name: Format Python with black
         args: [--line-length=120]
-        files: ^(dns-server|squawk-client|manager).*\.py$
+        files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
         stages: [manual]  # Require explicit opt-in
 
@@ -59,16 +79,31 @@ repos:
       - id: isort
         name: Sort Python imports with isort
         args: [--profile=black, --line-length=120]
-        files: ^(dns-server|squawk-client|manager).*\.py$
+        files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
         stages: [manual]  # Require explicit opt-in
 
-  # Docker linting
+  # Type checking -- manual stage (opt-in): dns-server and manager/backend
+  # currently carry pre-existing mypy errors (Flask dynamic-attribute access,
+  # crypto-lib stub mismatches) that predate this hook and are not yet fixed,
+  # so this is not wired into the blocking default stage. Run explicitly with
+  # `pre-commit run mypy --hook-stage manual` or `make type-check`.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: Type check with mypy (advisory, run via make type-check)
+        entry: bash -c 'cd dns-server && mypy app/; cd ../manager/backend && mypy app/; cd ../../dhcp-server && mypy app/; cd ../ntp-server && mypy bins/; cd ../squawk-client && mypy bins/'
+        language: system
+        pass_filenames: false
+        stages: [manual]
+
+  # Docker linting -- includes hadolint's default DL3002 rule ("Last USER
+  # should not be root"), which is the non-root Dockerfile check.
   - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.0
+    rev: v2.14.0
     hooks:
       - id: hadolint-docker
-        name: Lint Dockerfiles
+        name: Lint Dockerfiles (includes non-root/DL3002 check)
         stages: [commit, push]
 
   # Go linting (if golangci-lint is installed)

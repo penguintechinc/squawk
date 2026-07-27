@@ -51,7 +51,11 @@ check_untyped_defs = false
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_no_return = true
-files = ["dns-server/app", "manager/backend/app", "squawk-client/bins"]
+# NOTE: run per-service (`cd <service> && mypy <dir>/`), never all at once —
+# dns-server/app, manager/backend/app, and dhcp-server/app are each their own
+# top-level "app" package, so a single combined invocation trips mypy's
+# "Duplicate module named app" check. See Makefile `type-check` target.
+files = ["dns-server/app", "manager/backend/app", "squawk-client/bins", "dhcp-server/app", "ntp-server/bins"]
 exclude = [
     "venv",
     ".venv",
@@ -63,7 +67,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests", "dns-server/tests", "squawk-client/tests", "manager/backend/tests"]
+testpaths = ["tests", "dns-server/tests", "squawk-client/tests", "manager/backend/tests", "dhcp-server/tests", "ntp-server/tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -89,6 +93,11 @@ markers = [
     "mock: Mock tests without network/database",
     "edge_cases: Edge case and boundary condition tests",
     "ux: User experience and UI/UX tests",
+    "deployed: Post-deployment verification tests",
+    "k8s: Kubernetes-specific tests",
+    "model: Model/data-class tests",
+    "network: Tests requiring network access",
+    "validation: Input validation tests",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
@@ -97,7 +106,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["dns-server/app", "manager/backend/app", "squawk-client/bins"]
+source = ["dns-server/app", "manager/backend/app", "squawk-client/bins", "dhcp-server/app", "ntp-server/bins"]
 omit = [
     "*/venv/*",
     "*/.venv/*",
@@ -117,4 +126,8 @@ exclude_lines = [
     "^\\s*pass\\s*$",
     "^\\s*\\.\\.\\.$"
 ]
-fail_under = 80
+# House standard is 90% (see backend.md Code Coverage). Real aggregate
+# coverage across all 5 services is currently ~31% -- this threshold is
+# intentionally left at the target, not lowered to match current reality,
+# so `make test-coverage` / `coverage report` honestly fail until it's closed.
+fail_under = 90

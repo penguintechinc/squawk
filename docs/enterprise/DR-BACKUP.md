@@ -74,9 +74,9 @@ spec:
             - -c
             - |
               DB_URL=$(cat /etc/manager-db/url)
-              DB_HOST=$(echo $DB_URL | sed 's/.*@//;s/:.*//;s/\/.*//') 
-              DB_USER=$(echo $DB_URL | sed 's|.*://||;s/:.*//') 
-              DB_NAME=$(echo $DB_URL | sed 's|.*/||') 
+              DB_HOST=$(echo $DB_URL | sed 's/.*@//;s/:.*//;s/\/.*//')
+              DB_USER=$(echo $DB_URL | sed 's|.*://||;s/:.*//')
+              DB_NAME=$(echo $DB_URL | sed 's|.*/||')
               pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME \
                 --format=custom --compress=9 \
                 --file=/backups/squawk-$(date +\%Y\%m\%d-\%H\%M\%S).dump
@@ -228,4 +228,3 @@ find /backups -maxdepth 1 -name "squawk-*.dump" -mtime +7 -delete
 Lifecycle policy on S3:
 - **Transition to GLACIER after 30 days**
 - **Delete after 90 days**
-

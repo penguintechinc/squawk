@@ -57,4 +57,3 @@ These guides apply to:
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — System architecture and design
 - [docs/DEVELOPMENT.md](../DEVELOPMENT.md) — Local development setup
 - [docs/TESTING.md](../TESTING.md) — Testing practices
-

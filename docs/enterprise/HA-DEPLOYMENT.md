@@ -319,4 +319,3 @@ valkey:
 ```
 
 Alternative: Managed Redis/Valkey (AWS ElastiCache, GCP Memorystore, Azure Cache) auto-handles HA.
-

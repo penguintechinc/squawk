@@ -42,8 +42,14 @@ spec:
           containerPort: 8081
           protocol: TCP
         env:
+        # squawk-k8s-dns refuses a hostname here (it would create a DNS
+        # resolution loop bootstrapping its own upstream) -- it requires a
+        # literal IP. Use Kubernetes' auto-injected Service env vars
+        # (DNS_SERVER_SERVICE_HOST/_PORT, from the "dns-server" Service)
+        # instead of a values-driven hostname, since the binary's IP-only
+        # requirement is the same in every environment, not alpha-specific.
         - name: SQUAWK_SERVER_URL
-          value: {{ .Values.k8sDns.env.squawkServerUrl | quote }}
+          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)/dns-query"
         - name: SQUAWK_UDP_ADDRESS
           value: {{ printf "0.0.0.0:%d" (.Values.k8sDns.listenPort | int) | quote }}
         - name: SQUAWK_TCP_ADDRESS

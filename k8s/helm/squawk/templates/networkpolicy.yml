@@ -217,6 +217,40 @@ spec:
         - protocol: TCP
           port: 53
 ---
+# k8s-dns watches Services/Endpoints via the in-cluster Kubernetes API
+# client (client-go informers in squawk-client-go/pkg/k8swatcher). The
+# apiserver's "kubernetes" Service has no podSelector (it's backed by a
+# manually-managed Endpoints object pointing at a hostNetwork static pod),
+# so no namespaceSelector-based egress rule can ever match it — this must
+# stay unrestricted (no `to:`), same reasoning as the Cilium
+# kube-apiserver edge case in the deploying-app skill, generalized to any
+# NetworkPolicy-enforcing CNI. Without this rule the watcher's initial
+# List/Watch call silently blackholes and the pod never becomes ready.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-k8s-dns-apiserver
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-dns
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "squawk.name" . }}
+      app.kubernetes.io/component: k8s-dns
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+---
 # Manager backend (Flask) — namespace-internal only, never world-exposed.
 # Ports: 5000/tcp (gunicorn/health), 50051/tcp (grpc) — see
 # templates/manager-deployment.yml.

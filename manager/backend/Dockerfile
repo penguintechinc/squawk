@@ -1,21 +1,29 @@
-FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a AS base
+# python3.13 is not installable via apt on plain debian:bookworm-slim —
+# it's absent from both the main and bookworm-backports repos (verified:
+# `apt-cache madison python3.13` returns nothing from either). The previous
+# `debian:bookworm-slim` + `apt-get install python3.13` base broke every
+# build of this Dockerfile. python:3.13-slim-bookworm (same digest
+# dns-server already uses successfully) provides it natively.
+FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3.13 python3.13-venv python3.13-dev \
-    build-essential libpq-dev && \
+    build-essential libpq-dev ca-certificates curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Stage 2: Copy supercronic binary (fixed to v0.2.47, digest pending registry access)
-# TODO WAVE-6: Pin digest — requires ghcr.io registry access to resolve:
-#   docker pull ghcr.io/aptible/supercronic:0.2.47 && \
-#   docker inspect ghcr.io/aptible/supercronic:0.2.47 | grep Digest | head -1
-# Replace 'latest' with @sha256:<digest> once digest is available
-FROM ghcr.io/aptible/supercronic:0.2.47 AS supercronic
-# Binary is at /usr/local/bin/supercronic in the supercronic image
 
 FROM base AS backend
 WORKDIR /app
+
+# supercronic ships as a GitHub release binary, not a container image —
+# ghcr.io/aptible/supercronic does not exist under any tag (confirmed via
+# `docker pull`, which returns "denied" for :0.2.47, :v0.2.47, and :latest
+# alike — this is the upstream project's actual distribution mechanism, not
+# a missing/private image). The previous FROM ghcr.io/aptible/supercronic
+# multi-stage reference broke every build of this Dockerfile.
+# TODO WAVE-6: pin to a specific release + verify its published sha256 checksum.
+RUN curl -fsSL -o /usr/local/bin/supercronic \
+    https://github.com/aptible/supercronic/releases/download/v0.2.34/supercronic-linux-amd64 && \
+    chmod +x /usr/local/bin/supercronic
 
 # Copy requirements
 COPY requirements.txt /app/
@@ -33,9 +41,6 @@ COPY . /app/
 
 # Copy crontab for supercronic scheduler
 COPY crontab /app/crontab
-
-# Copy supercronic binary from builder stage
-COPY --from=supercronic /usr/local/bin/supercronic /usr/local/bin/supercronic
 
 # Create databases directory for PyDAL
 RUN mkdir -p /app/databases

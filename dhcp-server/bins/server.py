@@ -41,7 +41,7 @@ from app.models import DHCPOffer, DHCPAck
 def _configure_logging() -> None:
     """Configure structlog for structured logging."""
     logging.basicConfig(
-        level=getattr(logging, LOG_LEVEL), format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=getattr(logging, LOG_LEVEL.upper(), logging.INFO), format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     structlog.configure(
         processors=[

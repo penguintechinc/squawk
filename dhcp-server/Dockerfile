@@ -29,6 +29,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app ./app
 COPY bins ./bins
 
+# Copy Alembic schema-migration files (run manually or via K8s Job — see
+# backend-database.md Migration Execution — never automatically at startup).
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
+
 # Create empty __init__.py for packages
 RUN touch app/__init__.py bins/__init__.py
 
@@ -56,5 +61,8 @@ EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8081/health').read()" || exit 1
 
-# Run the DHCP server
-CMD ["python3", "bins/server.py"]
+# Run the DHCP server. Module mode (not a bare script path) is required:
+# `python3 bins/server.py` puts the script's own directory (/app/bins) on
+# sys.path[0], not the WORKDIR (/app), so `from app.config import ...`
+# can't find the sibling app/ package.
+CMD ["python3", "-m", "bins.server"]

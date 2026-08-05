@@ -8,11 +8,13 @@ metadata:
     app.kubernetes.io/component: manager-scheduler
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): this is a singleton cron scheduler — two
+  # instances running concurrently would duplicate scheduled jobs. Recreate
+  # guarantees the old pod fully terminates before the new one starts.
+  # (RollingUpdate with maxUnavailable:0 + maxSurge:0 is also an invalid K8s
+  # API combination and fails every `helm upgrade` outright.)
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 0
+    type: Recreate
   selector:
     matchLabels:
       {{- include "squawk.selectorLabels" . | nindent 6 }}
@@ -26,6 +28,13 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+        # See manager-deployment.yml — same jwt-keys Secret mount (0440),
+        # same non-root runAsUser; fsGroup/runAsGroup required to read it,
+        # and runAsUser must be set at pod level too (containerd sandbox
+        # spec generation requires both together).
+        runAsUser: 1000
+        fsGroup: 1000
+        runAsGroup: 1000
       containers:
       - name: manager-scheduler
         image: {{ include "squawk.manager.image" . }}
@@ -39,10 +48,15 @@ spec:
             secretKeyRef:
               name: manager-db
               key: url
+        # See manager-deployment.yml — the valkey Service is named plain
+        # "valkey", and VALKEY_URL (not VALKEY_HOST/PORT) is what
+        # app/config.py actually reads for RATELIMIT_STORAGE_URL.
         - name: VALKEY_HOST
-          value: "{{ include "squawk.fullname" . }}-valkey"
+          value: "valkey"
         - name: VALKEY_PORT
           value: "6379"
+        - name: VALKEY_URL
+          value: "redis://valkey:6379"
         - name: LOG_LEVEL
           value: {{ .Values.manager.logLevel | quote }}
         # Asymmetric JWT signing keys (ES256/RS256) — same signer identity as

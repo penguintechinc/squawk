@@ -58,6 +58,11 @@ spec:
         - name: jwt-public-key
           mountPath: {{ .Values.jwt.mountPath }}
           readOnly: true
+        # readOnlyRootFilesystem forbids writes anywhere else under /app;
+        # manager_client.py persists its manager-sync cache to CACHE_DIR
+        # (default /app/cache) and needs a writable mount there.
+        - name: cache
+          mountPath: /app/cache
         resources:
           {{- toYaml .Values.dnsServer.resources | nindent 10 }}
         securityContext:
@@ -94,3 +99,5 @@ spec:
           - key: jwt-public-key
             path: jwt-public-key
           defaultMode: 0440
+      - name: cache
+        emptyDir: {}

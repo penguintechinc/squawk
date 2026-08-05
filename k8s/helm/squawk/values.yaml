@@ -80,7 +80,9 @@ k8sDns:
       cpu: 200m
       memory: 128Mi
   env:
-    squawkServerUrl: "http://dns-server.squawk.svc.cluster.local:8080/dns-query"
+    # SQUAWK_SERVER_URL is no longer values-driven — the binary requires a
+    # literal IP (see templates/k8s-dns-deployment.yml), so it's built from
+    # Kubernetes' auto-injected dns-server Service env vars instead.
     clusterDomain: "cluster.local"
     logLevel: "info"
   autoscaling:
@@ -95,13 +97,18 @@ manager:
   replicas: 1
   logLevel: "info"
   tenantId: "default"
+  # 256Mi was OOMKilling 4 gunicorn gthread workers loading this service's
+  # dependency stack (pysaml2, boto3, grpcio, aiohttp, SQLAlchemy,
+  # OpenTelemetry) within seconds of every startup. Worth a follow-up to
+  # right-size properly (or reduce worker count) rather than carry this
+  # bump indefinitely, but 256Mi never worked in practice.
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
+      memory: 256Mi
     limits:
       cpu: 250m
-      memory: 256Mi
+      memory: 512Mi
 
 dhcpServer:
   enabled: true

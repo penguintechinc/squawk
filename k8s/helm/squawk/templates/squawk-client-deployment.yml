@@ -29,14 +29,18 @@ spec:
       - name: squawk-client
         image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsClient.image.repository }}:{{ .Values.dnsClient.image.tag }}
         imagePullPolicy: {{ .Values.dnsClient.image.pullPolicy | default "Always" }}
+        # The root command defaults to a one-shot query mode requiring -d
+        # <domain>; the actual UDP/TCP bridge daemon lives behind the
+        # "forward" subcommand, which reads its config from the env vars
+        # below (already correctly set) rather than needing CLI flags.
         args:
-          - --server
-          - "http://dns-server:8080"
-          - --udp
-          - --tcp
+          - forward
         env:
+        # See k8s-dns-deployment.yml — the client binary rejects a hostname
+        # here for the same DNS-loop reason; use the auto-injected Service
+        # env vars instead of a hostname.
         - name: SQUAWK_SERVER_URL
-          value: "http://dns-server:8080"
+          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)"
         - name: SQUAWK_UDP_ADDRESS
           value: "0.0.0.0:{{ .Values.dnsClient.listenPort }}"
         - name: SQUAWK_TCP_ADDRESS

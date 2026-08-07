@@ -59,8 +59,9 @@ def create_app(config_class: type = Config) -> Flask:
     _storage_url = app.config.get("RATELIMIT_STORAGE_URL")
 
     if _storage_url:
+        import redis
         from penguin_limiter.storage.redis_store import RedisStorage
-        _storage = RedisStorage(url=_storage_url)
+        _storage = RedisStorage(client=redis.Redis.from_url(_storage_url))
     else:
         _storage = MemoryStorage()
 

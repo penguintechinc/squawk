@@ -17,7 +17,7 @@ from client import DNSOverHTTPSClient, SquawkDNSGrpcClient, DNSForwarder
 
 class TestDNSOverHTTPSClient:
     """Test DNS-over-HTTPS client"""
-    
+
     @patch('client.requests.Session')
     def test_client_initialization(self, mock_session):
         """Test client initialization"""
@@ -25,10 +25,10 @@ class TestDNSOverHTTPSClient:
             dns_server_url='https://dns.google/resolve',
             auth_token='test-token'
         )
-        
+
         assert client.dns_server_url == 'https://dns.google/resolve'
         assert client.auth_token == 'test-token'
-    
+
     @patch('client.requests.Session')
     def test_query_success(self, mock_session):
         """Test successful DNS query"""
@@ -39,39 +39,39 @@ class TestDNSOverHTTPSClient:
             'Status': 0,
             'Answer': [{'name': 'example.com', 'type': 1, 'data': '93.184.216.34'}]
         }
-        
+
         mock_session_instance = Mock()
         mock_session_instance.get.return_value = mock_response
         mock_session.return_value = mock_session_instance
-        
+
         client = DNSOverHTTPSClient(dns_server_url='https://dns.google/resolve')
         result = client.query('example.com', 'A')
-        
+
         assert result['Status'] == 0
         assert len(result['Answer']) > 0
-    
+
     @patch('client.requests.Session')
     def test_query_with_auth_token(self, mock_session):
         """Test DNS query with authentication token"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'Status': 0, 'Answer': []}
-        
+
         mock_session_instance = Mock()
         mock_session_instance.get.return_value = mock_response
         mock_session.return_value = mock_session_instance
-        
+
         client = DNSOverHTTPSClient(
             dns_server_url='https://dns.google/resolve',
             auth_token='test-token-123'
         )
         client.query('example.com', 'A')
-        
+
         # Verify auth header was sent
         call_args = mock_session_instance.get.call_args
         assert 'headers' in call_args[1]
         assert 'Authorization' in call_args[1]['headers']
-    
+
     @patch('client.requests.Session')
     def test_query_failover(self, mock_session):
         """Test failover to secondary server"""
@@ -99,31 +99,31 @@ class TestDNSOverHTTPSClient:
 
         result = client.query('example.com', 'A')
         assert result['Status'] == 0
-    
+
     def test_domain_validation(self):
         """Test domain name validation"""
         # Valid domains
         assert DNSOverHTTPSClient.validate_dns_name('example.com') == True
         assert DNSOverHTTPSClient.validate_dns_name('sub.example.com') == True
         assert DNSOverHTTPSClient.validate_dns_name('example.co.uk') == True
-        
+
         # Invalid domains
         with pytest.raises(ValueError):
             DNSOverHTTPSClient.validate_dns_name('')
-        
+
         with pytest.raises(ValueError):
             DNSOverHTTPSClient.validate_dns_name('invalid domain.com')
-        
+
         with pytest.raises(ValueError):
             DNSOverHTTPSClient.validate_dns_name('a' * 300)  # Too long
-    
+
     def test_record_type_validation(self):
         """Test DNS record type validation"""
         # Valid types
         assert DNSOverHTTPSClient.validate_record_type('A') == 'A'
         assert DNSOverHTTPSClient.validate_record_type('AAAA') == 'AAAA'
         assert DNSOverHTTPSClient.validate_record_type('mx') == 'MX'  # Case insensitive
-        
+
         # Invalid type
         with pytest.raises(ValueError):
             DNSOverHTTPSClient.validate_record_type('INVALID')
@@ -229,7 +229,7 @@ class TestSquawkDNSGrpcClient:
 
 class TestDNSForwarder:
     """Test DNS forwarder"""
-    
+
     @patch('client.DNSOverHTTPSClient')
     def test_forwarder_initialization(self, mock_client):
         """Test DNS forwarder initialization"""
@@ -240,7 +240,7 @@ class TestDNSForwarder:
             listen_udp=True,
             listen_tcp=False
         )
-        
+
         assert forwarder.udp_port == 5353
         assert forwarder.tcp_port == 5353
         assert forwarder.listen_udp == True
@@ -249,38 +249,38 @@ class TestDNSForwarder:
 
 class TestClientIntegration:
     """Integration tests for client operations"""
-    
+
     @patch('client.requests.Session')
     def test_multiple_queries(self, mock_session):
         """Test multiple sequential queries"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'Status': 0, 'Answer': []}
-        
+
         mock_session_instance = Mock()
         mock_session_instance.get.return_value = mock_response
         mock_session.return_value = mock_session_instance
-        
+
         client = DNSOverHTTPSClient(dns_server_url='https://dns.google/resolve')
-        
+
         domains = ['example1.com', 'example2.com', 'example3.com']
         for domain in domains:
             result = client.query(domain, 'A')
             assert result['Status'] == 0
-    
+
     @patch('client.requests.Session')
     def test_different_record_types(self, mock_session):
         """Test queries for different record types"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {'Status': 0, 'Answer': []}
-        
+
         mock_session_instance = Mock()
         mock_session_instance.get.return_value = mock_response
         mock_session.return_value = mock_session_instance
-        
+
         client = DNSOverHTTPSClient(dns_server_url='https://dns.google/resolve')
-        
+
         record_types = ['A', 'AAAA', 'MX', 'TXT', 'CNAME']
         for record_type in record_types:
             result = client.query('example.com', record_type)

@@ -42,7 +42,7 @@ const recordTypes = ['A', 'AAAA', 'MX', 'TXT', 'NS'];
 
 const tokens = [
   'test-token-for-development',
-  'admin-token-12345', 
+  'admin-token-12345',
   'client-token-67890',
   'invalid-token-123' // This should fail
 ];
@@ -52,26 +52,26 @@ const BASE_URL = 'http://dns-server:8080';
 
 export default function() {
   group('DNS Query Tests', function() {
-    
+
     // Test 1: Valid DNS queries with valid tokens
     group('Valid DNS Queries', function() {
       const domain = domains[Math.floor(Math.random() * domains.length)];
       const recordType = recordTypes[Math.floor(Math.random() * recordTypes.length)];
       const token = tokens[Math.floor(Math.random() * (tokens.length - 1))]; // Exclude invalid token
-      
+
       const url = `${BASE_URL}/dns-query?name=${domain}&type=${recordType}`;
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json'
       };
-      
+
       const startTime = Date.now();
       const response = http.get(url, { headers });
       const responseTime = Date.now() - startTime;
-      
+
       dnsQueries.add(1);
       dnsResponseTime.add(responseTime);
-      
+
       const isSuccess = check(response, {
         'status is 200': (r) => r.status === 200,
         'response has Status field': (r) => {
@@ -84,44 +84,44 @@ export default function() {
         },
         'response time < 1000ms': () => responseTime < 1000,
       });
-      
+
       if (!isSuccess) {
         dnsErrors.add(1);
       }
     });
-    
+
     // Test 2: Authentication failures
     group('Authentication Tests', function() {
       const domain = 'example.com';
       const invalidToken = 'invalid-token-123';
-      
+
       const url = `${BASE_URL}/dns-query?name=${domain}&type=A`;
       const headers = {
         'Authorization': `Bearer ${invalidToken}`,
         'Accept': 'application/json'
       };
-      
+
       const response = http.get(url, { headers });
-      
+
       const authFailed = check(response, {
         'auth failure returns 403': (r) => r.status === 403,
       });
-      
+
       authFailures.add(authFailed ? 0 : 1); // Inverted because we expect auth to fail
     });
-    
+
     // Test 3: No authentication token
     group('No Token Tests', function() {
       const domain = 'example.com';
       const url = `${BASE_URL}/dns-query?name=${domain}&type=A`;
-      
+
       const response = http.get(url);
-      
+
       check(response, {
         'no token returns 403': (r) => r.status === 403,
       });
     });
-    
+
     // Test 4: Invalid domain names
     group('Invalid Domain Tests', function() {
       const invalidDomains = [
@@ -130,31 +130,31 @@ export default function() {
         '',
         'very-long-domain-name-that-exceeds-limits.com'
       ];
-      
+
       const invalidDomain = invalidDomains[Math.floor(Math.random() * invalidDomains.length)];
       const token = 'test-token-for-development';
-      
+
       const url = `${BASE_URL}/dns-query?name=${encodeURIComponent(invalidDomain)}&type=A`;
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json'
       };
-      
+
       const response = http.get(url, { headers });
-      
+
       check(response, {
         'invalid domain returns 400': (r) => r.status === 400,
       });
     });
-    
+
     // Test 5: Web Console API
     group('Web Console API Tests', function() {
       const token = 'admin-token-12345';
-      
+
       // Test token validation endpoint
       const validateUrl = `${BASE_URL}/dns_console/api/validate/${token}`;
       const validateResponse = http.get(validateUrl);
-      
+
       check(validateResponse, {
         'validate endpoint returns 200': (r) => r.status === 200,
         'validate response is valid': (r) => {
@@ -166,18 +166,18 @@ export default function() {
           }
         },
       });
-      
+
       // Test permission check endpoint
       const permUrl = `${BASE_URL}/dns_console/api/check_permission`;
       const permPayload = JSON.stringify({
         token: token,
         domain: 'example.com'
       });
-      
+
       const permResponse = http.post(permUrl, permPayload, {
         headers: { 'Content-Type': 'application/json' }
       });
-      
+
       check(permResponse, {
         'permission check returns 200': (r) => r.status === 200,
         'permission check response valid': (r) => {
@@ -191,7 +191,7 @@ export default function() {
       });
     });
   });
-  
+
   // Small delay between iterations
   sleep(Math.random() * 2);
 }
@@ -202,13 +202,13 @@ export function setup() {
   console.log(`Target: ${BASE_URL}`);
   console.log(`Test domains: ${domains.join(', ')}`);
   console.log(`Record types: ${recordTypes.join(', ')}`);
-  
+
   // Verify the server is responding
   const healthCheck = http.get(`${BASE_URL}/health`);
   if (healthCheck.status !== 200) {
     console.warn('Warning: Health check failed, server may not be ready');
   }
-  
+
   return {};
 }
 

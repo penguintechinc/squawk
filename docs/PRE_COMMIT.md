@@ -30,7 +30,7 @@ This script will:
 Before committing, run in this order (or use `./scripts/pre-commit/pre-commit.sh`):
 
 ### Foundation Checks
-- [ ] **Linters**: `npm run lint` (React), `black . && flake8 . && mypy .` (Python), `golangci-lint run` (Go)
+- [ ] **Linters**: `npm run lint` (React), `ruff check --select=F,E9,B . && mypy .` (Python), `golangci-lint run` (Go)
 - [ ] **Security scans**: `npm audit`, `gosec ./...`, `bandit -r .` (per language)
 - [ ] **No secrets**: Verify no credentials, API keys, tokens, or LDAP passwords in code
 
@@ -92,10 +92,9 @@ Before committing, run in this order (or use `./scripts/pre-commit/pre-commit.sh
 
 **Linting**:
 ```bash
-black .                           # Format code
-isort .                          # Sort imports
-flake8 .                         # Check style
-mypy .                           # Type checking
+ruff format .                     # Format code + sort imports
+ruff check --select=F,E9,B .      # Check style (blocking subset)
+mypy .                            # Type checking
 ```
 
 **Security**:
@@ -366,7 +365,7 @@ Before committing changes to network services:
 # 1. Make code changes
 # 2. Test locally
 npm run lint && npm test               # Frontend
-pytest --cov && black . && bandit -r . # Python services
+pytest --cov && ruff check --select=F,E9,B . && bandit -r . # Python services
 golangci-lint run && go test -race ./... # Go client
 
 # 3. Run smoke tests

@@ -253,7 +253,7 @@ def audit_log(action: str, resource_type: str | None = None):
                 # Extract request_id if present in headers or response
                 request_id = request.headers.get('X-Request-ID')
 
-            except Exception as e:
+            except Exception:
                 # Audit the failure, log the error, re-raise
                 outcome = 'failure'
                 status_code = 500

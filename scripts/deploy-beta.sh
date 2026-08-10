@@ -22,7 +22,8 @@ readonly CHART_PATH="./k8s/helm/squawk"
 readonly IMAGE_REGISTRY="registry-dal2.penguintech.io"
 readonly KUBE_CONTEXT="dal2-beta"
 readonly APP_HOST="squawk.penguintech.cloud"
-readonly DEFAULT_TAG="beta-$(date +%s)"
+DEFAULT_TAG_VALUE="beta-$(date +%s)"
+readonly DEFAULT_TAG="$DEFAULT_TAG_VALUE"
 
 # Service definitions (docker build contexts)
 declare -A SERVICES=(
@@ -168,7 +169,7 @@ build_and_push() {
   if [[ -n "$SERVICE" ]]; then
     # Build specific service
     if [[ -z "${SERVICES[$SERVICE]:-}" ]]; then
-      die "Unknown service: $SERVICE. Available: ${!SERVICES[@]}"
+      die "Unknown service: $SERVICE. Available: ${!SERVICES[*]}"
     fi
     build_and_push_image "$SERVICE"
   else
@@ -267,7 +268,8 @@ verify_deployment() {
   print_step "Health Check Summary:"
   local unhealthy=0
   for pod in $(kubectl get pods -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
-    local status=$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.phase}')
+    local status
+    status=$(kubectl get pod "$pod" -n "$NAMESPACE" -o jsonpath='{.status.phase}')
     if [[ "$status" != "Running" ]]; then
       print_warning "Pod $pod is $status"
       ((unhealthy++))

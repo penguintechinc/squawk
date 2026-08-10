@@ -1,5 +1,5 @@
 # Makefile for Squawk DNS System
-.PHONY: help setup test test-unit test-integration test-security test-performance clean build run stop logs shell fix-lint install-hooks smoke-test test-e2e test-functional
+.PHONY: help setup test test-unit test-integration test-security test-performance clean build run stop logs shell fix-lint install-hooks verify-hooks smoke-test test-e2e test-functional
 
 # NOTE: no root-level venv/ is created by this Makefile (setup-venv only
 # creates dns-server/venv and squawk-client/venv) -- these resolve via PATH so
@@ -8,8 +8,7 @@
 PYTHON := python3
 PIP := pip3
 PYTEST := pytest
-FLAKE8 := flake8
-BLACK := black
+RUFF := ruff
 MYPY := mypy
 BANDIT := bandit
 SAFETY := safety
@@ -23,7 +22,8 @@ help:
 	@echo "  setup-dev             - Set up development environment with all tools"
 	@echo "  install               - Install dependencies"
 	@echo "  install-dev           - Install development dependencies"
-	@echo "  install-hooks         - Install git pre-commit hooks"
+	@echo "  install-hooks         - Install pre-commit framework + register hooks"
+	@echo "  verify-hooks          - Report whether hooks are installed and non-empty"
 	@echo ""
 	@echo "Testing:"
 	@echo "  smoke-test            - Run fast smoke tests (pre-commit)"
@@ -36,9 +36,9 @@ help:
 	@echo "  test-coverage         - Run tests with coverage report"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint                  - Run linting (flake8, black, isort)"
-	@echo "  fix-lint              - Fix linting errors (black, isort)"
-	@echo "  format                - Format code (black)"
+	@echo "  lint                  - Run linting (ruff, golangci-lint, hadolint, ...)"
+	@echo "  fix-lint              - Fix linting errors (ruff)"
+	@echo "  format                - Format code (ruff format)"
 	@echo "  type-check            - Run type checking (mypy)"
 	@echo "  security-check        - Run security checks"
 	@echo "  quality-check         - Run all quality checks"
@@ -51,7 +51,7 @@ help:
 	@echo ""
 
 # Setup targets
-setup: setup-venv install
+setup: setup-venv install install-hooks
 	@echo "Development environment setup complete!"
 
 setup-dev: setup-venv install-dev setup-pre-commit
@@ -74,14 +74,11 @@ install-dev:
 
 setup-pre-commit: install-hooks
 
-install-hooks:
-	@echo "Installing pre-commit hooks..."
-	@if command -v pre-commit >/dev/null 2>&1; then \
-		pre-commit install && pre-commit install --hook-type pre-push; \
-	else \
-		echo "pre-commit not found. Install with: pip install pre-commit"; \
-		exit 1; \
-	fi
+install-hooks: ## Install pre-commit framework + register pre-commit and pre-push hooks
+	@./scripts/install-pre-commit.sh
+
+verify-hooks: ## Report whether pre-commit/pre-push hooks are installed and non-empty
+	@./scripts/install-pre-commit.sh --verify
 
 # Testing targets
 test: test-unit test-integration
@@ -127,23 +124,15 @@ test-coverage:
 lint:
 	@echo "=== Linting ==="
 	@exit_code=0; \
-	if command -v flake8 >/dev/null 2>&1; then \
-		echo "-- flake8 --"; \
-		python3 -m flake8 dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --config=.flake8 || exit_code=1; \
+	if command -v ruff >/dev/null 2>&1; then \
+		echo "-- ruff check (blocking subset: F, E9, B) --"; \
+		ruff check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --select=F,E9,B || exit_code=1; \
+		echo "-- ruff check (full canonical rule set, advisory) --"; \
+		ruff check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --exit-zero; \
+		echo "-- ruff format (check, advisory) --"; \
+		ruff format --check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins || true; \
 	else \
-		echo "flake8 not installed, skipping"; \
-	fi; \
-	if command -v black >/dev/null 2>&1; then \
-		echo "-- black (check) --"; \
-		black --check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --line-length=120 || true; \
-	else \
-		echo "black not installed, skipping"; \
-	fi; \
-	if command -v isort >/dev/null 2>&1; then \
-		echo "-- isort (check, advisory) --"; \
-		isort --check-only dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --profile=black --line-length=120 2>&1 || true; \
-	else \
-		echo "isort not installed, skipping"; \
+		echo "ruff not installed, skipping"; \
 	fi; \
 	if command -v golangci-lint >/dev/null 2>&1; then \
 		echo "-- golangci-lint (advisory) --"; \
@@ -171,15 +160,17 @@ lint:
 	fi; \
 	exit $$exit_code
 
-fix-lint: format
+fix-lint:
+	@echo "Fixing lint errors (ruff --fix, blocking subset)..."
+	$(RUFF) check dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins --select=F,E9,B --fix
 
 format:
 	@echo "Formatting code..."
-	cd dns-server && $(BLACK) app/ tests/
-	cd squawk-client && $(BLACK) bins/ tests/
-	cd manager/backend && $(BLACK) app/ tests/ --line-length=120
-	cd dhcp-server && $(BLACK) app/ tests/ --line-length=120
-	cd ntp-server && $(BLACK) bins/ tests/ --line-length=120
+	$(RUFF) format dns-server/app dns-server/tests
+	$(RUFF) format squawk-client/bins squawk-client/tests
+	$(RUFF) format manager/backend/app manager/backend/tests
+	$(RUFF) format dhcp-server/app dhcp-server/tests
+	$(RUFF) format ntp-server/bins ntp-server/tests
 
 # Run per-service (`cd <service> && mypy <dir>/`), never all at once --
 # dns-server/app, manager/backend/app, and dhcp-server/app are each their own

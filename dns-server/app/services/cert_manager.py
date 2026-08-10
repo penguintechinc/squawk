@@ -664,7 +664,7 @@ class CertManager:
                 )
 
             ca_cert = self._load_certificate(self.ca_cert_path)
-            ca_key = self._load_private_key(self.ca_key_path)
+            self._load_private_key(self.ca_key_path)
 
             # Verify signature
             try:

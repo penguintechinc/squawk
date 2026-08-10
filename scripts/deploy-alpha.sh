@@ -28,8 +28,10 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+SCRIPT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR="$SCRIPT_DIR_VALUE"
+PROJECT_ROOT_VALUE="$(dirname "${SCRIPT_DIR}")"
+readonly PROJECT_ROOT="$PROJECT_ROOT_VALUE"
 
 readonly APP_NAME="${APP_NAME:-squawk}"
 readonly KUBE_CONTEXT="${KUBE_CONTEXT:-local-alpha}"

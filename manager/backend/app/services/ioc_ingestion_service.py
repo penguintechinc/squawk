@@ -266,7 +266,6 @@ class IOCManager:
         indicators: List[IOCIndicator] = []
         config = config or {}
         comment_chars = config.get("comment_chars", ["#", ";"])
-        skip_localhost = config.get("skip_localhost", False)
 
         for line in content.split("\n"):
             line = line.strip()

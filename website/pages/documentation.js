@@ -40,7 +40,7 @@ export default function Documentation() {
               <p className="text-muted">Jump directly to what you need</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-3 col-md-6">
               <div className="quick-link-card text-center p-4 bg-light rounded h-100">
@@ -52,7 +52,7 @@ export default function Documentation() {
                 </Link>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6">
               <div className="quick-link-card text-center p-4 bg-light rounded h-100">
                 <i className="fas fa-cogs fa-3x text-success mb-3"></i>
@@ -63,7 +63,7 @@ export default function Documentation() {
                 </a>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6">
               <div className="quick-link-card text-center p-4 bg-light rounded h-100">
                 <i className="fas fa-code fa-3x text-warning mb-3"></i>
@@ -74,7 +74,7 @@ export default function Documentation() {
                 </a>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6">
               <div className="quick-link-card text-center p-4 bg-light rounded h-100">
                 <i className="fas fa-shield-alt fa-3x text-info mb-3"></i>
@@ -98,7 +98,7 @@ export default function Documentation() {
               <p className="text-muted">Comprehensive guides organized by topic</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             {/* Getting Started */}
             <div className="col-lg-6">
@@ -260,7 +260,7 @@ export default function Documentation() {
               <p className="text-muted">Quick examples to get you started</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="code-example p-4 bg-dark text-light rounded">
@@ -284,7 +284,7 @@ docker-compose --profile postgres --profile monitoring up -d
                 </code></pre>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="code-example p-4 bg-dark text-light rounded">
                 <h5 className="text-success mb-3">
@@ -317,7 +317,7 @@ export LOG_LEVEL=INFO
               <p className="text-muted">Multiple support channels available based on your needs</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-4">
               <div className="support-option text-center p-4 bg-white rounded shadow-sm h-100">
@@ -329,7 +329,7 @@ export LOG_LEVEL=INFO
                 </a>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="support-option text-center p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-book fa-3x text-primary mb-3"></i>
@@ -340,7 +340,7 @@ export LOG_LEVEL=INFO
                 </a>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="support-option text-center p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-envelope fa-3x text-success mb-3"></i>

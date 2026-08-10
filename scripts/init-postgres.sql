@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_query_logs_status ON query_logs(status);
 
 -- Create a view for easier token permission queries
 CREATE OR REPLACE VIEW token_permissions AS
-SELECT 
+SELECT
     t.id as token_id,
     t.token,
     t.name as token_name,
@@ -74,7 +74,7 @@ JOIN domains d ON td.domain_id = d.id;
 
 -- Create a view for query statistics
 CREATE OR REPLACE VIEW query_statistics AS
-SELECT 
+SELECT
     t.name as token_name,
     ql.status,
     COUNT(*) as query_count,

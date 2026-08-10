@@ -199,7 +199,7 @@ class AwsKmsProvider(SigningProvider):
             raise ImportError(
                 "boto3 is required for AwsKmsProvider. "
                 "Install it with: pip install boto3"
-            )
+            ) from None
 
         self._kms_client = boto3.client("kms", region_name=None)
         self._fetch_public_key()

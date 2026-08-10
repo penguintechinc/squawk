@@ -524,9 +524,9 @@ client:
   # Multiple servers with automatic failover
   server_urls:
     - "https://192.168.1.100:8443"
-    - "https://192.168.1.101:8443" 
+    - "https://192.168.1.101:8443"
     - "https://10.0.0.50:8443"
-  
+
   # Failover settings
   max_retries: 6        # Total retry attempts (default: servers * 2)
   retry_delay: 2        # Seconds between retries (default: 2)

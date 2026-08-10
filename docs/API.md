@@ -67,7 +67,7 @@ Authorization: Bearer your-token-here
 curl -H "Authorization: Bearer abc123def456" \
      "https://dns.example.com/dns-query?name=example.com&type=A"
 
-# Management API with admin token  
+# Management API with admin token
 curl -H "Authorization: Bearer admin-token-789" \
      "http://localhost:8000/dns_console/api/tokens"
 ```
@@ -98,7 +98,7 @@ GET /dns-query
 curl -H "Authorization: Bearer TOKEN" \
      "https://dns.example.com/dns-query?name=example.com&type=A"
 
-# AAAA record query  
+# AAAA record query
 curl -H "Authorization: Bearer TOKEN" \
      "https://dns.example.com/dns-query?name=example.com&type=AAAA"
 
@@ -119,7 +119,7 @@ curl -H "Authorization: Bearer TOKEN" \
   "Answer": [
     {
       "name": "example.com",
-      "type": "A", 
+      "type": "A",
       "data": "93.184.216.34"
     }
   ]
@@ -260,7 +260,7 @@ GET /dns_console/api/tokens/{id}
         "description": "Main domain"
       },
       {
-        "id": 2, 
+        "id": 2,
         "name": "*.api.example.com",
         "description": "API subdomains"
       }
@@ -382,7 +382,7 @@ GET /dns_console/api/domains
     },
     {
       "id": 2,
-      "name": "*.api.example.com", 
+      "name": "*.api.example.com",
       "description": "API subdomain wildcard",
       "created_at": "2024-01-01T00:00:00Z",
       "token_count": 1
@@ -391,7 +391,7 @@ GET /dns_console/api/domains
       "id": 3,
       "name": "*",
       "description": "Wildcard - all domains",
-      "created_at": "2024-01-01T00:00:00Z", 
+      "created_at": "2024-01-01T00:00:00Z",
       "token_count": 1
     }
   ]
@@ -458,7 +458,7 @@ PUT /dns_console/api/domains/{id}
   "success": true,
   "data": {
     "id": 4,
-    "name": "updated-domain.com", 
+    "name": "updated-domain.com",
     "description": "Updated description"
   },
   "message": "Domain updated successfully"
@@ -715,7 +715,7 @@ POST /dns_console/blacklist/domain/add
 
 **Form Data:**
 - `domain`: Domain to block (string, required)
-- `reason`: Reason for blocking (string, optional)  
+- `reason`: Reason for blocking (string, optional)
 - `added_by`: Administrator name (string, optional)
 
 #### Add IP to Blacklist
@@ -808,7 +808,7 @@ GET/POST /dns_console/mfa/setup
 
 **POST Actions:**
 - `action=generate`: Generate new MFA secret and QR code
-- `action=verify`: Verify MFA token and enable MFA  
+- `action=verify`: Verify MFA token and enable MFA
 - `action=disable`: Disable MFA (requires password)
 
 #### Verify MFA
@@ -897,7 +897,7 @@ POST /dns_console/auth/register
 
 **Form Data:**
 - `email`: Email address (string, required)
-- `password`: Password (string, required)  
+- `password`: Password (string, required)
 - `first_name`: First name (string, optional)
 - `last_name`: Last name (string, optional)
 
@@ -1803,7 +1803,7 @@ GET /dns_console/api/stats
         "queries": 25000
       },
       {
-        "domain": "example.com", 
+        "domain": "example.com",
         "queries": 15000
       }
     ],
@@ -1872,7 +1872,7 @@ curl -H "Authorization: Bearer TOKEN" \
         "timestamp": "2024-01-03T09:59:58Z",
         "token_name": "Development",
         "domain_queried": "test.example.com",
-        "query_type": "AAAA", 
+        "query_type": "AAAA",
         "status": "denied",
         "client_ip": "10.0.1.50",
         "response_time_ms": 12
@@ -1994,7 +1994,7 @@ All API errors follow a consistent format:
 {
   "success": false,
   "error": {
-    "code": "VALIDATION_ERROR", 
+    "code": "VALIDATION_ERROR",
     "message": "Token name is required and must be unique",
     "details": {
       "field": "name",
@@ -2080,43 +2080,43 @@ class SquawkClient:
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
         })
-    
+
     def dns_query(self, domain: str, record_type: str = 'A') -> Dict:
         """Perform DNS query"""
         url = f"{self.base_url}/dns-query"
         params = {'name': domain, 'type': record_type}
-        
+
         response = self.session.get(url, params=params)
         response.raise_for_status()
         return response.json()
-    
+
     def list_tokens(self) -> List[Dict]:
         """List all tokens"""
         url = f"{self.base_url}/dns_console/api/tokens"
         response = self.session.get(url)
         response.raise_for_status()
         return response.json()['data']
-    
-    def create_token(self, name: str, description: str = None, 
+
+    def create_token(self, name: str, description: str = None,
                     domains: List[str] = None) -> Dict:
         """Create new token"""
         url = f"{self.base_url}/dns_console/api/tokens"
         payload = {'name': name}
-        
+
         if description:
             payload['description'] = description
         if domains:
             payload['domains'] = domains
-        
+
         response = self.session.post(url, json=payload)
         response.raise_for_status()
         return response.json()['data']
-    
+
     def grant_permission(self, token_id: int, domain_id: int) -> bool:
         """Grant domain permission to token"""
         url = f"{self.base_url}/dns_console/api/permissions"
         payload = {'token_id': token_id, 'domain_id': domain_id}
-        
+
         response = self.session.post(url, json=payload)
         response.raise_for_status()
         return response.json()['success']
@@ -2149,73 +2149,73 @@ class SquawkClient {
             'Content-Type': 'application/json'
         };
     }
-    
+
     async dnsQuery(domain, recordType = 'A') {
         const url = `${this.baseUrl}/dns-query?name=${domain}&type=${recordType}`;
         const response = await fetch(url, {
             headers: this.headers
         });
-        
+
         if (!response.ok) {
             throw new Error(`DNS query failed: ${response.statusText}`);
         }
-        
+
         return await response.json();
     }
-    
+
     async listTokens() {
         const url = `${this.baseUrl}/dns_console/api/tokens`;
         const response = await fetch(url, {
             headers: this.headers
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to list tokens: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
         return data.data;
     }
-    
+
     async createToken(name, description = null, domains = null) {
         const url = `${this.baseUrl}/dns_console/api/tokens`;
         const payload = { name };
-        
+
         if (description) payload.description = description;
         if (domains) payload.domains = domains;
-        
+
         const response = await fetch(url, {
             method: 'POST',
             headers: this.headers,
             body: JSON.stringify(payload)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to create token: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
         return data.data;
     }
-    
+
     async getQueryLogs(options = {}) {
         const params = new URLSearchParams();
-        
+
         Object.entries(options).forEach(([key, value]) => {
             if (value !== null && value !== undefined) {
                 params.append(key, value);
             }
         });
-        
+
         const url = `${this.baseUrl}/dns_console/api/logs?${params}`;
         const response = await fetch(url, {
             headers: this.headers
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to get logs: ${response.statusText}`);
         }
-        
+
         return await response.json();
     }
 }
@@ -2242,8 +2242,8 @@ client.createToken('Web App Token', 'Token for web application', ['example.com']
     });
 
 // Get recent logs
-client.getQueryLogs({ 
-    per_page: 100, 
+client.getQueryLogs({
+    per_page: 100,
     status: 'allowed',
     start_date: '2024-01-01T00:00:00Z'
 }).then(logs => {
@@ -2305,29 +2305,29 @@ func (c *Client) DNSQuery(domain, recordType string) (*DNSResponse, error) {
     q.Set("name", domain)
     q.Set("type", recordType)
     u.RawQuery = q.Encode()
-    
+
     req, err := http.NewRequest("GET", u.String(), nil)
     if err != nil {
         return nil, err
     }
-    
+
     req.Header.Set("Authorization", "Bearer "+c.Token)
-    
+
     resp, err := c.HTTPClient.Do(req)
     if err != nil {
         return nil, err
     }
     defer resp.Body.Close()
-    
+
     if resp.StatusCode != http.StatusOK {
         return nil, fmt.Errorf("DNS query failed: %s", resp.Status)
     }
-    
+
     var result DNSResponse
     if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
         return nil, err
     }
-    
+
     return &result, nil
 }
 
@@ -2337,64 +2337,64 @@ func (c *Client) CreateToken(name, description string, domains []string) (*Token
         "description": description,
         "domains":     domains,
     }
-    
+
     jsonPayload, err := json.Marshal(payload)
     if err != nil {
         return nil, err
     }
-    
-    req, err := http.NewRequest("POST", c.BaseURL+"/dns_console/api/tokens", 
+
+    req, err := http.NewRequest("POST", c.BaseURL+"/dns_console/api/tokens",
                                bytes.NewBuffer(jsonPayload))
     if err != nil {
         return nil, err
     }
-    
+
     req.Header.Set("Authorization", "Bearer "+c.Token)
     req.Header.Set("Content-Type", "application/json")
-    
+
     resp, err := c.HTTPClient.Do(req)
     if err != nil {
         return nil, err
     }
     defer resp.Body.Close()
-    
+
     if resp.StatusCode != http.StatusCreated {
         return nil, fmt.Errorf("create token failed: %s", resp.Status)
     }
-    
+
     var result struct {
         Success bool   `json:"success"`
         Data    *Token `json:"data"`
     }
-    
+
     if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
         return nil, err
     }
-    
+
     return result.Data, nil
 }
 
 // Usage example
 func main() {
     client := NewClient("https://dns.example.com", "your-admin-token")
-    
+
     // DNS query
     result, err := client.DNSQuery("example.com", "A")
     if err != nil {
         panic(err)
     }
-    
+
     if len(result.Answer) > 0 {
         fmt.Printf("IP: %s\n", result.Answer[0].Data)
     }
-    
+
     // Create token
-    token, err := client.CreateToken("Go App Token", "Token for Go application", 
+    token, err := client.CreateToken("Go App Token", "Token for Go application",
                                     []string{"api.example.com"})
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("New token: %s\n", token.Token)
 }
 ```

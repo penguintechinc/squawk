@@ -24,7 +24,7 @@ import hashlib
 import base64
 import uuid
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -35,10 +35,9 @@ from cryptography.hazmat.backends import default_backend
 from flask import current_app
 
 # SAML 2.0 XML parsing with defused XML (prevents XXE)
-from defusedxml import ElementTree as ET
 from saml2.response import AuthnResponse
 from saml2.config import Config as Saml2Config
-from saml2 import BINDING_HTTP_REDIRECT, BINDING_HTTP_POST
+from saml2 import BINDING_HTTP_POST
 
 
 @dataclass(slots=True)

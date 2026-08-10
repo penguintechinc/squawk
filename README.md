@@ -2,17 +2,17 @@
 
 ```
                     ____
-                .-~    ~-. 
+                .-~    ~-.
            .--~'        '~.
          .~'       ___    '~.
         /         (o o)      \         ____
        |     ___   \_/   ___  |       /
        |    (   '~-----~'   ) |      /  SQUAWK!
-       \     '~-._______.-~' /      <   
+       \     '~-._______.-~' /      <
         '~.       ___       .~'      \   DNS-over-HTTPS with Secure Authentication for clientless applications
           '~-._  (__) _.-~'           \____
               '~~---~~'
-              
+
 ```
 
 # Squawk - DNS-over-HTTPS Proxy System
@@ -452,7 +452,7 @@ Squawk provides comprehensive logging with real client IP detection and syslog s
 ```json
 {
   "timestamp": "2024-01-15T10:30:45.123Z",
-  "event_type": "dns_query", 
+  "event_type": "dns_query",
   "client_ip": "203.0.113.45",
   "query_name": "example.com",
   "query_type": "A",
@@ -524,7 +524,7 @@ Squawk supports Google Authenticator TOTP-based MFA for enhanced account securit
    ```bash
    # Require MFA for all users
    REQUIRE_MFA=true
-   
+
    # Customize MFA issuer name
    MFA_ISSUER="Your Company DNS"
    ```
@@ -569,7 +569,7 @@ http://localhost:8080/dns_console/admin/sso
 ```json
 {
   "sso_url": "https://idp.company.com/sso/saml",
-  "sls_url": "https://idp.company.com/slo/saml", 
+  "sls_url": "https://idp.company.com/slo/saml",
   "entity_id": "squawk-dns",
   "x509cert": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
   "attribute_mapping": {
@@ -594,7 +594,7 @@ http://localhost:8080/dns_console/admin/sso
   "admin_groups": ["cn=dns-admins,cn=groups,dc=company,dc=com"],
   "attribute_mapping": {
     "email": "mail",
-    "first_name": "givenName", 
+    "first_name": "givenName",
     "last_name": "sn"
   }
 }
@@ -607,7 +607,7 @@ http://localhost:8080/dns_console/admin/sso
   "client_id": "squawk-dns-client-id",
   "client_secret": "client-secret-here",
   "auth_url": "https://oauth.company.com/oauth/authorize",
-  "token_url": "https://oauth.company.com/oauth/token", 
+  "token_url": "https://oauth.company.com/oauth/token",
   "userinfo_url": "https://oauth.company.com/oauth/userinfo",
   "scopes": ["openid", "profile", "email"],
   "redirect_uri": "https://dns.company.com/dns_console/auth/oauth/callback"

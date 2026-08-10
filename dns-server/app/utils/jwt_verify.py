@@ -21,7 +21,6 @@ from typing import Dict, Optional
 import jwt as pyjwt
 from jwt.exceptions import (
     DecodeError,
-    ExpiredSignatureError,
     InvalidAudienceError,
     InvalidIssuerError,
     InvalidSignatureError,
@@ -89,8 +88,7 @@ def verify_squawk_jwt(
             return None
 
     # Try each key until one succeeds
-    last_error: Optional[Exception] = None
-    for kid_val, key in keys_to_try.items():
+    for _kid_val, key in keys_to_try.items():
         if not key:
             continue
         try:
@@ -108,7 +106,7 @@ def verify_squawk_jwt(
                 return None
             return payload
         except (InvalidSignatureError, DecodeError):
-            last_error = None  # Signature mismatch is expected when trying multiple keys
+            # Signature mismatch is expected when trying multiple keys
             continue
         except (InvalidAudienceError, InvalidIssuerError, MissingRequiredClaimError) as e:
             logger.warning(f"JWT claim validation failed: {e}")
@@ -118,7 +116,6 @@ def verify_squawk_jwt(
             return None
         except Exception as e:
             logger.error(f"Token validation error: {e}")
-            last_error = e
             return None
 
     # No keys succeeded

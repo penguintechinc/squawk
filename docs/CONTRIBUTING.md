@@ -51,7 +51,7 @@ Or visit: https://cla.penguintech.group/squawk
 
 ### Prerequisites
 
-- Python 3.8+ 
+- Python 3.8+
 - Git
 - Docker (optional, for testing)
 - Basic understanding of DNS protocols
@@ -102,8 +102,7 @@ export TEST_DB_URL="sqlite:///test.db"
 # requirements-dev.txt
 pytest>=7.0.0
 pytest-cov>=4.0.0
-black>=22.0.0
-flake8>=5.0.0
+ruff>=0.8.4
 mypy>=0.991
 pre-commit>=2.20.0
 pytest-mock>=3.8.0
@@ -113,20 +112,17 @@ factory-boy>=3.2.0
 
 ### Code Formatting
 
-We use several tools for code quality:
+We use several tools for code quality (ruff supersedes flake8/black/isort — see `pyproject.toml` `[tool.ruff]`):
 
 ```bash
-# Format code with black
-black dns-server/ dns-client/
+# Format code with ruff
+ruff format dns-server/app dns-server/tests
 
-# Lint with flake8
-flake8 dns-server/ dns-client/
+# Lint with ruff
+ruff check dns-server/app --select=F,E9,B
 
 # Type checking with mypy
 mypy dns-server/bins/server.py
-
-# Sort imports
-isort dns-server/ dns-client/
 ```
 
 ## Contributing Process
@@ -203,14 +199,14 @@ We follow PEP 8 with some modifications:
 
 def process_dns_query(domain: str, record_type: str = "A") -> Dict[str, Any]:
     """Process a DNS query for the given domain and record type.
-    
+
     Args:
         domain: The domain name to query
         record_type: The DNS record type (default: A)
-    
+
     Returns:
         Dictionary containing the DNS response
-        
+
     Raises:
         ValueError: If domain is invalid
         DNSException: If query fails
@@ -295,11 +291,11 @@ class TestDNSHandler:
         """Test that valid token allows DNS query."""
         handler = DNSHandler()
         handler.headers = {"Authorization": "Bearer valid-token"}
-        
+
         with patch.object(handler, 'check_token_permission_new') as mock_check:
             mock_check.return_value = True
             result = handler.do_GET()
-            
+
         mock_check.assert_called_once()
         assert result is not None
 
@@ -307,10 +303,10 @@ class TestDNSHandler:
         """Test that invalid token denies DNS query."""
         handler = DNSHandler()
         handler.headers = {"Authorization": "Bearer invalid-token"}
-        
+
         with patch.object(handler, 'send_response') as mock_response:
             handler.do_GET()
-            
+
         mock_response.assert_called_with(403)
 
     @pytest.mark.parametrize("domain,expected", [
@@ -363,26 +359,26 @@ pytest -n auto
 ```python
 def authenticate_token(token: str, domain: str) -> bool:
     """Authenticate token for domain access.
-    
+
     This function checks if the provided token has permission to access
     the specified domain. It supports both exact domain matches and
     wildcard permissions.
-    
+
     Args:
         token: The authentication token to validate
         domain: The domain name being accessed
-        
+
     Returns:
         True if token has permission, False otherwise
-        
+
     Raises:
         DatabaseError: If database connection fails
         ValidationError: If inputs are invalid
-        
+
     Example:
         >>> authenticate_token("abc123", "example.com")
         True
-        >>> authenticate_token("invalid", "example.com") 
+        >>> authenticate_token("invalid", "example.com")
         False
     """
     pass
@@ -397,23 +393,23 @@ Document all API endpoints:
 @action.uses(db)
 def api_create_token():
     """Create a new authentication token.
-    
+
     POST /dns_console/api/tokens
-    
+
     Request Body:
         {
             "name": "Token name",
-            "description": "Token description", 
+            "description": "Token description",
             "domains": ["example.com", "*.test.com"]
         }
-    
+
     Response:
         {
             "success": true,
             "token": "generated-token-value",
             "id": 123
         }
-        
+
     Error Responses:
         400: Invalid request data
         409: Token name already exists
@@ -498,7 +494,7 @@ Brief description of the problem
 
 ## Reproduction Steps
 1. Step one
-2. Step two  
+2. Step two
 3. Step three
 
 ## Expected Behavior
@@ -597,7 +593,7 @@ We use Semantic Versioning (semver):
 ### Release Timeline
 
 - **Major releases**: Quarterly
-- **Minor releases**: Monthly  
+- **Minor releases**: Monthly
 - **Patch releases**: As needed
 - **Security patches**: Immediately
 
@@ -641,7 +637,7 @@ We recognize contributions in several ways:
 Regular contributors may be invited to become maintainers:
 
 1. **Active contributor** for 6+ months
-2. **High-quality contributions** 
+2. **High-quality contributions**
 3. **Community involvement**
 4. **Technical expertise**
 5. **Alignment with project values**
@@ -669,9 +665,9 @@ Include copyright notice in new files:
 
 ```python
 # Copyright (c) 2024 Penguin Technologies Group LLC
-# 
+#
 # This file is part of Squawk.
-# 
+#
 # Squawk is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
 # published by the Free Software Foundation, either version 3 of

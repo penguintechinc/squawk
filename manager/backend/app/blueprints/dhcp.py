@@ -362,7 +362,6 @@ def list_reservations():
         - pool_id: Filter by pool
     """
     db = current_app.db
-    user = get_current_user()
 
     query = db.dhcp_reservation.id > 0
 

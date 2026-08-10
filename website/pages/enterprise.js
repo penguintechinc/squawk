@@ -16,7 +16,7 @@ export default function Enterprise() {
               </div>
               <h1 className="display-4 fw-bold mb-4">Enterprise DNS Security</h1>
               <p className="lead mb-4">
-                Secure your enterprise infrastructure with advanced DNS-over-HTTPS, 
+                Secure your enterprise infrastructure with advanced DNS-over-HTTPS,
                 comprehensive authentication, and enterprise-grade security features designed for large organizations.
               </p>
               <div className="d-flex gap-3 flex-wrap">
@@ -63,7 +63,7 @@ export default function Enterprise() {
               <p className="text-muted">Comprehensive DNS security designed for enterprise environments</p>
             </div>
           </div>
-          
+
           <div className="row g-4 mb-5">
             <div className="col-lg-6">
               <div className="feature-card p-4 bg-light rounded h-100">
@@ -85,7 +85,7 @@ export default function Enterprise() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="feature-card p-4 bg-light rounded h-100">
                 <div className="d-flex align-items-start">
@@ -130,7 +130,7 @@ export default function Enterprise() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="feature-card p-4 bg-light rounded h-100">
                 <div className="d-flex align-items-start">
@@ -152,7 +152,7 @@ export default function Enterprise() {
               </div>
             </div>
           </div>
-          
+
           {/* DNS Performance Monitoring Feature Highlight */}
           <div className="row">
             <div className="col-lg-12">
@@ -166,7 +166,7 @@ export default function Enterprise() {
                   <div className="col-lg-10">
                     <h3 className="text-primary fw-bold mb-3">DNS Performance Monitoring</h3>
                     <p className="text-muted mb-3">
-                      Advanced DNS-over-HTTPS performance monitoring provides detailed insights into your DNS infrastructure. 
+                      Advanced DNS-over-HTTPS performance monitoring provides detailed insights into your DNS infrastructure.
                       Go clients automatically monitor connection performance with randomized testing intervals and comprehensive metrics collection.
                     </p>
                     <div className="row">
@@ -206,7 +206,7 @@ export default function Enterprise() {
               <p className="text-muted">Deploy Squawk DNS in your preferred environment with full control</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-4">
               <div className="deployment-card text-center p-4 bg-white rounded shadow-sm h-100">
@@ -221,7 +221,7 @@ export default function Enterprise() {
                 </ul>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="deployment-card text-center p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-server fa-3x text-success mb-3"></i>
@@ -235,7 +235,7 @@ export default function Enterprise() {
                 </ul>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="deployment-card text-center p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-network-wired fa-3x text-info mb-3"></i>
@@ -262,7 +262,7 @@ export default function Enterprise() {
               <p className="text-muted">Comprehensive support designed for mission-critical enterprise environments</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="support-feature">
@@ -276,7 +276,7 @@ export default function Enterprise() {
                 </ul>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="support-feature">
                 <h4><i className="fas fa-shield-check text-success me-2"></i>Service Level Agreements</h4>
@@ -302,7 +302,7 @@ export default function Enterprise() {
               <p className="text-muted">Built to meet the highest security standards and compliance requirements</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-3 col-md-6 text-center">
               <div className="compliance-badge p-4 bg-white rounded shadow-sm h-100">
@@ -311,7 +311,7 @@ export default function Enterprise() {
                 <p className="text-muted small mb-0">Security controls designed for SOC 2 compliance</p>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6 text-center">
               <div className="compliance-badge p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-lock fa-3x text-success mb-3"></i>
@@ -319,7 +319,7 @@ export default function Enterprise() {
                 <p className="text-muted small mb-0">Data protection and privacy controls</p>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6 text-center">
               <div className="compliance-badge p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-shield-virus fa-3x text-warning mb-3"></i>
@@ -327,7 +327,7 @@ export default function Enterprise() {
                 <p className="text-muted small mb-0">Cryptographic module standards</p>
               </div>
             </div>
-            
+
             <div className="col-lg-3 col-md-6 text-center">
               <div className="compliance-badge p-4 bg-white rounded shadow-sm h-100">
                 <i className="fas fa-file-shield fa-3x text-info mb-3"></i>

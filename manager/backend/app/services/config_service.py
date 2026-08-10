@@ -22,8 +22,6 @@ class ConfigService:
         Returns:
             Configuration dict with zones, IOC feeds, and settings
         """
-        db = current_app.db
-
         # Get all zones with records
         zones = ConfigService.get_all_zones()
 

@@ -360,7 +360,6 @@ class WHOISManager:
             }
 
             # Always try RDAP first
-            rdap_failed = False
             try:
                 rdap_data = await loop.run_in_executor(None, obj.lookup_rdap)
 
@@ -374,7 +373,6 @@ class WHOISManager:
                             result["country"] = network["country"]
             except Exception as rdap_error:
                 logger.debug(f"RDAP lookup failed for {ip}: {rdap_error}")
-                rdap_failed = True
 
             # Always try legacy lookup (test expects both to be called)
             try:

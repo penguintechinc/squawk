@@ -28,18 +28,18 @@ services:
       # DNS Server Configuration
       - SQUAWK_SERVER_URL=https://dns.yourdomain.com:8443
       - SQUAWK_AUTH_TOKEN=your-secure-token-here
-      
+
       # Client Configuration
       - LOG_LEVEL=INFO
       - SQUAWK_DOMAIN=
       - SQUAWK_RECORD_TYPE=A
-      
+
       # mTLS Configuration (optional)
       - SQUAWK_CLIENT_CERT=/app/certs/client.crt
       - SQUAWK_CLIENT_KEY=/app/certs/client.key
       - SQUAWK_CA_CERT=/app/certs/ca.crt
       - SQUAWK_VERIFY_SSL=true
-      
+
       # Console URL (optional)
       - SQUAWK_CONSOLE_URL=http://localhost:8080/health
     volumes:

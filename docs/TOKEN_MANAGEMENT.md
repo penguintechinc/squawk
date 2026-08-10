@@ -201,7 +201,7 @@ If you have an existing single-token setup:
 Token: dev-token
 Domains: *.dev.example.com, localhost
 
-Token: prod-token  
+Token: prod-token
 Domains: *.example.com, *.api.example.com
 
 Token: monitoring-token

@@ -1,31 +1,40 @@
-default_stages: [commit]
+# Squawk git hooks.
+#
+# Install:  make install-hooks
+# Verify:   make verify-hooks
+# Run all:  pre-commit run --all-files
+#
+# Two stages, matching devops.md "Git Hooks (Mandatory)":
+#   pre-commit — fast checks only (<30s), blocks the commit
+#   pre-push   — heavier security scans, blocks the push
+#
+# Revs are pinned. Update deliberately via `pre-commit autoupdate`, never by
+# floating to a branch.
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
 fail_fast: false
 
 repos:
-  # Secrets detection
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.18.0
-    hooks:
-      - id: gitleaks
-        name: Detect secrets with gitleaks
-        entry: gitleaks protect --staged --source .
-        language: system
-        pass_filenames: false
-        stages: [commit, push]
-
-  # End-of-file fixer
+  # ── Hygiene ────────────────────────────────────────────────────────────────
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
         name: Fix end of file
       - id: trailing-whitespace
         name: Fix trailing whitespace
+      - id: check-merge-conflict
+        name: Check merge conflict
+      - id: check-case-conflict
+        name: Check case conflict
+      - id: check-added-large-files
+        name: Check for added large files
+        args: [--maxkb=1024]
       - id: check-yaml
         name: Check YAML syntax
-        args: [--unsafe]
-        # Helm chart templates are Go-template text, not parseable YAML
-        # until rendered (use `helm lint` for those); entrypoint.yml is a
+        args: [--allow-multiple-documents, --unsafe]
+        # Helm chart templates are Go-template text, not parseable YAML until
+        # rendered (use `helm lint` for those); entrypoint.yml is a
         # pre-existing, never-finished Ansible scaffold stub (placeholder
         # "YOUR PROJECT NAME" host, references jobs/*.yml dirs that don't
         # exist) -- excluded rather than fixed, out of scope for this hook.
@@ -36,8 +45,8 @@ repos:
         # convention; dns-server/safety-report.json is stray captured CLI
         # text (not JSON at all) from a deprecated `safety check` run.
         exclude: (^|/)tsconfig(\..*)?\.json$|^dns-server/safety-report\.json$
-      - id: check-merge-conflict
-        name: Check merge conflict
+      - id: check-executables-have-shebangs
+        name: Check executables have shebangs
       - id: detect-private-key
         name: Detect private keys
         # Verified placeholder template (file header: "EXAMPLE / TEMPLATE
@@ -45,45 +54,48 @@ repos:
         # scripts/gen-jwt-keys.sh"), not real key material.
         exclude: ^k8s/squawk-jwt-keys\.example\.yml$
 
-  # Python linting -- args intentionally omitted so the flake8 config file
-  # (.flake8: E9,F63,F7,F821,F401,B) is the single source of truth instead of
-  # a second, drifting copy of the rule selection here. `files` is scoped to
-  # the same app/bins source dirs as `make lint` -- not the whole service
-  # tree -- so it excludes tests/, examples/, and vendored web scaffolding
-  # that were never vetted against these rules.
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
+  # ── Secrets (mandatory, every repo) ────────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
     hooks:
-      - id: flake8
-        name: Lint Python with flake8
-        additional_dependencies: [flake8-bugbear>=24.2.6]
-        args: [--config=.flake8]
+      - id: gitleaks
+
+  # ── Shell (Bash must stay 3.2-compatible — see general.md) ─────────────────
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
+    hooks:
+      - id: shellcheck
+        args: [--severity=warning]
+
+  # ── Python — ruff supersedes flake8/black/isort (backend-python.md) ────────
+  # `pyproject.toml` [tool.ruff.lint] carries the full canonical rule set as
+  # the target state. Blocking here is scoped via --select to F/E9/B -- the
+  # same bar flake8 already enforced (E9,F63,F7,F821,F401,B), now via ruff.
+  # The full canonical set (D/N/UP/ASYNC/S/I/E-full/W-full) surfaces ~1,700
+  # pre-existing findings across five services that predate this change and
+  # are not fixable as part of a hooks-installation chore -- see the
+  # `ruff-full` manual hook below and the comment in pyproject.toml. Mirrors
+  # the mypy exception further down.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        name: Lint Python with ruff (blocking subset -- F, E9, B)
+        args: [--select=F,E9,B, --fix]
         files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
-
-  # Python code formatting
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
-    hooks:
-      - id: black
-        name: Format Python with black
-        args: [--line-length=120]
+      - id: ruff
+        name: Lint Python with ruff (full canonical rule set, advisory)
         files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
-        stages: [manual]  # Require explicit opt-in
-
-  # Import sorting
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        name: Sort Python imports with isort
-        args: [--profile=black, --line-length=120]
+        stages: [manual]
+      - id: ruff-format
+        name: Format Python with ruff (advisory -- run via make format)
         files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
         exclude: (venv|\.venv|migrations|alembic)
-        stages: [manual]  # Require explicit opt-in
+        stages: [manual]
 
-  # Type checking -- manual stage (opt-in): dns-server and manager/backend
+  # ── Type checking -- manual stage (opt-in): dns-server and manager/backend
   # currently carry pre-existing mypy errors (Flask dynamic-attribute access,
   # crypto-lib stub mismatches) that predate this hook and are not yet fixed,
   # so this is not wired into the blocking default stage. Run explicitly with
@@ -97,29 +109,63 @@ repos:
         pass_filenames: false
         stages: [manual]
 
-  # Docker linting -- includes hadolint's default DL3002 rule ("Last USER
-  # should not be root"), which is the non-root Dockerfile check.
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.14.0
-    hooks:
-      - id: hadolint-docker
-        name: Lint Dockerfiles (includes non-root/DL3002 check)
-        stages: [commit, push]
-
-  # Go linting (if golangci-lint is installed)
-  - repo: local
+  # ── Go ─────────────────────────────────────────────────────────────────────
+  # Pinned to v1.64.8 to match .github/workflows/go-client-release.yml (v2
+  # needs go1.25; this repo's .golangci.yml is still v1-schema -- see that
+  # file's header comment). `language: golang` builds this into an isolated,
+  # pinned env instead of trusting whatever golangci-lint happens to be on a
+  # developer's PATH (a v2 binary from e.g. a system package manager fails
+  # outright on the v1-schema config with "unsupported version of the
+  # configuration"). Scoped to squawk-client-go, matching make lint's
+  # existing scope -- the only Go module with an established .golangci.yml.
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.64.8
     hooks:
       - id: golangci-lint
         name: Lint Go with golangci-lint
-        entry: bash -c 'command -v golangci-lint >/dev/null && golangci-lint run squawk-client-go/... || true'
-        language: system
-        types: [go]
+        entry: bash -c 'cd squawk-client-go && golangci-lint run --config=../.golangci.yml --new-from-rev=HEAD'
         pass_filenames: false
 
-      # Shell script linting (if shellcheck is installed)
-      - id: shellcheck
-        name: Lint shell scripts
-        entry: bash -c 'command -v shellcheck >/dev/null && find . -name "*.sh" -not -path "*/.git/*" -not -path "*/venv/*" -not -path "*/.venv/*" | xargs shellcheck || true'
-        language: system
-        types: [shell]
-        pass_filenames: false
+  # ── Dockerfiles ────────────────────────────────────────────────────────────
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        name: Lint Dockerfiles
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.4
+    hooks:
+      - id: actionlint
+        # -shellcheck= disables actionlint's embedded shellcheck pass over
+        # `run:` blocks -- the standalone shellcheck-precommit hook above
+        # already covers shell content at the repo's chosen severity
+        # (--severity=warning); actionlint's own integration has no severity
+        # floor and surfaces dozens of pre-existing style-level findings
+        # (SC2001/SC2002/SC2086) across every workflow's run steps that
+        # predate this hook and aren't fixable as part of installing it.
+        # .ansible-lint is a stray ansible-lint config file that happens to
+        # live under .github/workflows/ -- not a workflow -- so it's excluded
+        # rather than "fixed" into looking like one.
+        args: ["-shellcheck="]
+        exclude: ^\.github/workflows/\.ansible-lint$
+
+  # ── Security (pre-push — heavier, keeps commits fast) ──────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: [-r, -ll]
+        files: ^(dns-server/app|manager/backend/app|squawk-client/bins|dhcp-server/app|ntp-server/bins)/.*\.py$
+        exclude: (venv|\.venv|migrations|alembic)
+        stages: [pre-push]
+
+  - repo: local
+    hooks:
+      - id: dockerfile-rootless
+        name: Dockerfile runs as non-root
+        entry: scripts/hooks/check-dockerfile-rootless.sh
+        language: script
+        files: (^|/)Dockerfile[^/]*$
+        stages: [pre-push]

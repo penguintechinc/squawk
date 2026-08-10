@@ -43,7 +43,7 @@ Q.ajax = function(method, url, data, headers) {
     return new Promise(function(resolve, reject) {
             fetch(url, options).then(function(res){
                     res.text().then(function(body){
-                            res.data = body;                            
+                            res.data = body;
                             res.json = function(){return JSON.parse(body);};
                             resolve(res);
                         }, reject);}).catch(reject);
@@ -185,7 +185,7 @@ Q.tags_input = function(elem, options) {
         repl.appendChild(item);
         item.onclick = function(evt){
           if(item.dataset.selected=='false') keys.push(x); else keys = keys.filter(function(y){ return x!=y; });
-          item.dataset.selected = keys.indexOf(x)>=0;          
+          item.dataset.selected = keys.indexOf(x)>=0;
           elem.value = JSON.stringify(keys);
           elem.dispatchEvent(new Event('input', { bubbles: true }));
         };
@@ -202,8 +202,8 @@ Q.tags_input = function(elem, options) {
         inp.value.split(',').map(function(x){
 	  x = options.transform(x.trim());
 	  if (options.regex && !x.match(options.regex)) return;
-          if (x && tags.indexOf(x)<0) tags.push(x); 
-          if (x && keys.indexOf(x)<0) keys.push(x); 
+          if (x && tags.indexOf(x)<0) tags.push(x);
+          if (x && keys.indexOf(x)<0) keys.push(x);
         });
         inp.value = '';
         elem.value = JSON.stringify(keys);
@@ -243,7 +243,7 @@ Q.trap_form = function (action, elem_id) {
         form.dataset['component_target'] = target;
         var url = form.action;
         if (url === '' || url === '#' || url === void 0) url = action;
-        var clickable = 'input[type=submit], input[type=image], button[type=submit], button:not([type])';        
+        var clickable = 'input[type=submit], input[type=image], button[type=submit], button:not([type])';
         form.querySelectorAll(clickable).forEach(function (elem) {
             elem.onclick = function(event) {
                 event.preventDefault();
@@ -278,7 +278,7 @@ Q.load_and_trap = function (method, url, form_data, target) {
 Q.handle_components = function() {
     Q('ajax-component').forEach(function(elem) {
         Q.load_and_trap('GET', elem.attributes.url.value, null, elem.attributes.id.value);
-    });    
+    });
 };
 
 // Displays flash messages
@@ -290,7 +290,7 @@ Q.handle_flash = function() {
         };
     };
     var make_handler = function(elem) {
-        return function (event) { 
+        return function (event) {
             var node = document.createElement("div");
             node.innerHTML = '<div role="alert"><span class="close"></span>{0}</div>'.format([event.detail.message]);
             node = Q('[role="alert"]', node)[0];
@@ -303,7 +303,7 @@ Q.handle_flash = function() {
         elem.addEventListener('flash', make_handler(elem), false);
         Q.flash = function(detail) {elem.dispatchEvent(new CustomEvent('flash', {detail: detail}));};
         if (elem.dataset.alert) Q.flash(Q.eval(elem.dataset.alert));
-    }    
+    }
 };
 
 Q.handle_components();

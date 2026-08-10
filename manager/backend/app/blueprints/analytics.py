@@ -43,7 +43,6 @@ def get_query_analytics():
     # Parse query parameters
     period_hours = int(request.args.get('period', 24))
     server_id = request.args.get('server_id')
-    team_id = request.args.get('team_id')
 
     since = datetime.utcnow() - timedelta(hours=period_hours)
 

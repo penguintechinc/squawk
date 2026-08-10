@@ -16,7 +16,7 @@ class DoHDNSClient:
             "Authorization": f"Bearer {self.token}",
         }
         params = {"name": name, "type": "A"}
-        response = requests.get(self.doh_url, headers=headers, params=params)
+        response = requests.get(self.doh_url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
         return response.json()
 

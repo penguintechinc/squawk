@@ -35,30 +35,30 @@ build: clean
 build-all: clean
 	@echo "Building $(APP_NAME) for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
-	
+
 	# Linux
 	@echo "Building for Linux/amd64..."
 	@mkdir -p $(BUILD_DIR)/linux-amd64
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOFLAGS) -o $(BUILD_DIR)/linux-amd64/$(APP_NAME) ./$(SRC_DIR)
-	
+
 	@echo "Building for Linux/arm64..."
 	@mkdir -p $(BUILD_DIR)/linux-arm64
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(GOFLAGS) -o $(BUILD_DIR)/linux-arm64/$(APP_NAME) ./$(SRC_DIR)
-	
+
 	# macOS
 	@echo "Building for macOS/amd64..."
 	@mkdir -p $(BUILD_DIR)/darwin-amd64
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(GOFLAGS) -o $(BUILD_DIR)/darwin-amd64/$(APP_NAME) ./$(SRC_DIR)
-	
+
 	@echo "Building for macOS/arm64..."
 	@mkdir -p $(BUILD_DIR)/darwin-arm64
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(GOFLAGS) -o $(BUILD_DIR)/darwin-arm64/$(APP_NAME) ./$(SRC_DIR)
-	
+
 	# Windows
 	@echo "Building for Windows/amd64..."
 	@mkdir -p $(BUILD_DIR)/windows-amd64
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(GOFLAGS) -o $(BUILD_DIR)/windows-amd64/$(APP_NAME).exe ./$(SRC_DIR)
-	
+
 	@echo "Build complete. Binaries available in $(BUILD_DIR)/"
 
 # Install dependencies
@@ -119,18 +119,18 @@ uninstall:
 package: build-all
 	@echo "Creating release packages..."
 	@mkdir -p $(BUILD_DIR)/packages
-	
+
 	# Linux packages
 	cd $(BUILD_DIR)/linux-amd64 && tar -czf ../packages/$(APP_NAME)-$(VERSION)-linux-amd64.tar.gz $(APP_NAME)
 	cd $(BUILD_DIR)/linux-arm64 && tar -czf ../packages/$(APP_NAME)-$(VERSION)-linux-arm64.tar.gz $(APP_NAME)
-	
-	# macOS packages  
+
+	# macOS packages
 	cd $(BUILD_DIR)/darwin-amd64 && tar -czf ../packages/$(APP_NAME)-$(VERSION)-darwin-amd64.tar.gz $(APP_NAME)
 	cd $(BUILD_DIR)/darwin-arm64 && tar -czf ../packages/$(APP_NAME)-$(VERSION)-darwin-arm64.tar.gz $(APP_NAME)
-	
+
 	# Windows packages
 	cd $(BUILD_DIR)/windows-amd64 && zip -q ../packages/$(APP_NAME)-$(VERSION)-windows-amd64.zip $(APP_NAME).exe
-	
+
 	@echo "Packages created in $(BUILD_DIR)/packages/"
 
 # Run the application in development mode

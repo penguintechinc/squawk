@@ -5,7 +5,7 @@ Official website for Squawk DNS - Secure DNS-over-HTTPS System with Enterprise A
 ## Features
 
 - **Marketing Site**: Complete product information and features
-- **Pricing Pages**: Open Source, Premium ($5/user/month), and Embedding licenses  
+- **Pricing Pages**: Open Source, Premium ($5/user/month), and Embedding licenses
 - **Sales Integration**: Direct mailto links to sales@penguincloud.io
 - **Documentation**: Integrated release notes and guides
 - **Enterprise Solutions**: Dedicated enterprise and embedding license pages
@@ -107,7 +107,7 @@ pm2 startup
 server {
     listen 80;
     server_name docs.squawkdns.com;
-    
+
     location / {
         proxy_pass http://localhost:3000;
         proxy_set_header Host $host;
@@ -124,7 +124,7 @@ server {
 - Input sanitization and validation
 - Content Security Policy
 
-### Performance  
+### Performance
 - Gzip compression
 - Static asset optimization
 - Efficient template rendering

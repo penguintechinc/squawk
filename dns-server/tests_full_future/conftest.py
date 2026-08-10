@@ -394,14 +394,14 @@ def mock_dns_handler():
     handler.headers = {'Authorization': 'Bearer test-token-123456789'}
     handler.path = '/dns-query?name=example.com&type=A'
     handler.client_address = ('127.0.0.1', 12345)
-    
+
     # Mock methods
     handler.send_response = Mock()
     handler.send_header = Mock()
     handler.end_headers = Mock()
     handler.wfile = Mock()
     handler.wfile.write = Mock()
-    
+
     return handler
 
 @pytest.fixture
@@ -410,11 +410,11 @@ def mock_dns_resolver():
     with patch('dns.resolver.Resolver') as mock_resolver:
         mock_answer = Mock()
         mock_answer.to_text.return_value = '93.184.216.34'
-        
+
         mock_resolver_instance = Mock()
         mock_resolver_instance.resolve.return_value = [mock_answer]
         mock_resolver.return_value = mock_resolver_instance
-        
+
         yield mock_resolver_instance
 
 @pytest.fixture

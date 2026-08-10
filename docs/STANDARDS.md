@@ -91,7 +91,7 @@ Before you commit, run this magic command:
 
 Here's what it checks:
 
-- [ ] Linters pass (flake8, eslint, golangci-lint, ansible-lint)
+- [ ] Linters pass (ruff, eslint, golangci-lint, ansible-lint)
 - [ ] Security scans are clean (gosec, bandit, npm audit, Trivy)
 - [ ] No secrets leaked into code
 - [ ] Smoke tests pass (build, run, API, UI loads)

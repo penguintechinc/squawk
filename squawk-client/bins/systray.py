@@ -266,7 +266,7 @@ class DNSClientTray:
             message += f"\nFailures: {failures}"
 
         if self.dns_fallback_active:
-            message += f"\nFallback: Active (using original DNS)"
+            message += "\nFallback: Active (using original DNS)"
 
         if self.original_dns_servers:
             message += f"\nOriginal DNS: {', '.join(self.original_dns_servers)}"

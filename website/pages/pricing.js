@@ -68,14 +68,14 @@ export default function Pricing() {
                     <h2 className="display-4 fw-bold text-primary">$5</h2>
                     <p className="text-muted">per user/month</p>
                   </div>
-                  
+
                   <div className="mb-3 p-3 bg-primary bg-opacity-10 rounded">
                     <h6 className="text-primary mb-1"><i className="fas fa-star me-2"></i>Key Benefit:</h6>
                     <p className="mb-0 small fw-bold">
                       <strong>Selective DNS Routing</strong> - Private + Public DNS from one secure endpoint
                     </p>
                   </div>
-                  
+
                   <ul className="list-unstyled mb-4">
                     <li className="mb-2"><i className="fas fa-check text-success me-2"></i><strong>All Community features</strong></li>
                     <li className="mb-2"><i className="fas fa-crown text-primary me-2"></i>Per-user token management</li>
@@ -147,7 +147,7 @@ export default function Pricing() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="accordion-item">
                   <h2 className="accordion-header">
                     <button className="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">

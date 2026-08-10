@@ -10,7 +10,7 @@ This is a streamlined test suite that focuses on **working functionality only**.
 - Basic security validation
 - Performance requirements
 
-✅ **Authentication Basics** (test_authentication.py)  
+✅ **Authentication Basics** (test_authentication.py)
 - Token generation
 - Password complexity validation
 - MFA components (mocked)
@@ -25,7 +25,7 @@ This is a streamlined test suite that focuses on **working functionality only**.
 
 ❌ **Unimplemented Features**
 - IOC Manager advanced features
-- WHOIS Manager 
+- WHOIS Manager
 - Client Config API
 - Selective DNS Routing
 - Prometheus Metrics (advanced)

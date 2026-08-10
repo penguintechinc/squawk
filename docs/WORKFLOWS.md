@@ -315,14 +315,13 @@ Before pushing code:
 ```bash
 # Install dependencies
 pip install -r requirements.txt
-pip install bandit[toml] black isort flake8 mypy pytest
+pip install bandit[toml] ruff mypy pytest
 
-# Format
-black .
-isort .
+# Format (ruff supersedes black/isort)
+ruff format .
 
 # Lint
-flake8 .
+ruff check --select=F,E9,B .
 mypy .
 
 # Security

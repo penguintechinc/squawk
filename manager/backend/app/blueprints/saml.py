@@ -13,7 +13,6 @@ import secrets
 from flask import Blueprint, request, jsonify, current_app, make_response, redirect
 from app.services.saml_service import SAMLService, SAMLConfig
 from app.services.auth_service import AuthService
-from app.utils.decorators import validate_json
 
 saml_bp = Blueprint('saml', __name__)
 

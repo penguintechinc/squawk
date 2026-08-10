@@ -14,7 +14,7 @@ export default function ServerError() {
                 <p className="lead text-muted mb-4">
                   Something went wrong on our end. Please try again later.
                 </p>
-                
+
                 <div className="error-actions">
                   <Link href="/" className="btn btn-primary btn-lg me-3">
                     <i className="fas fa-home me-2"></i>

@@ -122,15 +122,15 @@ export default function Contact() {
               <p className="text-muted">The company behind Squawk DNS</p>
             </div>
           </div>
-          
+
           <div className="row g-4 justify-content-center">
             <div className="col-lg-8">
               <div className="company-info p-4 bg-white rounded shadow-sm text-center">
                 <p className="lead mb-4">
-                  PenguinCloud specializes in enterprise security solutions, with a focus on DNS security, 
+                  PenguinCloud specializes in enterprise security solutions, with a focus on DNS security,
                   network infrastructure protection, and cloud-native security tools.
                 </p>
-                
+
                 <div className="row g-4">
                   <div className="col-md-4">
                     <div className="company-stat">
@@ -151,7 +151,7 @@ export default function Contact() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-4">
                   <div className="company-links d-flex gap-3 justify-content-center flex-wrap">
                     <a href="https://github.com/penguincloud" target="_blank" rel="noopener noreferrer" className="btn btn-outline-dark">
@@ -177,7 +177,7 @@ export default function Contact() {
               <p className="text-muted">Common questions about support and services</p>
             </div>
           </div>
-          
+
           <div className="row justify-content-center">
             <div className="col-lg-8">
               <div className="accordion" id="contactFAQ">
@@ -193,7 +193,7 @@ export default function Contact() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="accordion-item">
                   <h2 className="accordion-header">
                     <button className="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqContact2">

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from flask import Blueprint, request, jsonify, current_app
 import logging
 
@@ -231,9 +231,12 @@ def list_users():
         return result
 
     db = current_app.db
-    from flask import g
+    # TODO(security): `g.tenant` is resolved but not applied as a filter on
+    # the auth_user queries below (list-all and username-filter branches) --
+    # this endpoint currently returns users across all tenants. Flagged
+    # during git-hooks lint cleanup; needs a dedicated security-tagged fix,
+    # not a drive-by change here. See security.md Tenant Isolation.
 
-    tenant = g.tenant
     start_index = request.args.get('startIndex', 1, type=int)
     count = request.args.get('count', 100, type=int)
     filter_param = request.args.get('filter', '')
@@ -360,7 +363,7 @@ def create_user():
     user = db(db.auth_user.username == username).select().first()
     scim_user = _user_record_to_scim(user)
 
-    logger.info(f"SCIM user created", extra={"user_id": user.id, "username": username})
+    logger.info("SCIM user created", extra={"user_id": user.id, "username": username})
 
     return jsonify(scim_user.to_dict()), 201
 
@@ -405,7 +408,7 @@ def update_user(user_id: str):
     # Reload user from database to get updated values
     user = db.auth_user[int(user_id)]
     scim_user = _user_record_to_scim(user)
-    logger.info(f"SCIM user updated", extra={"user_id": user.id})
+    logger.info("SCIM user updated", extra={"user_id": user.id})
 
     return jsonify(scim_user.to_dict()), 200
 
@@ -464,7 +467,7 @@ def patch_user(user_id: str):
     # Reload user from database to get updated values
     user = db.auth_user[int(user_id)]
     scim_user = _user_record_to_scim(user)
-    logger.info(f"SCIM user patched", extra={"user_id": user.id})
+    logger.info("SCIM user patched", extra={"user_id": user.id})
 
     return jsonify(scim_user.to_dict()), 200
 
@@ -490,7 +493,7 @@ def delete_user(user_id: str):
     db(db.auth_user.id == user.id).update(active=False)
     db.commit()
 
-    logger.info(f"SCIM user deprovisioned", extra={"user_id": user.id, "username": user.username})
+    logger.info("SCIM user deprovisioned", extra={"user_id": user.id, "username": user.username})
 
     return '', 204
 
@@ -516,7 +519,6 @@ def mint_scim_token():
         }
     """
     # Check user has admin:super scope
-    from flask import g
     from app.middleware import verify_jwt, has_scope
 
     # Verify caller is authenticated user (not SCIM bearer)
@@ -536,7 +538,7 @@ def mint_scim_token():
     plaintext, token_hash = SCIMTokenService.create_token(description, tenant)
     token_id = SCIMTokenService.store_token(plaintext, description, tenant)
 
-    logger.info(f"SCIM token minted", extra={"token_id": token_id, "tenant": tenant})
+    logger.info("SCIM token minted", extra={"token_id": token_id, "tenant": tenant})
 
     return {
         'id': token_id,
@@ -549,7 +551,6 @@ def mint_scim_token():
 @scim_bp.route('/admin/tokens/<token_id>', methods=['DELETE'])
 def revoke_scim_token(token_id: str):
     """Revoke a SCIM token (admin only)."""
-    from flask import g
     from app.middleware import verify_jwt, has_scope
 
     token_payload = verify_jwt(request.headers.get('Authorization', ''))
@@ -560,7 +561,7 @@ def revoke_scim_token(token_id: str):
     if not success:
         return scim_error('resourceNotFound', f'Token {token_id} not found', 404)
 
-    logger.info(f"SCIM token revoked", extra={"token_id": token_id})
+    logger.info("SCIM token revoked", extra={"token_id": token_id})
 
     return '', 204
 

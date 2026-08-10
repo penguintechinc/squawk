@@ -4,10 +4,9 @@ Handles CRUD for OAuth2 client_credentials machine identities.
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from app.middleware.auth import token_required, get_current_user
+from app.middleware.auth import token_required
 from app.middleware.rbac import requires_system_admin
 from app.services.auth_service import AuthService
-from app.services.scopes import SUPERADMIN_SCOPE
 from app.utils.decorators import validate_json, audit_log
 from app.utils.domain_validation import validate_allowed_domains
 from datetime import datetime
@@ -129,7 +128,7 @@ def create_machine_client():
         return jsonify({'error': error_msg}), 400
 
     # Validate scopes exist in the system
-    from app.services.scopes import ROLE_SCOPES, _READ_SCOPES
+    from app.services.scopes import ROLE_SCOPES
     all_valid_scopes = set()
     for scope_bundle in ROLE_SCOPES.values():
         all_valid_scopes.update(scope_bundle)

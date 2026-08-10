@@ -197,4 +197,3 @@ CMD ["/app"]
 - Integration tests: Container interactions
 - Smoke tests: Build, run, health checks, API endpoints
 - Performance tests: Throughput, latency benchmarks
-

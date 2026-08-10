@@ -24,7 +24,7 @@ class TestClientConfigTenantIsolation:
 
     def test_cannot_overwrite_client_from_different_domain(self, config_manager, mock_client_config):
         """Regression: client_id registered in domain A cannot be hijacked using domain B's JWT.
-        
+
         This tests the IDOR fix where register_client must scope the client_instance
         lookup by BOTH client_id AND domain_id to prevent cross-domain overwrites.
         """
@@ -83,7 +83,7 @@ class TestClientConfigTenantIsolation:
 
     def test_cannot_assign_config_across_domains(self, config_manager, mock_client_config):
         """Regression: config from domain A cannot be assigned to a client in domain B.
-        
+
         This tests the IDOR fix where assign_config_to_client must verify that
         the config's domain_id matches the client's domain_id.
         """

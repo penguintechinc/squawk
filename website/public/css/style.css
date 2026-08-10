@@ -219,22 +219,22 @@ footer a:hover {
   .hero h1 {
     font-size: 2.5rem !important;
   }
-  
+
   .hero .lead {
     font-size: 1.1rem;
   }
-  
+
   .hero-actions .btn {
     display: block;
     width: 100%;
     margin-bottom: 10px;
   }
-  
+
   .feature-icon {
     width: 60px;
     height: 60px;
   }
-  
+
   .display-6 {
     font-size: 2rem !important;
   }
@@ -244,12 +244,12 @@ footer a:hover {
   .hero {
     padding: 3rem 0 !important;
   }
-  
+
   .timeline-item {
     flex-direction: column !important;
     text-align: center;
   }
-  
+
   .timeline-number {
     margin-bottom: 1rem !important;
   }

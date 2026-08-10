@@ -58,7 +58,7 @@ def define_dhcp_tables(db):
     db.define_table('dhcp_server',
         Field('name', 'string', notnull=True, length=100),
         Field('hostname', 'string', length=255),
-        Field('listen_address', 'string', length=50, default='0.0.0.0'),
+        Field('listen_address', 'string', length=50, default='0.0.0.0'),  # nosec B104 -- config default for a server field, not a live bind
         Field('status', 'string', notnull=True, default='offline',
               requires=lambda value: value in ['online', 'offline', 'degraded']),
         Field('last_heartbeat', 'datetime'),

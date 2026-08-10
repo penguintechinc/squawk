@@ -62,7 +62,7 @@ check_service() {
 
     log_info "Waiting for $name to be healthy..."
 
-    for i in $(seq 1 $max_retries); do
+    for _attempt in $(seq 1 "$max_retries"); do
         response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$url/health" 2>/dev/null || echo "000")
         if [ "$response" = "200" ]; then
             log_success "$name is healthy"

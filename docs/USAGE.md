@@ -178,18 +178,18 @@ helm install squawk penguintech/squawk \
 # main.tf
 module "squawk_dns" {
   source = "github.com/PenguinCloud/terraform-squawk"
-  
+
   dns_port = 8443
   console_port = 8000
   enable_ssl = true
   cert_path = "/certs/server.crt"
   key_path = "/certs/server.key"
-  
+
   database = {
     type = "postgres"
     url = "postgresql://user:pass@db.example.com/squawk"
   }
-  
+
   tokens = [
     {
       name = "production"
@@ -211,10 +211,10 @@ module "squawk_dns" {
 volumes:
   # Database storage (required)
   - /data/db:/app/data/db
-  
+
   # Configuration files (required)
   - /data/config:/app/config
-  
+
   # SSL certificates (required for HTTPS)
   - /data/certs:/app/certs
 ```
@@ -225,13 +225,13 @@ volumes:
 volumes:
   # Custom py4web apps
   - /custom/apps:/app/web/apps
-  
+
   # Log files
   - /var/log/squawk:/app/logs
-  
+
   # Cache directory
   - /data/cache:/app/cache
-  
+
   # Backup directory
   - /data/backups:/app/backups
 ```
@@ -417,19 +417,19 @@ services:
     environment:
       - NODE_ID=1
       - CLUSTER_NODES=dns2,dns3
-    
+
   dns2:
     image: penguintech/squawk:latest
     environment:
       - NODE_ID=2
       - CLUSTER_NODES=dns1,dns3
-    
+
   dns3:
     image: penguintech/squawk:latest
     environment:
       - NODE_ID=3
       - CLUSTER_NODES=dns1,dns2
-    
+
   haproxy:
     image: haproxy:latest
     ports:
@@ -450,11 +450,11 @@ class CustomAuthPlugin:
         if self.check_oauth(token):
             return True
         return False
-    
+
     def check_ldap(self, token):
         # LDAP authentication
         pass
-    
+
     def check_oauth(self, token):
         # OAuth validation
         pass

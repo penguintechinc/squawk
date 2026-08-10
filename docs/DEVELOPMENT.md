@@ -108,10 +108,11 @@ pip install -r requirements-dev.txt
 {
     "python.defaultInterpreterPath": "./dns-server/venv/bin/python",
     "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
     "python.linting.mypyEnabled": true,
-    "python.formatting.provider": "black",
-    "python.formatting.blackArgs": ["--line-length", "88"],
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    },
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": ["tests/"],
     "files.exclude": {
@@ -128,10 +129,10 @@ pip install -r requirements-dev.txt
 ```python
 # PyCharm configuration
 - Interpreter: Project venv Python
-- Code style: Black (88 char line length)
+- Code style: ruff format (120 char line length, see pyproject.toml)
 - Test runner: pytest
 - Type checker: mypy
-- Linter: flake8
+- Linter: ruff
 ```
 
 ### Environment Variables
@@ -596,69 +597,42 @@ pytest --pdb
 
 ### Linting Configuration
 
-```ini
-# setup.cfg
-[flake8]
-max-line-length = 88
-extend-ignore = E203, W503
-exclude =
-    .git,
-    __pycache__,
-    venv,
-    .venv,
-    build,
-    dist
-
-[mypy]
-python_version = 3.8
-warn_return_any = True
-warn_unused_configs = True
-disallow_untyped_defs = True
-disallow_incomplete_defs = True
-check_untyped_defs = True
-disallow_untyped_decorators = True
-no_implicit_optional = True
-warn_redundant_casts = True
-warn_unused_ignores = True
-```
+ruff supersedes flake8/black/isort (one tool for lint + import-sort + format).
+See the actual, current config in `pyproject.toml` at the repo root:
 
 ```toml
-# pyproject.toml
-[tool.black]
-line-length = 88
-target-version = ['py38']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
+# pyproject.toml (excerpt -- see the real file for the full, current config)
+[tool.ruff]
+target-version = "py313"
+line-length = 120
 
-[tool.isort]
-profile = "black"
-line_length = 88
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "D", "UP", "B", "ASYNC", "S"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+check_untyped_defs = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_no_return = true
 ```
 
 ### Pre-commit Hooks
 
+See the actual, current hook set in `.pre-commit-config.yaml` at the repo
+root -- this is illustrative only, and will drift if hand-copied:
+
 ```yaml
-# .pre-commit-config.yaml
+# .pre-commit-config.yaml (excerpt)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -666,26 +640,19 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
 
-  - repo: https://github.com/psf/black
-    rev: 23.1.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
     hooks:
-      - id: black
+      - id: ruff
+        args: [--select=F,E9,B, --fix]
+      - id: ruff-format
+        stages: [manual]
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.0.1
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [types-all]
+        name: Type check with mypy (advisory, run via make type-check)
+        stages: [manual]
 ```
 
 ### Code Documentation Standards

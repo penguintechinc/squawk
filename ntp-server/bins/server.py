@@ -659,7 +659,7 @@ class NTSKEServer:
         # Create server socket
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind(("0.0.0.0", self.port))
+        server_socket.bind(("0.0.0.0", self.port))  # nosec B104 -- NTS-KE server must accept connections on all container interfaces
         server_socket.listen(5)
         server_socket.setblocking(False)
 
@@ -884,7 +884,7 @@ class NTPUDPServer:
         loop = asyncio.get_event_loop()
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", self.port))
+        sock.bind(("0.0.0.0", self.port))  # nosec B104 -- UDP NTP server must accept requests on all container interfaces
         sock.setblocking(False)
 
         logger.info(f"UDP NTP server listening on port {self.port}")

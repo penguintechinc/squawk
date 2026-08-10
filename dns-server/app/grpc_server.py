@@ -284,7 +284,7 @@ async def serve_grpc(port=50052, resolver=None, cache_manager=None, ioc_checker=
     )
 
     # Create servicer
-    servicer = DNSQueryServicer(
+    DNSQueryServicer(
         resolver, cache_manager, ioc_checker,
         selective_router, manager_client, metrics_reporter
     )

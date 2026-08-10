@@ -20,11 +20,11 @@ export default function Home() {
                   <span className="text-warning"> with Enterprise Authentication</span>
                 </h1>
                 <p className="lead mb-4">
-                  Squawk DNS provides enterprise-grade DNS-over-HTTPS services with mTLS authentication, 
-                  comprehensive security features, and high-performance infrastructure. Perfect for 
+                  Squawk DNS provides enterprise-grade DNS-over-HTTPS services with mTLS authentication,
+                  comprehensive security features, and high-performance infrastructure. Perfect for
                   organizations requiring secure, authenticated DNS resolution.
                 </p>
-                
+
                 <div className="hero-features mb-4">
                   <div className="row g-3">
                     <div className="col-md-6">
@@ -53,7 +53,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="hero-actions">
                   <Link href="/download" className="btn btn-light btn-lg me-3">
                     <i className="fas fa-download me-2"></i>
@@ -66,7 +66,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="hero-demo">
                 <div className="card bg-dark text-light shadow-lg">
@@ -105,7 +105,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
               <p className="text-muted">Community, Enterprise, or Embedded - all with enterprise-grade security</p>
             </div>
           </div>
-          
+
           <div className="row g-4 mb-5">
             <div className="col-lg-4">
               <div className="card h-100 border-0 shadow-sm">
@@ -131,7 +131,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="card h-100 border-primary border-3 shadow-lg position-relative">
                 <div className="position-absolute top-0 start-50 translate-middle">
@@ -145,8 +145,8 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   <div className="mb-3 p-3 bg-primary bg-opacity-10 rounded">
                     <h6 className="text-primary mb-2"><i className="fas fa-star me-2"></i>Key Enterprise Benefit:</h6>
                     <p className="mb-0 fw-bold">
-                      <strong>Selective DNS Routing</strong> - One secure endpoint that provides private AND public DNS 
-                      entries based on user/group permissions. Internal users get corporate DNS + public internet, 
+                      <strong>Selective DNS Routing</strong> - One secure endpoint that provides private AND public DNS
+                      entries based on user/group permissions. Internal users get corporate DNS + public internet,
                       external users get public only.
                     </p>
                   </div>
@@ -168,7 +168,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-header bg-info text-white text-center">
@@ -179,7 +179,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   <div className="mb-3 p-3 bg-info bg-opacity-10 rounded">
                     <h6 className="text-info mb-2"><i className="fas fa-puzzle-piece me-2"></i>Key Embedded Benefits:</h6>
                     <p className="mb-0 fw-bold">
-                      <strong>Product Integration</strong> - License Squawk DNS to embed inside your own products, 
+                      <strong>Product Integration</strong> - License Squawk DNS to embed inside your own products,
                       applications, or hardware solutions. Custom pricing and terms available.
                     </p>
                   </div>
@@ -202,7 +202,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm">
@@ -212,13 +212,13 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </div>
                   <h5 className="card-title">Advanced Security</h5>
                   <p className="card-text text-muted">
-                    mTLS authentication, DNS blackholing with Maravento integration, 
+                    mTLS authentication, DNS blackholing with Maravento integration,
                     brute force protection, and comprehensive security logging.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body text-center p-4">
@@ -227,13 +227,13 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </div>
                   <h5 className="card-title">DNS Privacy Protection</h5>
                   <p className="card-text text-muted">
-                    Keep your services private - external endpoints accessible by IP 
+                    Keep your services private - external endpoints accessible by IP
                     without exposing them in public DNS records. Perfect for internal services.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm">
                 <div className="card-body text-center p-4">
@@ -242,14 +242,14 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </div>
                   <h5 className="card-title">High Performance</h5>
                   <p className="card-text text-muted">
-                    HTTP/3 support, Redis caching, async processing, and Go client 
+                    HTTP/3 support, Redis caching, async processing, and Go client
                     with ~10ms cold start and minimal memory usage.
                   </p>
                 </div>
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4 mt-4">
             <div className="col-md-6">
               <div className="card h-100 border-0 shadow-sm">
@@ -259,13 +259,13 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </div>
                   <h5 className="card-title">Enterprise Ready</h5>
                   <p className="card-text text-muted">
-                    SSO integration (SAML, LDAP, OAuth2), MFA support, 
+                    SSO integration (SAML, LDAP, OAuth2), MFA support,
                     web console, role-based access, and comprehensive auditing.
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-md-6">
               <div className="card h-100 border-0 shadow-sm bg-light border-2">
                 <div className="card-body text-center p-4">
@@ -274,8 +274,8 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </div>
                   <h5 className="card-title">Private Service Discovery</h5>
                   <p className="card-text text-muted">
-                    <strong>Revolutionary approach to service privacy:</strong> Your external services 
-                    remain accessible by IP address while staying completely invisible in public DNS. 
+                    <strong>Revolutionary approach to service privacy:</strong> Your external services
+                    remain accessible by IP address while staying completely invisible in public DNS.
                     No DNS records = no attack surface for reconnaissance.
                   </p>
                 </div>
@@ -297,14 +297,14 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                   </span>
                 </div>
                 <h2 className="fw-bold mb-4">
-                  One Secure DNS Endpoint, 
+                  One Secure DNS Endpoint,
                   <span className="text-primary"> Multiple Access Levels</span>
                 </h2>
                 <p className="lead mb-4">
-                  The revolutionary selective DNS routing feature allows you to serve different DNS responses 
+                  The revolutionary selective DNS routing feature allows you to serve different DNS responses
                   to different users from a single secure endpoint, based on authentication and permissions.
                 </p>
-                
+
                 <div className="feature-benefits">
                   <div className="row g-3">
                     <div className="col-12">
@@ -342,7 +342,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-4">
                   <Link href="/features" className="btn btn-primary btn-lg me-3">
                     <i className="fas fa-info-circle me-2"></i>
@@ -355,7 +355,7 @@ sudo dpkg -i squawk-dns-client_2.0.0_amd64.deb`}</code></pre>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="text-center">
                 <div className="position-relative">
@@ -372,7 +372,7 @@ internal.company.com resolves to:
 10.0.50.5 (Private server accessible)`}</code></pre>
                     </div>
                   </div>
-                  
+
                   <div className="card bg-dark text-light shadow-lg">
                     <div className="card-header bg-warning text-dark">
                       <small><i className="fas fa-globe me-2"></i>External User Query</small>
@@ -434,7 +434,7 @@ Domain not found (Private entries hidden)`}</code></pre>
               <p className="lead text-muted mb-4">
                 Get started with Squawk DNS today. Deploy in minutes with Docker or native packages.
               </p>
-              
+
               <div className="cta-buttons">
                 <Link href="/download" className="btn btn-primary btn-lg me-3">
                   <i className="fas fa-download me-2"></i>

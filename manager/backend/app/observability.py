@@ -7,7 +7,6 @@ When not set, no tracing infrastructure is initialized (zero overhead).
 
 import os
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

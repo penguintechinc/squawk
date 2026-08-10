@@ -64,8 +64,8 @@ jobs:
 
       - name: Run linting on complete application image
         run: |
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m ruff check app/ --select=E9,F,B --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m ruff check app/ --exit-zero --statistics || true
 
   # Build and release job only runs when version tag created
   build-platform:

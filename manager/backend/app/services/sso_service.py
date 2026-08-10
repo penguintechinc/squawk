@@ -18,7 +18,7 @@ import secrets
 import hashlib
 import base64
 from typing import Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -177,11 +177,11 @@ class SSOService:
         attempt = db(db.sso_login_attempts.opaque_state == state).select().first()
 
         if not attempt:
-            current_app.logger.warning(f"Login attempt not found for state")
+            current_app.logger.warning("Login attempt not found for state")
             return None
 
         if attempt['used']:
-            current_app.logger.warning(f"Login attempt already used")
+            current_app.logger.warning("Login attempt already used")
             return None
 
         age = (datetime.utcnow() - attempt['created_at']).total_seconds()

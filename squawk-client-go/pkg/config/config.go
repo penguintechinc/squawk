@@ -174,7 +174,7 @@ func loadFromFile(filename string, config *AppConfig) error {
 	if strings.Contains(filename, "..") {
 		return fmt.Errorf("invalid filename: directory traversal not allowed")
 	}
-	
+
 	// #nosec G304 - This reads user-specified config files, validated against directory traversal
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -209,7 +209,7 @@ func loadFromEnv(config *AppConfig) {
 	if serverURL := os.Getenv("SQUAWK_SERVER_URL"); serverURL != "" {
 		config.Client.ServerURL = serverURL
 	}
-	
+
 	// Multiple server URLs (comma-separated)
 	if serverURLs := os.Getenv("SQUAWK_SERVER_URLS"); serverURLs != "" {
 		urls := strings.Split(serverURLs, ",")
@@ -218,14 +218,14 @@ func loadFromEnv(config *AppConfig) {
 		}
 		config.Client.ServerURLs = urls
 	}
-	
+
 	// Retry configuration
 	if maxRetries := os.Getenv("SQUAWK_MAX_RETRIES"); maxRetries != "" {
 		if retries, err := strconv.Atoi(maxRetries); err == nil && retries > 0 {
 			config.Client.MaxRetries = retries
 		}
 	}
-	
+
 	if retryDelay := os.Getenv("SQUAWK_RETRY_DELAY"); retryDelay != "" {
 		if delay, err := strconv.Atoi(retryDelay); err == nil && delay > 0 {
 			config.Client.RetryDelay = delay
@@ -241,7 +241,7 @@ func loadFromEnv(config *AppConfig) {
 	if clientCert := os.Getenv("CLIENT_CERT_PATH"); clientCert != "" {
 		config.Client.ClientCert = clientCert
 	}
-	
+
 	if clientKey := os.Getenv("SQUAWK_CLIENT_KEY"); clientKey != "" {
 		config.Client.ClientKey = clientKey
 	}
@@ -249,7 +249,7 @@ func loadFromEnv(config *AppConfig) {
 	if clientKey := os.Getenv("CLIENT_KEY_PATH"); clientKey != "" {
 		config.Client.ClientKey = clientKey
 	}
-	
+
 	if caCert := os.Getenv("SQUAWK_CA_CERT"); caCert != "" {
 		config.Client.CaCert = caCert
 	}
@@ -257,7 +257,7 @@ func loadFromEnv(config *AppConfig) {
 	if caCert := os.Getenv("CA_CERT_PATH"); caCert != "" {
 		config.Client.CaCert = caCert
 	}
-	
+
 	if verifySSL := os.Getenv("SQUAWK_VERIFY_SSL"); verifySSL != "" {
 		if val, err := strconv.ParseBool(verifySSL); err == nil {
 			config.Client.VerifySSL = val

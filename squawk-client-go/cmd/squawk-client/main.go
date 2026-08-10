@@ -85,26 +85,26 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Configuration file path")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	
+
 	// DNS query flags
 	rootCmd.Flags().StringVarP(&domain, "domain", "d", "", "Domain to query (required)")
 	rootCmd.Flags().StringVarP(&recordType, "type", "t", "A", "DNS record type")
 	rootCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
-	
+
 	// Server connection flags
 	rootCmd.Flags().StringVarP(&serverURL, "server", "s", "", "DNS server URL")
 	rootCmd.Flags().StringVarP(&authToken, "auth", "a", "", "Authentication token")
-	
+
 	// mTLS flags
 	rootCmd.Flags().StringVar(&clientCert, "client-cert", "", "Client certificate file for mTLS")
 	rootCmd.Flags().StringVar(&clientKey, "client-key", "", "Client private key file for mTLS")
 	rootCmd.Flags().StringVar(&caCert, "ca-cert", "", "CA certificate file for server verification")
 	rootCmd.Flags().BoolVar(&verifySSL, "verify-ssl", true, "Verify SSL/TLS certificates")
-	
+
 	// DNS forwarding flags
 	rootCmd.Flags().BoolVarP(&udpForward, "udp", "u", false, "Enable UDP DNS forwarding on port 53")
 	rootCmd.Flags().BoolVarP(&tcpForward, "tcp", "T", false, "Enable TCP DNS forwarding on port 53")
-	
+
 	// Performance monitoring flags
 	rootCmd.Flags().BoolVar(&enablePerformanceMonitoring, "performance", false, "Enable DNS performance monitoring (Enterprise feature)")
 
@@ -539,7 +539,7 @@ func startMetricsServer(m *metrics.Metrics) {
 // printDNSResponse prints the DNS response in a human-readable format
 func printDNSResponse(response *client.DNSResponse) {
 	fmt.Printf("DNS Response Status: %d\n", response.Status)
-	
+
 	if response.Comment != "" {
 		fmt.Printf("Comment: %s\n", response.Comment)
 	}

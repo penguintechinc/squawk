@@ -137,7 +137,7 @@ class DNSOverHTTPSClient:
         try:
             parsed_url = urlparse(dns_server_url)
         except Exception as e:
-            raise ValueError(f"Invalid DNS server URL format: {e}")
+            raise ValueError(f"Invalid DNS server URL format: {e}") from e
 
         if parsed_url.scheme not in ["http", "https"]:
             raise ValueError(f"DNS server URL must use http or https scheme, got: {parsed_url.scheme}")
@@ -234,7 +234,7 @@ class DNSOverHTTPSClient:
                 self._validate_server_url(url)
                 normalized_urls.append(self._normalize_server_url(url))
             except ValueError as e:
-                raise ValueError(f"Invalid server URL at index {i}: {e}")
+                raise ValueError(f"Invalid server URL at index {i}: {e}") from e
         self.dns_server_urls = normalized_urls
 
         # Legacy support
@@ -471,7 +471,7 @@ class SquawkDNSGrpcClient:
             return self._convert_grpc_response(response)
         except grpc.RpcError as e:
             logging.error(f"gRPC query failed: {e.code()} - {e.details()}")
-            raise Exception(f"gRPC query failed: {e.details()}")
+            raise Exception(f"gRPC query failed: {e.details()}") from e
         except Exception as e:
             logging.error(f"Unexpected error in gRPC query: {e}")
             raise
@@ -510,7 +510,7 @@ class SquawkDNSGrpcClient:
             return [self._convert_grpc_response(r) for r in response.responses]
         except grpc.RpcError as e:
             logging.error(f"gRPC batch query failed: {e.code()} - {e.details()}")
-            raise Exception(f"gRPC batch query failed: {e.details()}")
+            raise Exception(f"gRPC batch query failed: {e.details()}") from e
 
     def health_check(self):
         """Check if DNS server is healthy"""
@@ -638,7 +638,7 @@ class DNSForwarder:
     def handle_request(self, data):
         domain = "example.com"  # Extract the domain from the DNS request
         record_type = "A"  # Extract the record type from the DNS request
-        result = self.dns_client.query(domain, record_type)
+        self.dns_client.query(domain, record_type)
         response = b""  # Create a proper DNS response
         return response
 
@@ -801,7 +801,7 @@ def main(argv):
                 results = client.batch_query(domains, record_type)
             else:
                 results = [client.query(d, record_type) for d in domains]
-            for domain_name, result in zip(domains, results):
+            for domain_name, result in zip(domains, results, strict=True):
                 print(f"{domain_name}: {json.dumps(result, indent=2)}")
         else:
             logging.error(f"Batch file not found: {batch_domains}")

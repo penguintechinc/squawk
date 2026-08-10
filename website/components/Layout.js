@@ -23,14 +23,14 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
         <meta name="description" content="Squawk DNS - Secure DNS-over-HTTPS system with enterprise authentication, mTLS support, and comprehensive security features." />
         <meta name="keywords" content="DNS, DNS-over-HTTPS, DoH, security, privacy, mTLS, authentication, enterprise" />
         <meta name="author" content="PenguinCloud" />
-        
+
         {/* Bootstrap CSS */}
         <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet" />
         {/* Font Awesome */}
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
         {/* Highlight.js CSS */}
         <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" rel="stylesheet" />
-        
+
         <link rel="icon" href="/favicon.ico" type="image/x-icon" />
       </Head>
 
@@ -42,11 +42,11 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
               <i className="fas fa-shield-alt me-2"></i>
               Squawk DNS
             </Link>
-            
+
             <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
               <span className="navbar-toggler-icon"></span>
             </button>
-            
+
             <div className="collapse navbar-collapse" id="navbarNav">
               <ul className="navbar-nav me-auto">
                 <li className="nav-item">
@@ -71,7 +71,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                   </ul>
                 </li>
               </ul>
-              
+
               <ul className="navbar-nav">
                 <li className="nav-item">
                   <a className="nav-link" href="https://github.com/penguincloud/squawk" target="_blank" rel="noopener noreferrer">
@@ -105,7 +105,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                   </a>
                 </div>
               </div>
-              
+
               <div className="col-lg-2 mb-4">
                 <h6>Product</h6>
                 <ul className="list-unstyled">
@@ -115,7 +115,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                   <li><Link href="/download/" className="text-decoration-none" style={{color: '#6c757d'}}>Download</Link></li>
                 </ul>
               </div>
-              
+
               <div className="col-lg-2 mb-4">
                 <h6>Resources</h6>
                 <ul className="list-unstyled">
@@ -124,7 +124,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                   <li><a href="https://github.com/penguincloud/squawk/releases" className="text-muted" target="_blank" rel="noopener noreferrer">Releases</a></li>
                 </ul>
               </div>
-              
+
               <div className="col-lg-2 mb-4">
                 <h6>Company</h6>
                 <ul className="list-unstyled">
@@ -133,7 +133,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                   <li><a href="mailto:sales@penguincloud.io" className="text-muted">Sales</a></li>
                 </ul>
               </div>
-              
+
               <div className="col-lg-2 mb-4">
                 <h6>Legal</h6>
                 <ul className="list-unstyled">
@@ -142,9 +142,9 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
                 </ul>
               </div>
             </div>
-            
+
             <hr className="my-4" />
-            
+
             <div className="row align-items-center">
               <div className="col-md-8">
                 <p className="mb-0 text-muted">&copy; 2025 PenguinCloud. All rights reserved.</p>
@@ -157,7 +157,7 @@ export default function Layout({ children, title = 'Squawk DNS', page = '' }) {
         </footer>
 
         {/* Bootstrap JS */}
-        <Script 
+        <Script
           src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"
           strategy="lazyOnload"
         />

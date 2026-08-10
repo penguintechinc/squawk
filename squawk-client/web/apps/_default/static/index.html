@@ -1,6 +1,6 @@
 <html>
   <head>
-    <link rel="stylesheet" href="/static/css/prism.css">    
+    <link rel="stylesheet" href="/static/css/prism.css">
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Dosis:wght@300&display=swap" rel="stylesheet">
     <style>
@@ -9,7 +9,7 @@
       header { width: 100vw; height: 100vh; background: #C188BB; background: linear-gradient(57deg, #C188BB 0%, #15497B 100%);color: white; text-align: center;}
       .logo { padding-top: 20vh; height: 30vh; max-height: 400px;}
       header a {color: white;text-decoration:none;font-weight:bold;}
-      header a.btn {padding:10px 10px;border-radius:10px;border:2px solid white; transition: all .5s ease} 
+      header a.btn {padding:10px 10px;border-radius:10px;border:2px solid white; transition: all .5s ease}
       header a.btn:hover{background:rgba(0,0,0,0.1);padding:10px 30px}
       header h1 {margin-bottom: 2vh; margin-top: 5vh; font-size: 3em }
       header h2 {margin-bottom: 10vh; }
@@ -60,9 +60,9 @@ $ py4web run apps                  # start py4web
 
 Each subfolder of <tt>apps/</tt> with an <tt>__init__.py</tt> is its own app. One py4web can run multiple apps.
 You just copy the <tt>_scaffold</tt> app to make a new one.
-	
+
       </div><div class="section">
-	
+
 	The basic functions/objects are imported from the py4web module.
 
 <pre class="language-python"><code>
@@ -132,7 +132,7 @@ def index():
 
       </div><div class="section">
 	We have a built-in session object which by default stores the session data, signed, in a cookie. Optionally it can be stored in db, redis,
-      or other custom storage. Session is a <a href="https://py4web.com/_documentation/static/en/chapter-06.html">fixture</a> 
+      or other custom storage. Session is a <a href="https://py4web.com/_documentation/static/en/chapter-06.html">fixture</a>
       and it must be declared with <tt>@action.uses</tt>.
       Think of fixtures as per action (as opposed to per app) middleware.
 
@@ -140,7 +140,7 @@ def index():
 @action("index")
 @action.uses(session)
 def index():
-    session.x = (session.x or 0) + 1 
+    session.x = (session.x or 0) + 1
     return f"x = {x}"
 </code></pre>
 
@@ -200,7 +200,7 @@ def index():
       </div><div class="section">
 	More complex policies are possible using the built-in <a href="https://py4web.com/_documentation/static/en/chapter-07.html#tagging-records">tagging
       system</a> combined with <a href="https://py4web.com/_documentation/static/en/chapter-13.html#authorization-using-tags">auth</a>.
-      <tt>Condition</tt> is another fixture, if False it raises a 404 error page by default. 
+      <tt>Condition</tt> is another fixture, if False it raises a 404 error page by default.
 
 <pre class="language-python"><code>
 is_manager = Condition(lambda: "manager" in groups.get(auth.user_id))
@@ -311,8 +311,8 @@ def api_DELETE_things(thing_id):
 </code></pre>
 </div>
 
-      
-      
+
+
       <div class="section">
 	These are just the basics. There is a lot more to it, including...
 	<ul>
@@ -330,14 +330,14 @@ def api_DELETE_things(thing_id):
       <h4>LICENSE</h4>
 
       <a href="https://opensource.org/license/bsd-3-clause">3-clause BSD</a>
-      
+
       <h4>USEFUL LINKS</h4>
-      
+
       <div class="section">
 	<a href="https://github.com/web2py/py4web/tree/master/apps/fadebook">A minimalist Facebook clone</a><br/>
 	<a href="https://github.com/web2py/py4web/tree/master/apps/tagged_posts">A minimalist Twitter clone (with Vue)</a><br/>
       </div>
-      
+
       <center>
 	<img src="https://py4web.com/_documentation/static/en/_images/dashboard_main.png" height="200" alt="">
 	<img src="https://py4web.com/_documentation/static/en/_images/dashboard_ticket.png" height="200" alt="">

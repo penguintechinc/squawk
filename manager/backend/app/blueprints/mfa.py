@@ -10,7 +10,6 @@ from app.middleware.auth import token_required, get_current_user
 from app.services.auth_service import AuthService
 from app.services.mfa_service import MFAService
 from app.utils.decorators import validate_json, audit_log
-from werkzeug.exceptions import BadRequest
 
 mfa_bp = Blueprint('mfa', __name__)
 

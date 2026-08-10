@@ -26,7 +26,7 @@ var (
 	// - Cannot end with a hyphen
 	// - Max 63 characters per label
 	dnsLabelRegex = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$`)
-	
+
 	// Valid DNS record types
 	validRecordTypes = map[string]bool{
 		"A":     true,
@@ -57,21 +57,21 @@ func validateDNSName(domain string) error {
 	if len(domain) > 253 {
 		return fmt.Errorf("DNS name too long: %d characters (max 253)", len(domain))
 	}
-	
+
 	// Remove trailing dot if present (valid in DNS but we'll validate without it)
 	domain = strings.TrimSuffix(domain, ".")
-	
+
 	// Check for invalid characters at the domain level
 	if strings.ContainsAny(domain, " !@#$%^&*()+={}[]|\\:;\"'<>,?/`~") {
 		return fmt.Errorf("DNS name contains invalid characters")
 	}
-	
+
 	// Split into labels and validate each
 	labels := strings.Split(domain, ".")
 	if len(labels) == 0 {
 		return fmt.Errorf("DNS name has no labels")
 	}
-	
+
 	for i, label := range labels {
 		// Check label length (max 63 characters)
 		if len(label) == 0 {
@@ -80,12 +80,12 @@ func validateDNSName(domain string) error {
 		if len(label) > 63 {
 			return fmt.Errorf("DNS label '%s' too long: %d characters (max 63)", label, len(label))
 		}
-		
+
 		// Special case: TLD can be all numeric for reverse DNS (e.g., "1.0.0.127.in-addr.arpa")
 		if i == len(labels)-1 && label == "arpa" {
 			continue // Skip validation for .arpa TLD
 		}
-		
+
 		// Check label format
 		if !dnsLabelRegex.MatchString(label) {
 			// Special case for IDN/punycode domains
@@ -94,14 +94,14 @@ func validateDNSName(domain string) error {
 			}
 			return fmt.Errorf("invalid DNS label '%s': must start/end with alphanumeric and contain only letters, digits, and hyphens", label)
 		}
-		
+
 		// Check for consecutive hyphens (sometimes indicates typos)
 		if strings.Contains(label, "--") && !strings.HasPrefix(label, "xn--") {
 			// Allow -- only in punycode domains
 			return fmt.Errorf("invalid DNS label '%s': contains consecutive hyphens", label)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -227,7 +227,7 @@ func validateServerURL(serverURL string) error {
 		if strings.ToLower(host) == "localhost" {
 			return nil
 		}
-		
+
 		// Special case: allow well-known public DNS providers to prevent breaking existing configs
 		allowedHosts := []string{
 			"dns.google",
@@ -241,7 +241,7 @@ func validateServerURL(serverURL string) error {
 			"dns.nextdns.io",
 			"doh.cleanbrowsing.org",
 		}
-		
+
 		hostLower := strings.ToLower(host)
 		for _, allowed := range allowedHosts {
 			if hostLower == allowed || strings.HasPrefix(hostLower, allowed + ".") {
@@ -253,7 +253,7 @@ func validateServerURL(serverURL string) error {
 				return nil
 			}
 		}
-		
+
 		return fmt.Errorf("server URL must use an IP address (not hostname '%s') to prevent DNS resolution loops. Use the IP address of your DNS server instead", host)
 	}
 
@@ -320,7 +320,7 @@ func NewDoHClient(config *Config) (*DoHClient, error) {
 func (c *DoHClient) setupHTTPClient() error {
 	tlsConfig := &tls.Config{
 		// #nosec G402 - InsecureSkipVerify is controlled by verifySSL config option
-		// When verifySSL is true (default), this becomes false (secure)  
+		// When verifySSL is true (default), this becomes false (secure)
 		// When verifySSL is false (user choice), this becomes true (for testing only)
 		InsecureSkipVerify: !c.verifySSL,
 	}
@@ -375,7 +375,7 @@ func (c *DoHClient) Query(ctx context.Context, domain, recordType string) (*DNSR
 	if err := validateDNSName(domain); err != nil {
 		return nil, fmt.Errorf("invalid domain name: %w", err)
 	}
-	
+
 	// Validate and normalize record type
 	if recordType == "" {
 		recordType = "A"
@@ -391,7 +391,7 @@ func (c *DoHClient) Query(ctx context.Context, domain, recordType string) (*DNSR
 	// Try each server with retry logic
 	for attempt := 0; attempt < c.maxRetries; attempt++ {
 		serverURL := c.serverURLs[c.currentIndex]
-		
+
 		// Build request URL with query parameters
 		req, err := http.NewRequestWithContext(ctx, "GET", serverURL, nil)
 		if err != nil {
@@ -422,7 +422,7 @@ func (c *DoHClient) Query(ctx context.Context, domain, recordType string) (*DNSR
 			lastErr = fmt.Errorf("HTTP request failed for %s: %w", serverURL, err)
 			errors = append(errors, lastErr.Error())
 			c.nextServer()
-			
+
 			// Add delay before next attempt
 			if attempt < c.maxRetries-1 {
 				select {
@@ -473,7 +473,7 @@ func (c *DoHClient) Query(ctx context.Context, domain, recordType string) (*DNSR
 	if len(errors) > 1 {
 		return nil, fmt.Errorf("all DNS servers failed after %d attempts: %s", c.maxRetries, strings.Join(errors, "; "))
 	}
-	
+
 	return nil, fmt.Errorf("DNS query failed: %w", lastErr)
 }
 
@@ -488,23 +488,23 @@ func normalizeServerURL(serverURL string) string {
 	if err != nil {
 		return serverURL
 	}
-	
+
 	host := strings.ToLower(parsedURL.Hostname())
-	
+
 	// Google DNS - ensure correct path
 	if strings.Contains(host, "dns.google") {
 		if parsedURL.Path == "" || parsedURL.Path == "/" {
 			parsedURL.Path = "/resolve"
 		}
 	}
-	
+
 	// Cloudflare DNS - ensure correct path
 	if strings.Contains(host, "cloudflare") || host == "1.1.1.1" || host == "1.0.0.1" {
 		if parsedURL.Path == "" || parsedURL.Path == "/" {
 			parsedURL.Path = "/dns-query"
 		}
 	}
-	
+
 	// Quad9 DNS
 	if strings.Contains(host, "dns.quad9.net") {
 		if parsedURL.Path == "" || parsedURL.Path == "/" {
@@ -527,7 +527,7 @@ func (c *DoHClient) QueryWithJSON(ctx context.Context, domain, recordType string
 	if err := validateDNSName(domain); err != nil {
 		return nil, fmt.Errorf("invalid domain name: %w", err)
 	}
-	
+
 	// Validate and normalize record type
 	if recordType == "" {
 		recordType = "A"

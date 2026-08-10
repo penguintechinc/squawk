@@ -35,16 +35,16 @@ export default function Features() {
               <p className="lead text-muted">One secure DNS endpoint, multiple access levels</p>
             </div>
           </div>
-          
+
           <div className="row align-items-center">
             <div className="col-lg-6">
               <div className="pe-lg-4">
                 <h4 className="fw-bold mb-3">Revolutionary DNS Security Architecture</h4>
                 <p className="mb-4">
-                  The game-changing feature that sets Squawk DNS Enterprise apart: serve different DNS responses 
+                  The game-changing feature that sets Squawk DNS Enterprise apart: serve different DNS responses
                   to different users from a single secure endpoint, based on authentication and permissions.
                 </p>
-                
+
                 <div className="row g-3">
                   <div className="col-md-6">
                     <div className="p-3 bg-success bg-opacity-10 rounded">
@@ -59,7 +59,7 @@ export default function Features() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-4">
                   <Link href="/pricing" className="btn btn-primary btn-lg me-3">
                     <i className="fas fa-crown me-2"></i>Get Enterprise
@@ -70,7 +70,7 @@ export default function Features() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="text-center">
                 <div className="card bg-dark text-light shadow-lg">
@@ -431,7 +431,7 @@ export default function Features() {
               <p className="lead text-muted">Enterprise-exclusive features for comprehensive DNS analytics and threat intelligence</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="feature-deep-dive p-4 bg-white rounded shadow-sm h-100">
@@ -452,7 +452,7 @@ export default function Features() {
                 </ul>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="feature-deep-dive p-4 bg-white rounded shadow-sm h-100">
                 <div className="d-flex align-items-start mb-3">
@@ -473,7 +473,7 @@ export default function Features() {
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4 mt-2">
             <div className="col-lg-6">
               <div className="feature-deep-dive p-4 bg-white rounded shadow-sm h-100">
@@ -494,7 +494,7 @@ export default function Features() {
                 </ul>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="feature-deep-dive p-4 bg-white rounded shadow-sm h-100">
                 <div className="d-flex align-items-start mb-3">

@@ -7,7 +7,7 @@ The test suite has been **streamlined** to focus on **working functionality only
 ## What Changed
 
 ### ❌ Removed (Moved to `tests_full_future/`)
-- Tests for unimplemented IOC Manager features 
+- Tests for unimplemented IOC Manager features
 - Tests for incomplete WHOIS Manager functionality
 - Tests for Client Config API (database issues)
 - Tests for Selective DNS Routing (missing tables)
@@ -16,7 +16,7 @@ The test suite has been **streamlined** to focus on **working functionality only
 
 ### ✅ Kept (Now in `tests/`)
 - **Core DNS functionality** - domain validation, DNS resolution
-- **Authentication basics** - token generation, password validation  
+- **Authentication basics** - token generation, password validation
 - **Security features** - XSS prevention, input validation
 - **Health checks** - module imports, JSON handling
 - **Performance tests** - basic speed requirements
@@ -29,7 +29,7 @@ cd /workspaces/Squawk/dns-server
 python -m pytest tests/ -v
 # ====== 18 passed in <1 second ======
 
-# Docker testing  
+# Docker testing
 docker build --build-arg SQUAWK_ENV=test -f dns-server/Dockerfile -t squawk-dns-server:test dns-server/
 docker run --rm -e SQUAWK_ENV=test -w /app/dns-server squawk-dns-server:test
 # ====== 18 passed in <1 second ======
@@ -52,14 +52,14 @@ docker run --rm -e SQUAWK_ENV=test -w /app/dns-server squawk-dns-server:test
 - Basic error handling
 - Performance requirements
 
-### Authentication (4 tests)  
+### Authentication (4 tests)
 - Token generation and validation
 - Password complexity rules
 - MFA concepts (without external deps)
 - Backup code generation
 
 ### Health & Integration (7 tests)
-- Module import verification  
+- Module import verification
 - JSON serialization/deserialization
 - Environment setup validation
 - Async/await functionality

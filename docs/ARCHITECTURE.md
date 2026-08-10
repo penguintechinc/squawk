@@ -92,7 +92,7 @@ The DNS server is the core component responsible for handling DNS-over-HTTPS req
 class DNSHandler(http.server.BaseHTTPRequestHandler):
     """
     Main request handler implementing DoH protocol.
-    
+
     Responsibilities:
     - HTTP request parsing
     - Authentication enforcement
@@ -209,7 +209,7 @@ dns_console/
    │  └─ DNSForwarder → DNSOverHTTPSClient
    └─ Direct HTTPS DoH request
 
-2. Server Processing  
+2. Server Processing
    ├─ HTTP request parsing
    ├─ Authorization header extraction
    ├─ Token validation against database
@@ -246,7 +246,7 @@ Web Console Database ←→ DNS Server Database
            │
            ├─ Real-time token validation
            ├─ Shared database schema
-           ├─ Transaction consistency  
+           ├─ Transaction consistency
            └─ Activity logging coordination
 ```
 
@@ -263,7 +263,7 @@ Web Console Database ←→ DNS Server Database
 │ name        │       │ created_at   │       │ description │
 │ description │       └──────────────┘       │ created_at  │
 │ active      │                              └─────────────┘
-│ created_at  │       
+│ created_at  │
 │ last_used   │       ┌──────────────┐
 └─────────────┘       │ query_logs   │
                       ├──────────────┤
@@ -376,18 +376,18 @@ def check_domain_permission(token_id: int, domain: str) -> bool:
     # 1. Check for wildcard permission
     if has_wildcard_permission(token_id):
         return True
-    
+
     # 2. Check direct domain match
     if has_direct_permission(token_id, domain):
         return True
-    
+
     # 3. Check parent domain permissions
     parts = domain.split('.')
     for i in range(len(parts)):
         parent_domain = '.'.join(parts[i:])
         if has_direct_permission(token_id, parent_domain):
             return True
-    
+
     return False
 ```
 
@@ -463,7 +463,7 @@ def secure_token_comparison(provided: str, stored: str) -> bool:
     "event_type": "dns_query",
     "token_id": 123,
     "domain": "example.com",
-    "query_type": "A", 
+    "query_type": "A",
     "status": "allowed",
     "client_ip": "192.168.1.100",
     "response_time_ms": 150
@@ -485,14 +485,14 @@ def secure_token_comparison(provided: str, stored: str) -> bool:
 **Database Performance**
 ```sql
 -- Optimized token lookup query
-SELECT t.active, t.last_used 
-FROM tokens t 
+SELECT t.active, t.last_used
+FROM tokens t
 WHERE t.token = ? AND t.active = TRUE
 LIMIT 1;
 
 -- Domain permission check with index usage
-SELECT 1 FROM token_domains td 
-JOIN domains d ON td.domain_id = d.id 
+SELECT 1 FROM token_domains td
+JOIN domains d ON td.domain_id = d.id
 WHERE td.token_id = ? AND d.name IN (?, ?, ?)
 LIMIT 1;
 ```
@@ -514,7 +514,7 @@ class TokenCache:
     def __init__(self, ttl=300):  # 5-minute TTL
         self.cache = {}
         self.ttl = ttl
-    
+
     def get_permissions(self, token: str) -> Optional[List[str]]:
         """Get cached token permissions"""
         pass
@@ -549,13 +549,13 @@ services:
     environment:
       - NODE_ID=1
       - DATABASE_URL=postgresql://shared-db
-  
+
   dns-server-2:
-    image: squawk:latest 
+    image: squawk:latest
     environment:
       - NODE_ID=2
       - DATABASE_URL=postgresql://shared-db
-      
+
   load-balancer:
     image: nginx:latest
     ports:
@@ -648,7 +648,7 @@ spec:
             memory: "256Mi"
             cpu: "200m"
           requests:
-            memory: "128Mi" 
+            memory: "128Mi"
             cpu: "100m"
 ```
 
@@ -660,7 +660,7 @@ spec:
 ```python
 UPSTREAM_RESOLVERS = [
     '8.8.8.8',      # Google DNS
-    '8.8.4.4',      # Google DNS Secondary  
+    '8.8.4.4',      # Google DNS Secondary
     '1.1.1.1',      # Cloudflare
     '1.0.0.1',      # Cloudflare Secondary
     '208.67.222.222', # OpenDNS
@@ -696,7 +696,7 @@ GET    /api/v1/tokens/{id}         # Get token details
 PUT    /api/v1/tokens/{id}         # Update token
 DELETE /api/v1/tokens/{id}         # Delete token
 
-# Domain management API  
+# Domain management API
 GET    /api/v1/domains             # List domains
 POST   /api/v1/domains             # Add domain
 DELETE /api/v1/domains/{id}        # Remove domain
@@ -720,7 +720,7 @@ def register_service():
         name='squawk-dns',
         service_id=f'squawk-dns-{NODE_ID}',
         port=8080,
-        check=consul.Check.http('http://localhost:8080/health', 
+        check=consul.Check.http('http://localhost:8080/health',
                                interval='10s')
     )
 ```
@@ -735,7 +735,7 @@ class DNSResponseCache:
     """Distributed DNS response caching"""
     def __init__(self):
         self.redis = redis.Redis(host='cache-cluster')
-    
+
     def get_cached_response(self, query: str, record_type: str):
         key = f"dns:{query}:{record_type}"
         return self.redis.get(key)

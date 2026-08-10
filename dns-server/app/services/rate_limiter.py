@@ -4,7 +4,7 @@ Provides per-identity rate limiting for DoH query endpoints using token bucket a
 """
 import time
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 from abc import ABC, abstractmethod
 from collections import OrderedDict

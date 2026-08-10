@@ -12,12 +12,12 @@ import json
 import jwt
 import hashlib
 import base64
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple, Any
+from typing import Optional, Dict, Any
 from flask import current_app
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, padding
+from cryptography.hazmat.primitives.asymmetric import rsa, ec
 from cryptography.hazmat.backends import default_backend
 
 

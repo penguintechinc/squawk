@@ -30,7 +30,7 @@ export default function Download() {
               <p className="text-muted">Choose the deployment method that works best for your environment</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             {/* Docker Option */}
             <div className="col-lg-4">
@@ -91,7 +91,7 @@ export default function Download() {
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="docker-option p-4 bg-white rounded shadow-sm h-100">
@@ -112,7 +112,7 @@ export default function Download() {
                 </p>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="docker-option p-4 bg-white rounded shadow-sm h-100">
                 <h4><i className="fas fa-desktop text-success me-2"></i>DNS Client</h4>
@@ -133,7 +133,7 @@ export default function Download() {
               </div>
             </div>
           </div>
-          
+
           <div className="row mt-4">
             <div className="col-lg-12 text-center">
               <a href="https://hub.docker.com/r/penguincloud/squawk-dns-server" target="_blank" rel="noopener noreferrer" className="btn btn-primary me-3">
@@ -161,7 +161,7 @@ export default function Download() {
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="package-group p-4 bg-light rounded">
@@ -175,7 +175,7 @@ export default function Download() {
                     </code>
                   </div>
                 </div>
-                
+
                 <div className="mb-3">
                   <h6>Red Hat/CentOS (.rpm)</h6>
                   <div className="code-block bg-dark text-light p-2 rounded mb-2">
@@ -185,7 +185,7 @@ export default function Download() {
                     </code>
                   </div>
                 </div>
-                
+
                 <div>
                   <h6>Service Management</h6>
                   <div className="code-block bg-dark text-light p-2 rounded">
@@ -197,7 +197,7 @@ export default function Download() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="package-group p-4 bg-light rounded">
                 <h4><i className="fab fa-windows text-info me-2"></i>Windows & macOS</h4>
@@ -208,7 +208,7 @@ export default function Download() {
                     Request Early Access
                   </a>
                 </div>
-                
+
                 <div className="mb-3">
                   <h6>macOS (Homebrew)</h6>
                   <p className="text-muted small">Coming soon - macOS package with launchd integration.</p>
@@ -216,7 +216,7 @@ export default function Download() {
                     Request Early Access
                   </a>
                 </div>
-                
+
                 <div>
                   <h6>Go Binary</h6>
                   <p className="text-muted small">Pre-compiled binaries available for all platforms.</p>
@@ -244,7 +244,7 @@ export default function Download() {
               </div>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-8">
               <div className="source-instructions p-4 bg-white rounded shadow-sm">
@@ -254,38 +254,38 @@ export default function Download() {
                   <li>Git</li>
                   <li>Make (optional, for build scripts)</li>
                 </ul>
-                
+
                 <h4>Build Instructions</h4>
                 <div className="code-block bg-dark text-light p-3 rounded mb-3">
                   <code>
                     # Clone the repository<br/>
                     git clone https://github.com/penguincloud/squawk.git<br/>
                     cd squawk<br/><br/>
-                    
+
                     # Build the server<br/>
                     go build -o squawk-dns-server ./cmd/server<br/><br/>
-                    
+
                     # Build the client<br/>
                     go build -o squawk-dns-client ./cmd/client<br/><br/>
-                    
+
                     # Or use the Makefile<br/>
                     make build
                   </code>
                 </div>
-                
+
                 <h4>Development</h4>
                 <div className="code-block bg-dark text-light p-3 rounded">
                   <code>
                     # Run tests<br/>
                     go test ./...<br/><br/>
-                    
+
                     # Run with hot reload<br/>
                     go run ./cmd/server --config config.yaml
                   </code>
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-4">
               <div className="source-links p-4 bg-white rounded shadow-sm h-100">
                 <h4>Source Code Links</h4>
@@ -303,11 +303,11 @@ export default function Download() {
                     <i className="fas fa-book me-2"></i>Dev Documentation
                   </Link>
                 </div>
-                
+
                 <div className="mt-4">
                   <h6>License</h6>
                   <p className="small text-muted">
-                    Squawk DNS is released under the 
+                    Squawk DNS is released under the
                     <a href="https://github.com/penguincloud/squawk/blob/main/LICENSE.md" target="_blank" rel="noopener noreferrer"> AGPL v3 License</a>.
                   </p>
                 </div>
@@ -326,7 +326,7 @@ export default function Download() {
               <p className="text-muted">Minimal requirements for running Squawk DNS</p>
             </div>
           </div>
-          
+
           <div className="row g-4">
             <div className="col-lg-6">
               <div className="requirements-card p-4 bg-light rounded">
@@ -351,7 +351,7 @@ export default function Download() {
                 </div>
               </div>
             </div>
-            
+
             <div className="col-lg-6">
               <div className="requirements-card p-4 bg-light rounded">
                 <h4><i className="fas fa-desktop text-success me-2"></i>DNS Client</h4>

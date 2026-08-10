@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Optional, Tuple
+from typing import Tuple
 
 
 def compute_kid_from_public_pem(public_pem: str) -> str:

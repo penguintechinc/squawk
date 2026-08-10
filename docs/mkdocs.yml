@@ -17,7 +17,7 @@ theme:
       primary: blue
       accent: blue
       toggle:
-        icon: material/brightness-7 
+        icon: material/brightness-7
         name: Switch to dark mode
 
     # Palette toggle for dark mode
@@ -27,7 +27,7 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  
+
   features:
     - navigation.tabs
     - navigation.sections

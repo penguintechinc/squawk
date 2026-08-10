@@ -1,44 +1,32 @@
-[tool.black]
+[tool.ruff]
+# ruff supersedes flake8/black/isort (backend-python.md) -- one tool for
+# lint + import-sort + format. line-length kept at 120 (not the canonical
+# 100) to match this codebase's existing black/isort history and avoid a
+# repo-wide reformat as a side effect of adopting the tool.
+target-version = "py313"
 line-length = 120
-target-version = ['py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | htmlcov
-  | migrations
-  | alembic
-)/
-'''
-
-[tool.isort]
-profile = "black"
-line_length = 120
-skip_glob = [
-    "*/venv/*",
-    "*/.venv/*",
-    "*/node_modules/*",
-    "*/.pytest_cache/*",
-    "*/htmlcov/*",
-    "*/.mypy_cache/*",
-    "*/alembic/*",
-    "*/migrations/*"
+extend-exclude = [
+    "venv", ".venv", "*/venv", "*/.venv", "node_modules",
+    ".pytest_cache", "htmlcov", ".mypy_cache", "migrations", "alembic",
+    "*/migrations", "*/alembic",
 ]
-known_first_party = ["dns_server", "dns_client", "manager"]
-include_trailing_comma = true
-use_parentheses = true
-ensure_newline_before_comments = true
+
+[tool.ruff.lint]
+# Canonical full rule set (see backend-python.md). Only F/E9/B are wired as
+# blocking in .pre-commit-config.yaml today -- the same bar flake8 already
+# enforced (E9,F63,F7,F821,F401,B), now via ruff. D/N/UP/ASYNC/S/I/E-full/
+# W-full surface ~1,700 pre-existing findings (mostly missing docstrings and
+# pyupgrade modernization) across five services that predate this change and
+# are not fixable as a "add git hooks" chore -- run via `ruff check .`
+# (advisory, `make lint-full`) and close incrementally. Mirrors the mypy
+# manual-stage exception below.
+select = ["E", "W", "F", "I", "N", "D", "UP", "B", "ASYNC", "S"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["dns_server", "dns_client", "manager"]
 
 [tool.mypy]
 python_version = "3.13"

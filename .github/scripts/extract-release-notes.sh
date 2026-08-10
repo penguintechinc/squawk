@@ -26,11 +26,11 @@ EOF
 # Check if release notes file exists
 if [ -f "$RELEASE_NOTES_FILE" ]; then
     echo "Found release notes file: $RELEASE_NOTES_FILE"
-    
+
     # Extract the first 400 lines to avoid hitting GitHub's limit
     echo "Extracting content from release notes..."
     head -n 400 "$RELEASE_NOTES_FILE" >> "$OUTPUT_FILE"
-    
+
     # Add footer
     cat >> "$OUTPUT_FILE" << EOF
 
@@ -83,12 +83,12 @@ docker run -p 8080:8080 \\
 \`\`\`
 EOF
     fi
-    
+
     echo "Successfully extracted $(wc -l < "$OUTPUT_FILE") lines to $OUTPUT_FILE"
 else
     echo "Release notes file not found: $RELEASE_NOTES_FILE"
     echo "Using minimal release body..."
-    
+
     cat >> "$OUTPUT_FILE" << EOF
 High-performance DNS-over-HTTPS ${COMPONENT} with comprehensive security features.
 

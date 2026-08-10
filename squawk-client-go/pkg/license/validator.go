@@ -67,7 +67,7 @@ func (v *Validator) ValidateLicense(ctx context.Context) (*ValidationResponse, e
 	}
 
 	today := time.Now().Format("2006-01-02")
-	
+
 	// Check if we've already validated today
 	v.cacheMutex.RLock()
 	if v.validatedToday == today {
@@ -146,7 +146,7 @@ func (v *Validator) validateLicenseKey(ctx context.Context) (*ValidationResponse
 
 	v.cacheValidation("license_validation", validationResp.Valid, validationResp.Message)
 	v.lastValidate = time.Now()
-	
+
 	// Mark as validated today
 	v.cacheMutex.Lock()
 	v.validatedToday = time.Now().Format("2006-01-02")
@@ -181,7 +181,7 @@ func (v *Validator) validateUserToken(ctx context.Context) (*ValidationResponse,
 
 	v.cacheValidation("token_validation", validationResp.Valid, validationResp.Message)
 	v.lastValidate = time.Now()
-	
+
 	// Mark as validated today
 	v.cacheMutex.Lock()
 	v.validatedToday = time.Now().Format("2006-01-02")
@@ -206,7 +206,7 @@ func (v *Validator) cacheValidation(key string, valid bool, message string) {
 // IsValid returns true if the current license/token is valid
 func (v *Validator) IsValid(ctx context.Context) (bool, error) {
 	today := time.Now().Format("2006-01-02")
-	
+
 	// Check if we've already validated today - use that result
 	v.cacheMutex.RLock()
 	if v.validatedToday == today {

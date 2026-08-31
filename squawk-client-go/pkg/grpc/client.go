@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -30,28 +32,59 @@ type QueryResult struct {
 	Metadata  *QueryMetadata
 }
 
-// NewDNSClient creates a new gRPC DNS client
+// NewDNSClient creates a new gRPC DNS client. TLS certificate verification is
+// enabled by default (matching the other transports' VerifySSL=true default);
+// use NewDNSClientWithTLS to disable it explicitly. See NewDNSClientWithTLS
+// for the grpc:// vs grpcs:// scheme semantics.
 func NewDNSClient(serverAddr string, token string) (*DNSClient, error) {
-	return NewDNSClientWithTimeout(serverAddr, token, 30*time.Second)
+	return NewDNSClientWithTLS(serverAddr, token, true, 30*time.Second)
 }
 
-// NewDNSClientWithTimeout creates a new gRPC DNS client with custom timeout
+// NewDNSClientWithTimeout creates a new gRPC DNS client with a custom timeout,
+// using the same default TLS behavior as NewDNSClient.
 func NewDNSClientWithTimeout(serverAddr string, token string, timeout time.Duration) (*DNSClient, error) {
+	return NewDNSClientWithTLS(serverAddr, token, true, timeout)
+}
+
+// NewDNSClientWithTLS creates a new gRPC DNS client, honoring verifySSL the
+// same way the HTTP/1, HTTP/2, and HTTP/3 transports do.
+//
+// grpcs:// establishes a real TLS channel; verifySSL=false only skips
+// certificate verification on top of that already-encrypted channel (an
+// explicit, logged opt-in), it never downgrades to plaintext.
+//
+// grpc:// (or a bare host:port, kept for backward compatibility) stays
+// plaintext and always logs a warning, since the bearer/license token then
+// crosses the wire unencrypted — this scheme should only be used for local
+// development against a loopback server.
+func NewDNSClientWithTLS(serverAddr, token string, verifySSL bool, timeout time.Duration) (*DNSClient, error) {
 	if serverAddr == "" {
 		return nil, fmt.Errorf("server address cannot be empty")
 	}
 
 	// Parse and validate server address
-	addr, err := parseServerAddress(serverAddr)
+	addr, useTLS, err := parseServerAddress(serverAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create gRPC channel with insecure connection using NewClient
-	conn, err := grpc.NewClient(
-		addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
+	var creds grpc.DialOption
+	if useTLS {
+		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		if !verifySSL {
+			// #nosec G402 -- InsecureSkipVerify only applies on top of an already-TLS
+			// (grpcs://) channel, and only when the caller explicitly set verifySSL=false.
+			tlsConfig.InsecureSkipVerify = true
+			log.Printf("WARNING: TLS certificate verification disabled for gRPC connection to %s", addr)
+		}
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+	} else {
+		log.Printf("WARNING: using plaintext gRPC (grpc://) to %s - the bearer/license token crosses the wire unencrypted; use grpcs:// in production", addr)
+		creds = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
+	// Create gRPC channel using NewClient
+	conn, err := grpc.NewClient(addr, creds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to DNS server at %s: %w", addr, err)
 	}
@@ -182,13 +215,18 @@ func (c *DNSClient) Close() error {
 
 // Helper functions
 
-// parseServerAddress parses and validates the server address
-func parseServerAddress(serverAddr string) (string, error) {
+// parseServerAddress parses and validates the server address, returning the
+// host:port to dial and whether the caller requested a TLS (grpcs://) channel.
+func parseServerAddress(serverAddr string) (string, bool, error) {
+	useTLS := false
+
 	// Handle grpc:// and grpcs:// schemes
-	if strings.HasPrefix(serverAddr, "grpc://") {
+	switch {
+	case strings.HasPrefix(serverAddr, "grpcs://"):
+		serverAddr = strings.TrimPrefix(serverAddr, "grpcs://")
+		useTLS = true
+	case strings.HasPrefix(serverAddr, "grpc://"):
 		serverAddr = strings.TrimPrefix(serverAddr, "grpc://")
-	} else if strings.HasPrefix(serverAddr, "grpcs://") {
-		return "", fmt.Errorf("secure gRPC (grpcs://) not yet supported")
 	}
 
 	// If no port specified, use default gRPC port
@@ -203,7 +241,7 @@ func parseServerAddress(serverAddr string) (string, error) {
 
 	parsed, err := url.Parse(serverAddr)
 	if err != nil {
-		return "", fmt.Errorf("invalid server address: %w", err)
+		return "", false, fmt.Errorf("invalid server address: %w", err)
 	}
 
 	// Extract host:port
@@ -211,14 +249,14 @@ func parseServerAddress(serverAddr string) (string, error) {
 	port := parsed.Port()
 
 	if host == "" {
-		return "", fmt.Errorf("server address must include a hostname")
+		return "", false, fmt.Errorf("server address must include a hostname")
 	}
 
 	if port == "" {
 		port = "50052"
 	}
 
-	return host + ":" + port, nil
+	return host + ":" + port, useTLS, nil
 }
 
 // convertGrpcResponse converts a gRPC response to a QueryResult

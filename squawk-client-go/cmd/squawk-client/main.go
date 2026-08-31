@@ -85,26 +85,26 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Configuration file path")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	
+
 	// DNS query flags
 	rootCmd.Flags().StringVarP(&domain, "domain", "d", "", "Domain to query (required)")
 	rootCmd.Flags().StringVarP(&recordType, "type", "t", "A", "DNS record type")
 	rootCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
-	
+
 	// Server connection flags
 	rootCmd.Flags().StringVarP(&serverURL, "server", "s", "", "DNS server URL")
 	rootCmd.Flags().StringVarP(&authToken, "auth", "a", "", "Authentication token")
-	
+
 	// mTLS flags
 	rootCmd.Flags().StringVar(&clientCert, "client-cert", "", "Client certificate file for mTLS")
 	rootCmd.Flags().StringVar(&clientKey, "client-key", "", "Client private key file for mTLS")
 	rootCmd.Flags().StringVar(&caCert, "ca-cert", "", "CA certificate file for server verification")
 	rootCmd.Flags().BoolVar(&verifySSL, "verify-ssl", true, "Verify SSL/TLS certificates")
-	
+
 	// DNS forwarding flags
 	rootCmd.Flags().BoolVarP(&udpForward, "udp", "u", false, "Enable UDP DNS forwarding on port 53")
 	rootCmd.Flags().BoolVarP(&tcpForward, "tcp", "T", false, "Enable TCP DNS forwarding on port 53")
-	
+
 	// Performance monitoring flags
 	rootCmd.Flags().BoolVar(&enablePerformanceMonitoring, "performance", false, "Enable DNS performance monitoring (Enterprise feature)")
 
@@ -196,11 +196,11 @@ func runClient(cmd *cobra.Command, args []string) {
 	var grpcClient *grpcclient.DNSClient
 	var dohClient *client.DoHClient
 
-	if useGrpc && (strings.HasPrefix(cfg.Client.ServerURL, "grpc://") || strings.HasPrefix(cfg.Client.ServerURL, "grpc:")) {
+	if useGrpc && (strings.HasPrefix(cfg.Client.ServerURL, "grpc://") || strings.HasPrefix(cfg.Client.ServerURL, "grpcs://") || strings.HasPrefix(cfg.Client.ServerURL, "grpc:")) {
 		if verbose {
 			fmt.Println("Attempting to create gRPC client...")
 		}
-		grpcClient, err = grpcclient.NewDNSClient(cfg.Client.ServerURL, cfg.Client.AuthToken)
+		grpcClient, err = grpcclient.NewDNSClientWithTLS(cfg.Client.ServerURL, cfg.Client.AuthToken, cfg.Client.VerifySSL, 30*time.Second)
 		if err != nil {
 			if verbose {
 				fmt.Printf("Warning: Failed to create gRPC client: %v\n", err)
@@ -386,7 +386,12 @@ func overrideConfigWithFlags(cmd *cobra.Command, cfg *config.AppConfig) {
 		cfg.Client.ServerURL = serverURL
 	}
 	if authToken != "" {
-		cfg.Client.AuthToken = authToken
+		fmt.Fprintln(os.Stderr, "WARNING: -a/--auth exposes the token in shell history and process listings (ps); set SQUAWK_AUTH_TOKEN instead. This flag is deprecated and may be removed in a future release.")
+		// Prefer a token already loaded from SQUAWK_AUTH_TOKEN (or config file) over the
+		// CLI flag — the env var is the recommended path and should win when both are set.
+		if cfg.Client.AuthToken == "" {
+			cfg.Client.AuthToken = authToken
+		}
 	}
 	if clientCert != "" {
 		cfg.Client.ClientCert = clientCert
@@ -475,9 +480,12 @@ func runForwarder(dohClient *client.DoHClient, cfg *config.AppConfig) {
 		log := logger.NewSimpleLogger(verbose)
 
 		// Initialize performance monitor
-		perfMonitor = performance.NewDNSPerformanceMonitor(cfg.Client, log)
-
-		if err := perfMonitor.Start(); err != nil {
+		var perfErr error
+		perfMonitor, perfErr = performance.NewDNSPerformanceMonitor(cfg.Client, log)
+		if perfErr != nil {
+			log.Printf("Failed to initialize performance monitoring: %v", perfErr)
+			perfMonitor = nil
+		} else if err := perfMonitor.Start(); err != nil {
 			log.Printf("Failed to start performance monitoring: %v", err)
 		} else if verbose {
 			fmt.Println("✓ DNS performance monitoring enabled")
@@ -539,7 +547,7 @@ func startMetricsServer(m *metrics.Metrics) {
 // printDNSResponse prints the DNS response in a human-readable format
 func printDNSResponse(response *client.DNSResponse) {
 	fmt.Printf("DNS Response Status: %d\n", response.Status)
-	
+
 	if response.Comment != "" {
 		fmt.Printf("Comment: %s\n", response.Comment)
 	}

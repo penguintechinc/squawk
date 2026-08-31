@@ -9,9 +9,7 @@ Part of the Squawk project.
 
 import asyncio
 import logging
-import sys
 import structlog
-from datetime import datetime, timedelta
 from typing import Tuple, Dict, Any
 
 from quart import Quart, request, jsonify
@@ -35,6 +33,7 @@ from app.config import (
 from app.auth import check_auth
 from app.db import DHCPDatabase
 from app.models import DHCPOffer, DHCPAck
+from app.validation import is_valid_mac, sanitize_hostname
 
 
 # Configure structured logging
@@ -204,8 +203,15 @@ async def dhcp_discover() -> Tuple[Dict[str, Any], int]:
     mac = data.get("mac_address")
     if not mac:
         return _error_response(400, "MAC address required")
+    if not is_valid_mac(mac):
+        return _error_response(400, "Invalid MAC address format")
 
     hostname = data.get("hostname")
+    if hostname is not None:
+        hostname = sanitize_hostname(hostname)
+        if hostname is None:
+            return _error_response(400, "Invalid hostname")
+
     requested_ip = data.get("requested_ip")
 
     # Get available IP (pool_id=1 for now)
@@ -271,10 +277,27 @@ async def dhcp_request() -> Tuple[Dict[str, Any], int]:
 
     if not mac or not requested_ip:
         return _error_response(400, "MAC address and requested IP required")
+    if not is_valid_mac(mac):
+        return _error_response(400, "Invalid MAC address format")
+
+    hostname = data.get("hostname")
+    if hostname is not None:
+        hostname = sanitize_hostname(hostname)
+        if hostname is None:
+            return _error_response(400, "Invalid hostname")
+
+    # Validate the client-requested IP before persisting a lease: must be
+    # in the pool range and not actively leased to a different MAC. Without
+    # this, a client can request any IP (including one already leased to
+    # someone else) and get it stored verbatim -- a lease hijack.
+    pool_id = 1
+    rejection_reason = db.validate_requested_ip(pool_id, mac, requested_ip)
+    if rejection_reason:
+        logger.warning("dhcp_request_rejected", mac=mac, requested_ip=requested_ip, reason=rejection_reason)
+        return _error_response(400, f"Request rejected: {rejection_reason}")
 
     # Create/renew lease
-    pool_id = 1
-    lease = db.create_lease(pool_id, mac, requested_ip, data.get("hostname"))
+    lease = db.create_lease(pool_id, mac, requested_ip, hostname)
 
     ack = DHCPAck(
         status="ack",
@@ -326,6 +349,8 @@ async def dhcp_release() -> Tuple[Dict[str, Any], int]:
     mac = data.get("mac_address")
     if not mac:
         return _error_response(400, "MAC address required")
+    if not is_valid_mac(mac):
+        return _error_response(400, "Invalid MAC address format")
 
     # Release lease
     pool_id = 1
@@ -355,6 +380,8 @@ async def dhcp_config() -> Tuple[Dict[str, Any], int]:
     mac = request.args.get("mac")
     if not mac:
         return _error_response(400, "MAC address required")
+    if not is_valid_mac(mac):
+        return _error_response(400, "Invalid MAC address format")
 
     # Get lease
     pool_id = 1
@@ -394,6 +421,9 @@ async def get_lease(mac: str) -> Tuple[Dict[str, Any], int]:
     status_code, payload = check_auth(auth_header, "dhcp:read")
     if status_code != 200:
         return _jwt_error_response(status_code)
+
+    if not is_valid_mac(mac):
+        return _error_response(400, "Invalid MAC address format")
 
     # Get lease
     pool_id = 1

@@ -16,9 +16,10 @@ Security (FindingsFixed):
 
 import secrets
 import hashlib
+import hmac
 import base64
 from typing import Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -283,7 +284,7 @@ class SSOService:
         binding_hash_computed = hashlib.sha256(
             binding_cookie_value.encode('utf-8')
         ).hexdigest()
-        if binding_hash_computed != attempt['browser_binding_hash']:
+        if not hmac.compare_digest(binding_hash_computed, attempt['browser_binding_hash']):
             current_app.logger.warning("Browser binding mismatch (CSRF)")
             return None
 

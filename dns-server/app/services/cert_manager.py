@@ -153,20 +153,25 @@ class CertManager:
     def _save_private_key(
         self, key, filepath: Path, password: Optional[str] = None
     ) -> None:
-        """Save private key to file with secure permissions."""
+        """Save private key to file with secure permissions.
+
+        The file is created via os.open() with mode 0600 already applied at
+        creation time, rather than written first and chmod'd afterward --
+        that write-then-chmod ordering leaves a window at the process umask
+        default (commonly 0644/0664) where the key is world/group readable.
+        """
         encryption = serialization.NoEncryption()
         if password:
             encryption = serialization.BestAvailableEncryption(password.encode())
 
-        with open(filepath, "wb") as f:
-            f.write(
-                key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=encryption,
-                )
-            )
-        os.chmod(filepath, 0o600)
+        key_bytes = key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=encryption,
+        )
+        fd = os.open(filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(key_bytes)
 
     def _load_private_key(
         self, filepath: Path, password: Optional[str] = None

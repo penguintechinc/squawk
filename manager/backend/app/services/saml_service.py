@@ -21,6 +21,7 @@ Security (hardening requirements):
 
 import secrets
 import hashlib
+import hmac
 import base64
 import uuid
 from typing import Optional
@@ -275,7 +276,7 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
         binding_hash_computed = hashlib.sha256(
             binding_cookie_value.encode('utf-8')
         ).hexdigest()
-        if binding_hash_computed != attempt['browser_binding_hash']:
+        if not hmac.compare_digest(binding_hash_computed, attempt['browser_binding_hash']):
             current_app.logger.warning("SAML browser binding mismatch (CSRF)")
             return None
 

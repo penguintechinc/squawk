@@ -139,8 +139,9 @@ class MFAService:
         hashed_codes = []
 
         for _ in range(count):
-            # Generate 8-character alphanumeric recovery code
-            code = secrets.token_hex(4).upper()[:8]
+            # Generate a 16-character hex recovery code (64 bits of entropy,
+            # well above the 40-bit floor for a single-use bcrypt-hashed secret).
+            code = secrets.token_hex(8).upper()
             plain_codes.append(code)
             hashed_codes.append(MFAService.hash_recovery_code(code))
 

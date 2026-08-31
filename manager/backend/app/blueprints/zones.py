@@ -5,7 +5,13 @@ Handles zone and record CRUD with team-based access control.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
-from app.middleware.rbac import check_zone_access, filter_zones_by_access
+from app.middleware.rbac import (
+    can_access_team,
+    check_zone_access,
+    check_zone_write_access,
+    filter_zones_by_access,
+    requires_scope,
+)
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_domain_name, validate_dns_record_type, validate_ttl, validate_visibility
 
@@ -72,6 +78,7 @@ def list_zones():
 
 @zones_bp.route('/api/v1/zones', methods=['POST'])
 @token_required
+@requires_scope('zones:write')
 @validate_json('name', 'visibility')
 @audit_log('zone_created')
 def create_zone():
@@ -104,6 +111,12 @@ def create_zone():
     # Validate visibility
     if not validate_visibility(data['visibility']):
         return jsonify({'error': 'Invalid visibility'}), 400
+
+    # A caller cannot associate the new zone with a team they don't belong
+    # to (SystemAdmin bypasses via can_access_team's superadmin check).
+    team_id = data.get('team_id')
+    if team_id is not None and not can_access_team(team_id):
+        return jsonify({'error': 'Cannot create a zone for a team you do not belong to'}), 403
 
     # Check if zone already exists
     if db(db.dns_zone.name == data['name']).count() > 0:
@@ -175,6 +188,7 @@ def get_zone(zone_id):
 
 @zones_bp.route('/api/v1/zones/<int:zone_id>', methods=['PUT'])
 @token_required
+@requires_scope('zones:write')
 @audit_log('zone_updated')
 def update_zone(zone_id):
     """
@@ -186,7 +200,7 @@ def update_zone(zone_id):
             "description": "Updated description"
         }
     """
-    if not check_zone_access(zone_id):
+    if not check_zone_write_access(zone_id):
         return jsonify({'error': 'Access denied'}), 403
 
     db = current_app.db
@@ -206,7 +220,12 @@ def update_zone(zone_id):
         zone.update_record(description=data['description'])
 
     if 'team_id' in data:
-        zone.update_record(team_id=data['team_id'])
+        new_team_id = data['team_id']
+        # Cannot reassign a zone to a team the caller doesn't belong to
+        # (SystemAdmin bypasses via can_access_team's superadmin check).
+        if new_team_id is not None and not can_access_team(new_team_id):
+            return jsonify({'error': 'Cannot assign zone to a team you do not belong to'}), 403
+        zone.update_record(team_id=new_team_id)
 
     db.commit()
 
@@ -221,10 +240,11 @@ def update_zone(zone_id):
 
 @zones_bp.route('/api/v1/zones/<int:zone_id>', methods=['DELETE'])
 @token_required
+@requires_scope('zones:admin')
 @audit_log('zone_deleted')
 def delete_zone(zone_id):
     """Delete zone and all records."""
-    if not check_zone_access(zone_id):
+    if not check_zone_write_access(zone_id):
         return jsonify({'error': 'Access denied'}), 403
 
     db = current_app.db
@@ -274,6 +294,7 @@ def list_zone_records(zone_id):
 
 @zones_bp.route('/api/v1/zones/<int:zone_id>/records', methods=['POST'])
 @token_required
+@requires_scope('zones:write')
 @validate_json('name', 'type', 'value')
 @audit_log('dns_record_created')
 def create_dns_record(zone_id):
@@ -289,7 +310,7 @@ def create_dns_record(zone_id):
             "priority": 10  // For MX records
         }
     """
-    if not check_zone_access(zone_id):
+    if not check_zone_write_access(zone_id):
         return jsonify({'error': 'Access denied'}), 403
 
     data = request.get_json()
@@ -336,10 +357,11 @@ def create_dns_record(zone_id):
 
 @zones_bp.route('/api/v1/zones/<int:zone_id>/records/<int:record_id>', methods=['PUT'])
 @token_required
+@requires_scope('zones:write')
 @audit_log('dns_record_updated')
 def update_dns_record(zone_id, record_id):
     """Update DNS record."""
-    if not check_zone_access(zone_id):
+    if not check_zone_write_access(zone_id):
         return jsonify({'error': 'Access denied'}), 403
 
     db = current_app.db
@@ -383,10 +405,11 @@ def update_dns_record(zone_id, record_id):
 
 @zones_bp.route('/api/v1/zones/<int:zone_id>/records/<int:record_id>', methods=['DELETE'])
 @token_required
+@requires_scope('zones:write')
 @audit_log('dns_record_deleted')
 def delete_dns_record(zone_id, record_id):
     """Delete DNS record."""
-    if not check_zone_access(zone_id):
+    if not check_zone_write_access(zone_id):
         return jsonify({'error': 'Access denied'}), 403
 
     db = current_app.db

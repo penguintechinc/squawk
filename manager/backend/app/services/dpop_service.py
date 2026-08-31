@@ -12,13 +12,15 @@ import json
 import jwt
 import hashlib
 import base64
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple, Any
+from typing import Optional, Dict, Any
 from flask import current_app
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, padding
+from cryptography.hazmat.primitives.asymmetric import rsa, ec
 from cryptography.hazmat.backends import default_backend
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -115,12 +117,12 @@ class DPoPService:
             if not jti:
                 return None
 
-            # Check jti replay defense
-            if DPoPService._is_jti_replayed(jti):
+            # Insert-first replay defense: a unique-constraint violation on
+            # jti means a concurrent/prior request already claimed it. This
+            # closes the check-then-insert race where two requests bearing
+            # the identical proof could both see "not yet seen" and pass.
+            if not DPoPService._check_and_record_jti(jti):
                 return None
-
-            # Record jti to prevent replay
-            DPoPService._record_jti(jti)
 
             # Compute JWK thumbprint (RFC 7638)
             jkt = _compute_jwk_thumbprint(jwk_dict)
@@ -138,27 +140,35 @@ class DPoPService:
             return None
 
     @staticmethod
-    def _is_jti_replayed(jti: str) -> bool:
-        """Check if jti has been seen before (replay attempt)."""
+    def _check_and_record_jti(jti: str) -> bool:
+        """
+        Atomically claim a jti, returning True the first time it is seen.
+
+        Insert-first (not check-then-insert): the jti unique constraint is
+        the source of truth. Two concurrent requests bearing the identical
+        proof both attempt the insert; exactly one wins, the other hits the
+        unique-constraint violation and is correctly rejected as a replay.
+        """
         db = current_app.db
         now = datetime.utcnow()
-        # Clean up expired entries on each check
+
+        # Opportunistic cleanup of expired entries.
         db(db.dpop_replay.expires_at < now).delete()
         db.commit()
-        return bool(db(db.dpop_replay.jti == jti).count())
 
-    @staticmethod
-    def _record_jti(jti: str) -> None:
-        """Record jti to prevent replay within acceptance window (15 min)."""
-        db = current_app.db
         ttl = timedelta(minutes=15)
-        expires_at = datetime.utcnow() + ttl
+        expires_at = now + ttl
         try:
             db.dpop_replay.insert(jti=jti, expires_at=expires_at)
             db.commit()
+            return True
         except Exception:
-            # Idempotent: if jti already recorded (race condition), ignore
-            pass
+            # Unique constraint violation (or any insert failure) — fail
+            # closed and treat as a replay. penguin-dal's sync DB has no
+            # rollback() (each TableProxy call is its own auto-committed
+            # session; db.commit() itself is a documented no-op for the
+            # sync DB), so there is no cross-call transaction to unwind here.
+            return False
 
 
 def _contains_private_key_material(jwk: Dict[str, Any]) -> bool:
@@ -236,8 +246,10 @@ def _verify_with_jwk(dpop_header: str, jwk_dict: Dict[str, Any], alg: str) -> bo
         else:
             return False
 
-    except Exception as e:
-        traceback.print_exc()
+    except Exception:
+        logger.exception("DPoP JWK signature verification failed")
+        return False
+
 
 def _htu_matches(htu_claim: str, http_uri: str) -> bool:
     """

@@ -59,8 +59,8 @@ def list_time_servers():
         query &= db.time_server.active == (active.lower() == 'true')
 
     # Apply team-based access control if not SystemAdmin
-    if user.get('globalRole') not in ['SystemAdmin', 'OrgAdmin']:
-        accessible_teams = _get_user_team_ids(user['id'])
+    if user.get('global_role') not in ['SystemAdmin', 'OrgAdmin']:
+        accessible_teams = _get_user_team_ids(user['user_id'])
         query &= (db.time_server.team_id.belongs(accessible_teams) | (db.time_server.team_id == None))
 
     servers = db(query).select(orderby=db.time_server.priority)
@@ -214,6 +214,9 @@ def update_time_server(server_id):
     if not server:
         return jsonify({'error': 'Time server not found'}), 404
 
+    if not _can_access_server(get_current_user(), server):
+        return jsonify({'error': 'Access denied'}), 403
+
     update_fields = {}
     allowed_fields = ['name', 'serverUrl', 'stratum', 'priority', 'active', 'ptpConfig']
 
@@ -245,6 +248,9 @@ def delete_time_server(server_id):
     server = db.time_server[server_id]
     if not server:
         return jsonify({'error': 'Time server not found'}), 404
+
+    if not _can_access_server(get_current_user(), server):
+        return jsonify({'error': 'Access denied'}), 403
 
     del db.time_server[server_id]
     db.commit()
@@ -350,6 +356,8 @@ def trigger_time_sync():
         server = db.time_server[server_id]
         if not server or not server.active:
             return jsonify({'error': 'Time server not found or inactive'}), 404
+        if not _can_access_server(get_current_user(), server):
+            return jsonify({'error': 'Access denied'}), 403
     else:
         # Get highest priority active server
         server = db(db.time_server.active == True).select(
@@ -413,12 +421,21 @@ def list_time_logs():
         - per_page: Results per page (max 500)
     """
     db = current_app.db
+    user = get_current_user()
 
     query = db.time_sync_log.id > 0
 
     server_id = request.args.get('server_id', type=int)
     if server_id:
         query &= db.time_sync_log.server_id == server_id
+
+    # Apply team-based access control if not SystemAdmin/OrgAdmin
+    if user.get('global_role') not in ['SystemAdmin', 'OrgAdmin']:
+        accessible_teams = _get_user_team_ids(user['user_id'])
+        accessible_servers = db(
+            (db.time_server.team_id == None) | (db.time_server.team_id.belongs(accessible_teams))
+        ).select(db.time_server.id)
+        query &= db.time_sync_log.server_id.belongs([s.id for s in accessible_servers])
 
     start_date = request.args.get('start_date')
     if start_date:
@@ -492,8 +509,8 @@ def _get_user_team_ids(user_id):
 
 def _can_access_server(user, server):
     """Check if user can access a time server."""
-    if user.get('globalRole') in ['SystemAdmin', 'OrgAdmin']:
+    if user.get('global_role') in ['SystemAdmin', 'OrgAdmin']:
         return True
     if server.team_id is None:
         return True
-    return server.team_id in _get_user_team_ids(user['id'])
+    return server.team_id in _get_user_team_ids(user['user_id'])

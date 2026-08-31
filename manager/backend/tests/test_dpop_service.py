@@ -11,14 +11,9 @@ and token binding. Comprehensive coverage including:
 - Bearer token backward compatibility (no regression)
 """
 
-import pytest
 import jwt
-import json
 import base64
-import hashlib
-from datetime import datetime, timedelta
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.backends import default_backend
 from app.services.dpop_service import DPoPService, _compute_jwk_thumbprint
 from app.services.auth_service import AuthService
@@ -660,6 +655,24 @@ class TestDPoPReplayDefense:
             assert db(db.dpop_replay.jti == expired_jti).count() == 0
             # The fresh entry should still exist
             assert db(db.dpop_replay.jti == fresh_jti).count() == 1
+
+    def test_check_and_record_jti_insert_first_rejects_second_claim(self, app):
+        """Regression: insert-first replay defense (no check-then-insert race).
+
+        Exercises DPoPService._check_and_record_jti directly — the unit that
+        replaced the old check-then-insert pair (_is_jti_replayed +
+        _record_jti), where two concurrent requests bearing an identical
+        proof could both observe "not yet seen" before either inserted.
+        Insert-first means the jti unique constraint is the sole arbiter:
+        the first claim always wins, every subsequent claim of the same jti
+        is rejected regardless of timing.
+        """
+        with app.app_context():
+            jti = "insert-first-race-jti"
+            assert DPoPService._check_and_record_jti(jti) is True
+            assert DPoPService._check_and_record_jti(jti) is False
+            # A third claim is still rejected (not a one-shot race window).
+            assert DPoPService._check_and_record_jti(jti) is False
 
 
 class TestDPoPEndToEnd:

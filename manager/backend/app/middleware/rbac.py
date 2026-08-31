@@ -278,6 +278,44 @@ def check_zone_access(zone_id: int) -> bool:
     return False
 
 
+def check_zone_write_access(zone_id: int) -> bool:
+    """
+    Check if current user may mutate (create/update/delete) a DNS zone
+    or its records.
+
+    Unlike check_zone_access (read), public visibility never grants write —
+    callers must additionally hold a zones:write/zones:admin scope, checked
+    separately via @requires_scope at the route level. This only covers the
+    object-level ownership check: zones with no team are org-wide (writable
+    by any scope holder, mirroring _can_access_pool/_can_access_server for
+    DHCP/time resources); zones with a team require actual membership.
+
+    Args:
+        zone_id: DNS zone ID
+
+    Returns:
+        True if user has write access, False otherwise
+    """
+    user = get_current_user()
+    if not user:
+        return False
+
+    # System admins can mutate all zones
+    if _is_superadmin(user):
+        return True
+
+    db = current_app.db
+    zone = db.dns_zone[zone_id]
+    if not zone:
+        return False
+
+    # Zones with no team are org-wide; team-scoped zones require membership
+    if zone.team_id is None:
+        return True
+
+    return can_access_team(zone.team_id)
+
+
 def filter_zones_by_access():
     """
     Get list of zone IDs current user can access.

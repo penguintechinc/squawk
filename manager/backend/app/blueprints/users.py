@@ -5,12 +5,28 @@ RBAC protected - SystemAdmin and UserManager only.
 
 from flask import Blueprint, request, jsonify, current_app
 from app.services.auth_service import AuthService
-from app.middleware.auth import token_required
+from app.middleware.auth import token_required, get_current_user, has_scope
 from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_email, validate_username, validate_global_role
 
 users_bp = Blueprint('users', __name__)
+
+
+def _can_assign_role(caller: dict, target_role: str) -> bool:
+    """
+    Check whether the caller may assign/change a user's global_role to
+    target_role.
+
+    Only users:admin (SystemAdmin) may grant a role other than the caller's
+    own or the baseline Viewer role — granting anything more privileged
+    (including SystemAdmin itself) without that scope is privilege
+    escalation. Mirrors the bar delete_user already enforces via
+    requires_scope('users:admin').
+    """
+    if has_scope(caller.get('scope', ''), 'users:admin'):
+        return True
+    return target_role in (caller.get('global_role'), 'Viewer')
 
 
 @users_bp.route('/api/v1/users', methods=['GET'])
@@ -101,6 +117,12 @@ def create_user():
 
     if not validate_global_role(data['global_role']):
         return jsonify({'error': 'Invalid global role'}), 400
+
+    if not _can_assign_role(get_current_user(), data['global_role']):
+        return jsonify({
+            'error': 'Insufficient permissions to assign this role',
+            'required_scope': 'users:admin',
+        }), 403
 
     db = current_app.db
 
@@ -208,6 +230,11 @@ def update_user(user_id):
     if 'global_role' in data:
         if not validate_global_role(data['global_role']):
             return jsonify({'error': 'Invalid global role'}), 400
+        if not _can_assign_role(get_current_user(), data['global_role']):
+            return jsonify({
+                'error': 'Insufficient permissions to assign this role',
+                'required_scope': 'users:admin',
+            }), 403
         update_fields['global_role'] = data['global_role']
 
     if 'active' in data:

@@ -7,6 +7,8 @@ import logging
 import ipaddress
 from typing import Set, Dict, List
 
+from app.utils.log_sanitize import sanitize_for_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,12 +119,12 @@ class IOCChecker:
 
         # Check exact match
         if normalized in self.blocked_domains:
-            logger.warning(f"Blocked IOC domain (exact): {domain}")
+            logger.warning(f"Blocked IOC domain (exact): {sanitize_for_log(domain)}")
             return True
 
         # Check wildcard patterns
         if self._check_wildcard(normalized):
-            logger.warning(f"Blocked IOC domain (wildcard): {domain}")
+            logger.warning(f"Blocked IOC domain (wildcard): {sanitize_for_log(domain)}")
             return True
 
         # Check parent domains
@@ -130,7 +132,9 @@ class IOCChecker:
         for i in range(1, len(parts)):
             parent = '.'.join(parts[i:])
             if parent in self.blocked_domains:
-                logger.warning(f"Blocked IOC domain (parent): {domain} -> {parent}")
+                logger.warning(
+                    f"Blocked IOC domain (parent): {sanitize_for_log(domain)} -> {parent}"
+                )
                 return True
 
         return False

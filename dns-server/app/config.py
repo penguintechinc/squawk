@@ -95,8 +95,9 @@ QUIC_BIND = os.getenv('QUIC_BIND', '0.0.0.0:8443')
 TLS_CERT_FILE = os.getenv('TLS_CERT_FILE')  # Optional; CertManager fallback
 TLS_KEY_FILE = os.getenv('TLS_KEY_FILE')    # Optional; CertManager fallback
 
-# Rate limiting
-SQUAWK_RATE_LIMIT_ENABLED = os.getenv('SQUAWK_RATE_LIMIT_ENABLED', 'false').lower() == 'true'
+# Rate limiting (secure default: ON — an open resolver with no rate limit
+# is directly abusable for DNS amplification / resource-exhaustion attacks)
+SQUAWK_RATE_LIMIT_ENABLED = os.getenv('SQUAWK_RATE_LIMIT_ENABLED', 'true').lower() == 'true'
 SQUAWK_RATE_LIMIT_RPS = float(os.getenv('SQUAWK_RATE_LIMIT_RPS', 50))
 SQUAWK_RATE_LIMIT_BURST = float(os.getenv('SQUAWK_RATE_LIMIT_BURST', 100))
 SQUAWK_RATE_LIMIT_BACKEND = os.getenv('SQUAWK_RATE_LIMIT_BACKEND', 'memory')  # 'memory' or 'valkey'

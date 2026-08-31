@@ -3,6 +3,7 @@ DNS Server Main Application
 Quart async application for DNS query handling with HTTP/3 (QUIC) support.
 """
 import asyncio
+import hashlib
 import logging
 import time
 from quart import Quart, request, jsonify
@@ -23,7 +24,59 @@ from app.services.prometheus_metrics import init_prometheus_metrics
 from app.services.http3_serving import build_serving_config
 from app.utils.domain_policy import matches_policy
 from app.utils.jwt_verify import verify_squawk_jwt
+from app.utils.log_sanitize import sanitize_for_log
 from app.services.rate_limiter import RateLimiter
+
+# Fixed allowlist of DNS record types accepted as a Prometheus metric label.
+# Anything outside this set is reported as "OTHER" to bound label cardinality
+# (an unvalidated, attacker-controlled `type=` query param would otherwise let
+# a caller create unbounded time series and exhaust Prometheus memory).
+VALID_DNS_RECORD_TYPES = frozenset({
+    'A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR', 'CAA',
+    'DS', 'DNSKEY', 'NAPTR', 'TLSA', 'SSHFP', 'CERT', 'HTTPS', 'SVCB', 'ANY',
+})
+
+
+def _metric_record_type(record_type: Optional[str]) -> str:
+    """Map a record type to a bounded label value (allowlist or 'OTHER')."""
+    if not record_type:
+        return 'A'
+    upper = record_type.strip().upper()
+    return upper if upper in VALID_DNS_RECORD_TYPES else 'OTHER'
+
+
+def _metrics_source(token: Optional[str], token_identity: Optional[str] = None) -> str:
+    """Derive a safe, non-identifying source label for metrics.
+
+    Never expose the raw bearer token as a Prometheus label value: use the
+    verified JWT subject when available, otherwise a short SHA-256 hash of
+    the token, otherwise 'anonymous'.
+    """
+    if token_identity:
+        return token_identity
+    if token:
+        return hashlib.sha256(token.encode()).hexdigest()[:8]
+    return 'anonymous'
+
+
+def _extract_bearer_token() -> str:
+    """Extract the raw bearer token (if any) from the Authorization header."""
+    return request.headers.get('Authorization', '').replace('Bearer ', '')
+
+
+def _require_valid_token() -> Optional[dict]:
+    """Verify the request's bearer token; return its payload or None.
+
+    Used to gate /metrics and /status, which otherwise expose internal
+    state (and previously, raw token values via metric labels) to anyone
+    who can reach the endpoint. A valid Squawk JWT (e.g. a scrape token
+    issued for Prometheus) is required, same verification as /dns/query.
+    """
+    token = _extract_bearer_token()
+    if not token:
+        return None
+    return verify_squawk_jwt(token, JWT_PUBLIC_KEY)
+
 
 # Configure logging
 logging.basicConfig(
@@ -109,9 +162,13 @@ async def health():
 
 
 @app.route('/dns/query', methods=['GET'])
+@app.route('/dns-query', methods=['GET'])
 async def dns_query():
     """
     DNS query endpoint (DNS-over-HTTPS compatible).
+
+    Registered at both /dns/query (native) and /dns-query (RFC 8484 DoH
+    convention used by most DoH clients) so RFC-compliant clients don't 404.
 
     Query parameters:
         name: Domain name
@@ -122,6 +179,7 @@ async def dns_query():
     """
     domain = request.args.get('name')
     record_type = request.args.get('type', 'A')
+    metric_record_type = _metric_record_type(record_type)
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     client_ip = request.remote_addr
 
@@ -147,9 +205,9 @@ async def dns_query():
     if not allowed:
         metrics_reporter.record_rate_limited_query(
             domain=domain,
-            record_type=record_type,
+            record_type=metric_record_type,
             identity_type=identity_type,
-            source=token or client_ip
+            source=_metrics_source(token, token_identity)
         )
         return (
             jsonify({'Status': 2, 'error': 'Rate limit exceeded'}),
@@ -163,14 +221,17 @@ async def dns_query():
     # Check if we should serve this domain based on mode and permissions
     zone_name = _find_zone_name(domain)
     if not resilience_manager.should_serve_zone(zone_name, token):
-        logger.info(f"Access denied to {domain} (mode: {mode}, token: {'yes' if token else 'no'})")
+        logger.info(
+            f"Access denied to {sanitize_for_log(domain)} "
+            f"(mode: {mode}, token: {'yes' if token else 'no'})"
+        )
         metrics_reporter.record_query(
             domain=domain,
-            record_type=record_type,
+            record_type=metric_record_type,
             status='error',
             response_time=0.0,
             cache_hit=False,
-            source=token or 'unknown',
+            source=_metrics_source(token, token_identity),
             identity_type=identity_type
         )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
@@ -181,30 +242,33 @@ async def dns_query():
         if payload:
             allowed_domains = payload.get('dns_domains')
             if not matches_policy(domain, allowed_domains):
-                logger.info(f"Domain policy denial for {domain}: dns_domains={allowed_domains}")
+                logger.info(
+                    f"Domain policy denial for {sanitize_for_log(domain)}: "
+                    f"dns_domains={allowed_domains}"
+                )
                 metrics_reporter.record_policy_denial('policy_denied')
                 metrics_reporter.record_query(
                     domain=domain,
-                    record_type=record_type,
+                    record_type=metric_record_type,
                     status='policy_denied',
                     response_time=0.0,
                     cache_hit=False,
-                    source=token or 'unknown'
+                    source=_metrics_source(token, token_identity)
                 )
                 return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
 
     # Check IOC feeds
     if ioc_checker.is_blocked(domain):
-        logger.warning(f"Blocked IOC domain: {domain}")
+        logger.warning(f"Blocked IOC domain: {sanitize_for_log(domain)}")
         metrics_reporter.record_query(
             domain=domain,
-            record_type=record_type,
+            record_type=metric_record_type,
             status='blocked',
             response_time=0.0,
             cache_hit=False,
             blocked=True,
             block_reason='threat_intelligence',
-            source=token or 'unknown',
+            source=_metrics_source(token, token_identity),
             identity_type=identity_type
         )
         return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
@@ -217,11 +281,11 @@ async def dns_query():
         response_time_sec = (time.time() - start_time)
         metrics_reporter.record_query(
             domain=domain,
-            record_type=record_type,
+            record_type=metric_record_type,
             status='success',
             response_time=response_time_sec,
             cache_hit=True,
-            source=token or 'unknown',
+            source=_metrics_source(token, token_identity),
             identity_type=identity_type
         )
         return jsonify(cached_result), 200
@@ -239,16 +303,19 @@ async def dns_query():
     # Block resolved answers whose IP is in an IOC feed (A/AAAA data)
     for answer in result.get('Answer', []):
         if ioc_checker.is_ip_blocked(answer.get('data', '')):
-            logger.warning(f"Blocked IOC resolved IP {answer.get('data')} for {domain}")
+            logger.warning(
+                f"Blocked IOC resolved IP {sanitize_for_log(answer.get('data'))} "
+                f"for {sanitize_for_log(domain)}"
+            )
             metrics_reporter.record_query(
                 domain=domain,
-                record_type=record_type,
+                record_type=metric_record_type,
                 status='blocked',
                 response_time=response_time_sec,
                 cache_hit=False,
                 blocked=True,
                 block_reason='threat_intelligence',
-                source=token or 'unknown',
+                source=_metrics_source(token, token_identity),
                 identity_type=identity_type
             )
             return jsonify({'Status': 3, 'Question': [{'name': domain, 'type': record_type}], 'Answer': []}), 200
@@ -261,11 +328,11 @@ async def dns_query():
     result_status = 'success' if result.get('Status') == 0 else 'error'
     metrics_reporter.record_query(
         domain=domain,
-        record_type=record_type,
+        record_type=metric_record_type,
         status=result_status,
         response_time=response_time_sec,
         cache_hit=False,
-        source=token or 'unknown',
+        source=_metrics_source(token, token_identity),
         identity_type=identity_type
     )
 
@@ -274,14 +341,24 @@ async def dns_query():
 
 @app.route('/metrics')
 async def metrics():
-    """Prometheus-compatible metrics endpoint."""
+    """Prometheus-compatible metrics endpoint.
+
+    Requires a valid bearer JWT (same verification as /dns/query) — this
+    endpoint exposes per-source query counters and internal state, so it
+    must not be reachable anonymously. Prometheus can scrape it by
+    configuring a bearer_token in its scrape config with any valid token.
+    """
+    if not _require_valid_token():
+        return jsonify({'error': 'Unauthorized'}), 401
     metrics_output, content_type = metrics_reporter.get_metrics_endpoint()
     return metrics_output, 200, {'Content-Type': content_type}
 
 
 @app.route('/status')
 async def status():
-    """Detailed status endpoint."""
+    """Detailed status endpoint (requires a valid bearer JWT, see /metrics)."""
+    if not _require_valid_token():
+        return jsonify({'error': 'Unauthorized'}), 401
     resilience_status = resilience_manager.get_status()
     metrics_data = metrics_reporter.get_current_stats()
     cache_stats = cache_manager.get_stats()

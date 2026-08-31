@@ -4,11 +4,12 @@ Prometheus Metrics Integration for Squawk DNS
 Implements Issue #14: DNS Stats for Prometheus and Grafana
 """
 
+import hashlib
 import time
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 import threading
 from pydal import DAL
 from prometheus_client import (
@@ -29,6 +30,11 @@ class PrometheusMetrics:
     Prometheus metrics collector for Squawk DNS.
     Provides comprehensive DNS statistics for monitoring and alerting.
     """
+
+    # Upper bound on tracked distinct domains, to prevent unbounded memory
+    # growth from a caller sending many distinct (or attacker-controlled)
+    # domain names — trimmed back to this size once exceeded.
+    _MAX_TOP_DOMAINS = 1000
 
     def __init__(self, db_url: str = None):
         self.db_url = db_url
@@ -233,9 +239,16 @@ class PrometheusMetrics:
                         result="allowed", identity_type=identity_type
                     ).inc()
 
+                # Defense-in-depth: never let a raw bearer token (or any
+                # overly long/JWT-shaped value) reach a metric label,
+                # regardless of what a caller passes in. Callers should
+                # already pass a verified subject, short hash, or
+                # 'anonymous' — this is a safety net, not the primary fix.
+                safe_source = self._sanitize_source(source)
+
                 # Basic query counter
                 self.dns_queries_total.labels(
-                    record_type=record_type, status=status, source=source
+                    record_type=record_type, status=status, source=safe_source
                 ).inc()
 
                 # Cache metrics
@@ -270,11 +283,35 @@ class PrometheusMetrics:
                 self.response_times.append(response_time)
                 self.top_domains[domain] += 1
 
+                # Bound cardinality: an unbounded per-domain counter is a
+                # memory-exhaustion vector (every distinct queried domain,
+                # including attacker-controlled ones, grows this dict
+                # forever). Trim to the most-queried domains once we
+                # exceed the cap.
+                if len(self.top_domains) > self._MAX_TOP_DOMAINS:
+                    trimmed = Counter(self.top_domains).most_common(
+                        self._MAX_TOP_DOMAINS
+                    )
+                    self.top_domains = defaultdict(int, trimmed)
+
                 if status != "success":
                     self.error_counts[status] += 1
 
             except Exception as e:
                 logger.error(f"Failed to record metrics: {e}")
+
+    @staticmethod
+    def _sanitize_source(source: str) -> str:
+        """Ensure a metric 'source' label value can never be a raw token.
+
+        Hashes any value that is unexpectedly long or JWT-shaped
+        (header.payload.signature) instead of using it verbatim.
+        """
+        if not source:
+            return "unknown"
+        if len(source) > 64 or source.count(".") >= 2:
+            return hashlib.sha256(source.encode()).hexdigest()[:8]
+        return source
 
     def record_authentication_failure(self, failure_type: str):
         """Record authentication failure"""

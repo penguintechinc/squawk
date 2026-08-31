@@ -36,6 +36,9 @@ jobs:
 
     - name: Run tests with coverage
       run: |
+        # Intentionally non-gating: real aggregate coverage has not yet reached
+        # the 98% target here (tracked separately). Do not unmask until the
+        # underlying test-coverage work lands.
         python3 -m pytest dns-server/tests \
           --cov=dns-server/app \
           --cov-report=xml:coverage.xml --cov-report=term-missing \
@@ -155,17 +158,22 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Run bandit (Python security scanner)
+    - name: Run bandit (Python security scanner, JSON report)
       run: |
         pip install bandit[toml]
-        bandit -r . --format json --output bandit-results.json || true
+        bandit -r dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins \
+          -ll --format json --output bandit-results.json || true
       continue-on-error: true
 
+    - name: Run bandit (Python security scanner, gating)
+      run: |
+        bandit -r dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins -ll
+
     - name: Run gosec (Go security scanner)
-      uses: securego/gosec@223e19b8856e00f02cc67804499a83f77e208f3c  # v2.25.0
-      with:
-        args: '-no-fail -fmt json -out gosec-results.json ./...'
-      continue-on-error: true
+      working-directory: squawk-client-go
+      run: |
+        go install github.com/securego/gosec/v2/cmd/gosec@v2.25.0
+        gosec ./...
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0

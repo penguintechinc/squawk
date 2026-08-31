@@ -393,7 +393,7 @@ dhcp_server = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(100), nullable=False),
     Column("hostname", String(255)),
-    Column("listen_address", String(50), server_default="0.0.0.0"),
+    Column("listen_address", String(50), server_default="0.0.0.0"),  # nosec B104 - DHCP server config default, not an application socket bind
     Column("status", String(20), nullable=False, server_default="offline"),
     Column("last_heartbeat", DateTime),
     Column("version", String(50)),

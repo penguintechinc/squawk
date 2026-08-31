@@ -191,8 +191,10 @@ async def test_status_endpoint_reports_rate_limit_stats(app_with_rate_limiting, 
                 headers={'Authorization': f'Bearer {token}'}
             )
 
-        # Check status endpoint
-        response = await client.get('/status')
+        # Check status endpoint (now requires auth — regression: gh dns-metrics-hardening)
+        response = await client.get(
+            '/status', headers={'Authorization': f'Bearer {token}'}
+        )
         assert response.status_code == 200
 
         data = await response.get_json()

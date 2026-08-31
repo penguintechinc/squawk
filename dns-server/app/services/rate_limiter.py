@@ -4,7 +4,7 @@ Provides per-identity rate limiting for DoH query endpoints using token bucket a
 """
 import time
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -152,9 +152,12 @@ class ValKeyBackend(RateLimitBackend):
 
             return count <= self.max_requests
         except Exception as e:
-            logger.error(f"ValKey rate limit check error: {e}")
-            # Fail open on backend error
-            return True
+            # Fail CLOSED on backend error: an unreachable rate-limit
+            # backend must not turn into an unlimited open resolver.
+            logger.warning(
+                f"ValKey rate limit check error, denying request (fail-closed): {e}"
+            )
+            return False
 
     async def get_retry_after(self, key: str) -> float:
         """Get seconds until next window."""

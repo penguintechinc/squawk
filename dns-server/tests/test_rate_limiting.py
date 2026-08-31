@@ -208,16 +208,21 @@ class TestValKeyBackend:
         assert allowed is False
 
     @pytest.mark.asyncio
-    async def test_redis_error_fails_open(self):
-        """Test that Redis errors don't break the service (fail open)."""
+    async def test_redis_error_fails_closed(self):
+        """Test that Redis errors deny the request (fail closed).
+
+        regression: an unreachable rate-limit backend must never degrade
+        into an unlimited open resolver — fail-closed with a logged
+        warning instead of fail-open.
+        """
         mock_redis = Mock()
         mock_redis.incr.side_effect = Exception("Connection error")
 
         backend = ValKeyBackend(mock_redis, rps=10.0, burst=100.0)
         allowed = await backend.check_and_consume("test_identity")
 
-        # Should fail open (allow the request)
-        assert allowed is True
+        # Should fail closed (deny the request)
+        assert allowed is False
 
     @pytest.mark.asyncio
     async def test_get_retry_after_with_redis_mock(self):

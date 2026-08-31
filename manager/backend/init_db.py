@@ -62,9 +62,14 @@ def init_database():
             db.commit()
 
             print("✓ Created default admin user")
-            print(f"  Username: admin")
-            print(f"  Password: {admin_password}")
-            print(f"  Role: SystemAdmin")
+            print("  Username: admin")
+            # SECURITY: never print the password literal -- it persists in
+            # container/CI logs. Only a masked note is safe to emit here.
+            if os.getenv('SQUAWK_ADMIN_PASSWORD'):
+                print("  Password: set from SQUAWK_ADMIN_PASSWORD env var")
+            else:
+                print("  Password: generated -- retrieve via a secure channel (not logged)")
+            print("  Role: SystemAdmin")
             print("\n⚠️  IMPORTANT: Change the admin password immediately after first login!")
         else:
             print("✓ Admin user already exists")

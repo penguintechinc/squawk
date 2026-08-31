@@ -122,6 +122,12 @@ class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
 
+    # Minimum SECRET_KEY length. SECRET_KEY is fed through HKDF-SHA256 to
+    # derive the Fernet key used for MFA/SSO secret encryption (see
+    # app/services/mfa_service.py), so a weak value directly weakens that
+    # encryption key -- 32 bytes matches the derived AES-128 Fernet key size.
+    MIN_SECRET_KEY_LENGTH = 32
+
     def __init__(self) -> None:
         """Validate required secrets are set at initialization."""
         super().__init__()
@@ -129,6 +135,12 @@ class ProductionConfig(Config):
             raise RuntimeError(
                 'SECRET_KEY environment variable is required in production. '
                 'Set a strong random value and never commit it.'
+            )
+        if len(self.SECRET_KEY) < self.MIN_SECRET_KEY_LENGTH:
+            raise RuntimeError(
+                f'SECRET_KEY must be at least {self.MIN_SECRET_KEY_LENGTH} bytes '
+                'in production (it keys MFA/SSO encryption via HKDF). '
+                'Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"'
             )
         if not self.JWT_PRIVATE_KEY:
             raise RuntimeError(

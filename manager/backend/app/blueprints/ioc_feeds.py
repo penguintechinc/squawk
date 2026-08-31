@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
 from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
+from app.utils.responses import internal_error
 
 ioc_feeds_bp = Blueprint('ioc_feeds', __name__)
 
@@ -382,9 +383,4 @@ def trigger_ioc_feed_sync(feed_id):
         }), 200
 
     except Exception as e:
-        current_app.logger.error(f"IOC feed sync failed for feed {feed_id}: {str(e)}")
-        return jsonify({
-            'error': f'Feed sync failed: {str(e)}',
-            'feed_id': feed_id,
-            'feed_name': feed.name
-        }), 500
+        return internal_error(e, message='IOC feed sync failed')

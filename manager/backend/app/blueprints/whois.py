@@ -7,6 +7,7 @@ import os
 from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
+from app.utils.responses import internal_error
 
 whois_bp = Blueprint('whois', __name__)
 
@@ -101,10 +102,7 @@ def lookup_domain(domain: str):
             return jsonify(result), 502
 
     except Exception as e:
-        return jsonify({
-            'error': f'Lookup error: {str(e)}',
-            'domain': domain,
-        }), 500
+        return internal_error(e, message='WHOIS domain lookup failed')
 
 
 @whois_bp.route('/api/v1/whois/ip/<ip>', methods=['GET'])
@@ -159,10 +157,7 @@ def lookup_ip(ip: str):
             return jsonify(result), 502
 
     except Exception as e:
-        return jsonify({
-            'error': f'Lookup error: {str(e)}',
-            'ip': ip,
-        }), 500
+        return internal_error(e, message='WHOIS IP lookup failed')
 
 
 @whois_bp.route('/api/v1/whois/search', methods=['GET'])
@@ -220,9 +215,7 @@ def search_whois():
         return jsonify(results), 200
 
     except Exception as e:
-        return jsonify({
-            'error': f'Search error: {str(e)}',
-        }), 500
+        return internal_error(e, message='WHOIS search failed')
 
 
 @whois_bp.route('/api/v1/whois/stats', methods=['GET'])
@@ -261,6 +254,4 @@ def get_whois_stats():
         return jsonify(stats), 200
 
     except Exception as e:
-        return jsonify({
-            'error': f'Stats error: {str(e)}',
-        }), 500
+        return internal_error(e, message='WHOIS stats lookup failed')

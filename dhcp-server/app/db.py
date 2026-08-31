@@ -150,6 +150,47 @@ class DHCPDatabase:
         finally:
             pass
 
+    def validate_requested_ip(self, pool_id: int, mac: str, ip: str) -> Optional[str]:
+        """
+        Validate a client-supplied DHCP Request IP before persisting a lease.
+
+        Mirrors the range/conflict checks already applied to DHCP Discover
+        offers (get_offer) so a DHCP Request can't bypass them and hijack an
+        IP that is out of range or actively leased to a different MAC.
+
+        Args:
+            pool_id: DHCP pool ID
+            mac: Client MAC address
+            ip: Client-requested IP address
+
+        Returns:
+            None if the IP is acceptable, otherwise a short rejection reason.
+        """
+        try:
+            ipaddress.IPv4Address(ip)
+        except ValueError:
+            return "invalid IP address"
+
+        if not self._is_in_range(ip):
+            return "requested IP is outside the pool range"
+
+        db = self._get_db()
+        conflicting = (
+            db(
+                (db.dhcp_lease.ip_address == ip)
+                & (db.dhcp_lease.pool_id == pool_id)
+                & (db.dhcp_lease.mac_address != mac)
+                & (db.dhcp_lease.status == "active")
+            )
+            .select()
+            .first()
+        )
+
+        if conflicting and not self._is_expired(conflicting):
+            return "requested IP is already leased to another client"
+
+        return None
+
     def create_lease(self, pool_id: int, mac: str, ip: str, hostname: Optional[str] = None) -> DHCPLease:
         """
         Create or renew a lease.

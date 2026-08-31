@@ -142,6 +142,11 @@ class NTSKERecordType(IntEnum):
     NEW_COOKIE = 5
     SERVER_NEGOTIATION = 6
     PORT_NEGOTIATION = 7
+    # Private/experimental range (RFC 8915 §4.1.1 / IANA registry: 16384-32767).
+    # Squawk-specific: carries a Bearer JWT so NTS-KE can enforce the
+    # ntp:client scope before issuing cookies -- RFC 8915 has no native
+    # per-client auth concept beyond the TLS channel itself.
+    SQUAWK_AUTH_TOKEN = 16384
 
 
 class AEADAlgorithm(IntEnum):
@@ -376,6 +381,37 @@ class CookieManager:
 
         return None
 
+    def wire_encode(self, cookie: NTSCookie) -> bytes:
+        """
+        Encode a cookie for the wire: 2-byte length prefix || version byte
+        || AEAD ciphertext.
+
+        Two problems this fixes at once:
+        1. The master-key version is never part of the AEAD ciphertext, so
+           without carrying it a returned cookie can't be matched back to
+           the key generation it was sealed under once ``rotate_key`` runs.
+        2. NTP extension-field framing (RFC 7822) zero-pads the EF body to a
+           4-byte boundary. AES-SIV-CMAC-256 cookies seal to a length that
+           is *never* 4-aligned (74-byte plaintext -> 90-byte ciphertext),
+           so every cookie sent in an EF picks up 2 bytes of trailing zero
+           padding. AES-SIV authenticates the exact ciphertext bytes, so
+           that padding makes ``unseal_cookie`` fail unconditionally unless
+           the receiver knows the true (unpadded) length to strip it.
+        """
+        body = struct.pack("!B", cookie.version) + cookie.sealed
+        return struct.pack("!H", len(body)) + body
+
+    def wire_decode(self, data: bytes) -> Optional[NTSCookie]:
+        """Recover version + sealed ciphertext from wire-format cookie bytes,
+        stripping any EF-alignment padding via the embedded length prefix."""
+        if len(data) < 3:
+            return None
+        (body_len,) = struct.unpack("!H", data[:2])
+        body = data[2 : 2 + body_len]
+        if len(body) != body_len:
+            return None
+        return NTSCookie(sealed=body[1:], version=body[0])
+
     def rotate_key(self) -> None:
         """Rotate master key (deprecate old key after grace period)."""
         # Deprecate old version after grace period
@@ -499,6 +535,27 @@ def verify_jwt(token: str, required_scope: Optional[str] = None) -> bool:
     return False
 
 
+def _extract_nts_ke_auth_token(client_request: bytes) -> Optional[str]:
+    """
+    Extract the Squawk Bearer-JWT auth record from an NTS-KE client request.
+
+    Returns the decoded token string, or None if no SQUAWK_AUTH_TOKEN record
+    is present or its body isn't valid UTF-8.
+    """
+    try:
+        records = NTSKERecord.parse_all(client_request)
+    except Exception:
+        return None
+    for record_type, body, _critical in records:
+        if record_type == NTSKERecordType.SQUAWK_AUTH_TOKEN:
+            try:
+                token = body.decode("utf-8").strip()
+            except UnicodeDecodeError:
+                return None
+            return token or None
+    return None
+
+
 # ============================================================================
 # NTS-KE Server (RFC 8915 §4)
 # ============================================================================
@@ -524,7 +581,9 @@ class NTSKEServer:
         ctx.set_verify(SSL.VERIFY_NONE, lambda *_: True)  # Don't verify client certs
         ctx.use_certificate_file(self.cert_file)
         ctx.use_privatekey_file(self.key_file)
-        ctx.set_options(SSL.OP_NO_TLSv1 | SSL.OP_NO_TLSv1_1)  # Require TLS 1.2+
+        # RFC 8915 §3 mandates TLS 1.3+ for NTS-KE; OP_NO_TLSv1/1_1 alone
+        # still permitted TLS 1.2 negotiation.
+        ctx.set_min_proto_version(SSL.TLS1_3_VERSION)
 
         # Set ALPN protocol
         try:
@@ -555,6 +614,21 @@ class NTSKEServer:
             # Parse NTS-KE client request (simplified: assume raw record stream)
             # Production: proper record parsing
             logger.debug(f"NTS-KE client request size: {len(client_request)} bytes")
+
+            # RFC 8915 has no native per-client auth beyond the TLS channel;
+            # Squawk requires an ntp:client-scoped JWT (carried in a private
+            # SQUAWK_AUTH_TOKEN record) before issuing any cookies. Reject
+            # and close rather than fail open.
+            token = _extract_nts_ke_auth_token(client_request)
+            if not token or not verify_jwt(token, required_scope="ntp:client"):
+                logger.warning(f"NTS-KE rejected: missing/invalid ntp:client JWT from {addr}")
+                error_response = NTSKERecord.encode(NTSKERecordType.ERROR, struct.pack("!H", 1), critical=True)
+                error_response += NTSKERecord.encode(NTSKERecordType.END_OF_MESSAGE, b"", critical=True)
+                try:
+                    conn.send(error_response)
+                except OSError:
+                    pass
+                return
 
             # For now, assume client sends supported AEAD algorithms
             # Production: parse NTS-KE request records
@@ -643,8 +717,12 @@ class NTSKEServer:
         response += NTSKERecord.encode(NTSKERecordType.AEAD_ALGORITHM, aead_body, critical=False)
 
         # Record 3: New Cookies (type 5, not critical) - one per cookie
+        # Wire-encoded (version byte || sealed) so a returned cookie can be
+        # unsealed against the correct master-key generation after rotation.
         for cookie in cookies:
-            response += NTSKERecord.encode(NTSKERecordType.NEW_COOKIE, cookie.sealed, critical=False)
+            response += NTSKERecord.encode(
+                NTSKERecordType.NEW_COOKIE, self.cookie_manager.wire_encode(cookie), critical=False
+            )
 
         # Record 4: End of Message (type 0, CRITICAL per RFC 8915 §4.1.1)
         response += NTSKERecord.encode(NTSKERecordType.END_OF_MESSAGE, b"", critical=True)
@@ -694,9 +772,63 @@ class NTPUDPServer:
     Parses NTP packets, validates NTS cookies, and signs responses.
     """
 
+    _RATE_LIMIT_MAX_TRACKED = 50_000
+
     def __init__(self, cookie_manager: CookieManager, port: int = 123):
         self.cookie_manager = cookie_manager
         self.port = port
+        self._rate_limit_window = 1.0  # seconds
+        self._rate_limit_max = int(os.getenv("NTP_RATE_LIMIT_PER_SEC", "20"))
+        self._rate_limit_state: Dict[str, Tuple[float, int]] = {}
+
+    def _rate_limited(self, source_ip: str) -> bool:
+        """
+        Per-source-IP fixed-window rate limit for the UDP responder.
+
+        Blunts spoofed-source floods against the parsing/AEAD-verification
+        path (RFC 8915 §5.7 requires per-packet crypto work even to reject
+        a forged request). Not a substitute for network-level filtering.
+        """
+        now = time.time()
+        entry = self._rate_limit_state.get(source_ip)
+        if entry is None or now - entry[0] >= self._rate_limit_window:
+            self._rate_limit_state[source_ip] = (now, 1)
+            if len(self._rate_limit_state) > self._RATE_LIMIT_MAX_TRACKED:
+                self._prune_rate_limit_state(now)
+            return False
+        window_start, count = entry
+        if count >= self._rate_limit_max:
+            return True
+        self._rate_limit_state[source_ip] = (window_start, count + 1)
+        return False
+
+    def _prune_rate_limit_state(self, now: float) -> None:
+        """Evict stale rate-limit windows so a spoofed-source flood can't grow this dict unboundedly."""
+        stale_before = now - (self._rate_limit_window * 10)
+        stale_ips = [ip for ip, (start, _count) in self._rate_limit_state.items() if start < stale_before]
+        for ip in stale_ips:
+            del self._rate_limit_state[ip]
+
+    def _extract_authenticator(self, data: bytes) -> Optional[Tuple[bytes, bytes]]:
+        """
+        Locate the NTS Authenticator extension field in a raw request.
+
+        Returns (aad, tag): aad is every byte of the packet before the
+        Authenticator EF header (RFC 8915 §5.7 associated data) and tag is
+        the EF body (the AES-SIV authentication tag). Returns None if the
+        packet is too short or no well-formed Authenticator EF is present.
+        """
+        if len(data) < 48:
+            return None
+        offset = 48
+        while offset + 4 <= len(data):
+            ef_type, ef_len = struct.unpack("!HH", data[offset : offset + 4])
+            if ef_len < 4 or ef_len % 4 != 0 or offset + ef_len > len(data):
+                return None
+            if ef_type == NTPExtensionField.NTS_AUTHENTICATOR:
+                return data[:offset], data[offset + 4 : offset + ef_len]
+            offset += ef_len
+        return None
 
     def parse_ntp_packet(self, data: bytes) -> Optional[NTPPacket]:
         """Parse RFC 5905 NTP packet."""
@@ -818,9 +950,10 @@ class NTPUDPServer:
             # Unique Identifier EF
             response += self._build_ef(NTPExtensionField.UNIQUE_IDENTIFIER, unique_id)
 
-        # New NTS Cookie EF
+        # New NTS Cookie EF (wire-encoded: version byte || sealed ciphertext,
+        # so it can be unsealed against the right key generation after rotation)
         new_cookie = self.cookie_manager.seal_cookie(c2s_key, s2c_key, aead_id)
-        response += self._build_ef(NTPExtensionField.NTS_COOKIE, new_cookie.sealed)
+        response += self._build_ef(NTPExtensionField.NTS_COOKIE, self.cookie_manager.wire_encode(new_cookie))
 
         # NTS Authenticator EF (AEAD tag over the response)
         # AAD: entire packet up to this point
@@ -879,6 +1012,68 @@ class NTPUDPServer:
             logger.warning(f"AES-SIV authenticator verification failed: {e}")
             return False
 
+    def handle_request(self, data: bytes, addr: Tuple[str, int]) -> Optional[bytes]:
+        """
+        Process one inbound UDP datagram and decide the response.
+
+        Returns the response bytes to send, or None if the packet must be
+        dropped silently (rate-limited, malformed, missing/invalid cookie,
+        or failing NTS Authenticator verification). Extracted from ``run``
+        so the drop-vs-respond decision is unit-testable without a live
+        socket loop.
+        """
+        # Per-source-IP rate limit -- blunt spoofed-source floods before
+        # doing any parsing/crypto work.
+        if self._rate_limited(addr[0]):
+            logger.warning(f"NTP request rate-limited from {addr}")
+            return None
+
+        # Parse NTP request
+        packet = self.parse_ntp_packet(data)
+        if not packet:
+            logger.warning(f"Invalid NTP packet from {addr}")
+            return None
+
+        # Check for NTS cookie EF
+        cookie_ef = packet.extension_fields.get(NTPExtensionField.NTS_COOKIE)
+        if not cookie_ef:
+            logger.warning(f"NTP request without NTS cookie from {addr}")
+            return None
+
+        # RFC 8915 §5.7: an NTS-protected request MUST carry an Authenticator
+        # EF. Locate it (and its AAD) before trusting anything else about
+        # this packet.
+        authenticator = self._extract_authenticator(data)
+        if not authenticator:
+            logger.warning(f"NTP request without NTS Authenticator from {addr}")
+            return None
+        aad, tag = authenticator
+
+        # Unseal cookie (wire-encoded: version byte || AEAD ciphertext)
+        sealed_cookie = self.cookie_manager.wire_decode(cookie_ef)
+        if not sealed_cookie:
+            logger.warning(f"Malformed NTS cookie from {addr}")
+            return None
+        result = self.cookie_manager.unseal_cookie(sealed_cookie)
+        if not result:
+            logger.warning(f"Invalid NTS cookie from {addr}")
+            return None
+
+        c2s_key, s2c_key, aead_id = result
+
+        # RFC 8915 §5.7 (CRITICAL): verify the request's Authenticator with
+        # the client's C2S key BEFORE building or sending any response.
+        # Never respond to an unauthenticated/forged request -- doing so
+        # turns this server into an off-path reflector.
+        if not self.verify_authenticator(aad, c2s_key, aead_id, aad, tag):
+            logger.warning(f"NTS Authenticator verification failed from {addr}")
+            return None
+
+        # Get unique ID if present
+        unique_id = packet.extension_fields.get(NTPExtensionField.UNIQUE_IDENTIFIER)
+
+        return self.build_ntp_response(packet, c2s_key, s2c_key, aead_id, unique_id)
+
     async def run(self) -> None:
         """Run UDP NTP server."""
         loop = asyncio.get_event_loop()
@@ -894,35 +1089,10 @@ class NTPUDPServer:
                 try:
                     data, addr = await loop.sock_recvfrom(sock, 4096)
 
-                    # Parse NTP request
-                    packet = self.parse_ntp_packet(data)
-                    if not packet:
-                        logger.warning(f"Invalid NTP packet from {addr}")
-                        continue
-
-                    # Check for NTS cookie EF
-                    cookie_ef = packet.extension_fields.get(NTPExtensionField.NTS_COOKIE)
-                    if not cookie_ef:
-                        logger.warning(f"NTP request without NTS cookie from {addr}")
-                        continue
-
-                    # Unseal cookie
-                    sealed_cookie = NTSCookie(sealed=cookie_ef, version=0)
-                    result = self.cookie_manager.unseal_cookie(sealed_cookie)
-                    if not result:
-                        logger.warning(f"Invalid NTS cookie from {addr}")
-                        continue
-
-                    c2s_key, s2c_key, aead_id = result
-
-                    # Get unique ID if present
-                    unique_id = packet.extension_fields.get(NTPExtensionField.UNIQUE_IDENTIFIER)
-
-                    # Build response
-                    response = self.build_ntp_response(packet, c2s_key, s2c_key, aead_id, unique_id)
-
-                    await loop.sock_sendto(sock, response, addr)
-                    logger.info(f"NTP response sent to {addr}")
+                    response = self.handle_request(data, addr)
+                    if response is not None:
+                        await loop.sock_sendto(sock, response, addr)
+                        logger.info(f"NTP response sent to {addr}")
 
                 except BlockingIOError:
                     await asyncio.sleep(0.01)
@@ -939,6 +1109,22 @@ class NTPUDPServer:
 app = Quart(__name__)
 
 
+def _feature_enabled(flag_key: str, distinct_id: str = "ntp-server") -> bool:
+    """
+    Check a PostHog feature flag. Fails SAFE (deny) if PostHog is
+    unconfigured or unreachable -- never fails open, consistent with the
+    other Squawk services.
+    """
+    if not (POSTHOG_KEY and POSTHOG_HOST):
+        logger.warning(f"posthog not configured; denying flag {flag_key}")
+        return False
+    try:
+        return bool(posthog.feature_enabled(flag_key, distinct_id))
+    except Exception as e:
+        logger.error(f"feature flag check failed for {flag_key}: {e}")
+        return False
+
+
 @app.route("/ntp/time", methods=["GET"])
 async def ntp_time():
     """
@@ -946,11 +1132,8 @@ async def ntp_time():
 
     No authentication required. Returns current server time in NTP and Unix formats.
     """
-    # Check PostHog feature flag
-    if POSTHOG_KEY and POSTHOG_HOST:
-        flag_enabled = posthog.feature_enabled("squawkdns.ntp-server", "server")
-        if not flag_enabled:
-            return jsonify({"error": "NTP service disabled"}), 503
+    if not _feature_enabled("squawkdns.ntp-server", "server"):
+        return jsonify({"error": "NTP service disabled"}), 503
 
     now = time.time()
     ntp_secs = int(now) + NTP_EPOCH_OFFSET

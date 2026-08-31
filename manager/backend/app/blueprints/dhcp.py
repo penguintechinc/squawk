@@ -54,8 +54,8 @@ def list_dhcp_pools():
         query &= db.dhcp_pool.active == (active.lower() == 'true')
 
     # Apply team-based access control if not SystemAdmin
-    if user.get('globalRole') not in ['SystemAdmin', 'OrgAdmin']:
-        accessible_teams = get_user_team_ids(user['id'])
+    if user.get('global_role') not in ['SystemAdmin', 'OrgAdmin']:
+        accessible_teams = get_user_team_ids(user['user_id'])
         query &= db.dhcp_pool.team_id.belongs(accessible_teams)
 
     pools = db(query).select(orderby=db.dhcp_pool.name)
@@ -216,6 +216,9 @@ def update_dhcp_pool(pool_id):
     if not pool:
         return jsonify({'error': 'DHCP pool not found'}), 404
 
+    if not _can_access_pool(get_current_user(), pool):
+        return jsonify({'error': 'Access denied'}), 403
+
     # Update allowed fields
     update_fields = {}
     allowed_fields = ['name', 'gateway', 'dnsServers', 'ntpServers', 'domainName',
@@ -264,6 +267,9 @@ def delete_dhcp_pool(pool_id):
     pool = db.dhcp_pool[pool_id]
     if not pool:
         return jsonify({'error': 'DHCP pool not found'}), 404
+
+    if not _can_access_pool(get_current_user(), pool):
+        return jsonify({'error': 'Access denied'}), 403
 
     # Cascade delete will remove leases and reservations
     del db.dhcp_pool[pool_id]
@@ -337,6 +343,13 @@ def release_lease(pool_id, lease_id):
     if not lease or lease.pool_id != pool_id:
         return jsonify({'error': 'Lease not found'}), 404
 
+    pool = db.dhcp_pool[pool_id]
+    if not pool:
+        return jsonify({'error': 'DHCP pool not found'}), 404
+
+    if not _can_access_pool(get_current_user(), pool):
+        return jsonify({'error': 'Access denied'}), 403
+
     # Mark as released
     lease.update_record(status='released')
     db.commit()
@@ -370,6 +383,14 @@ def list_reservations():
     if pool_id:
         query &= db.dhcp_reservation.pool_id == pool_id
 
+    # Apply team-based access control if not SystemAdmin/OrgAdmin
+    if user.get('global_role') not in ['SystemAdmin', 'OrgAdmin']:
+        accessible_teams = get_user_team_ids(user['user_id'])
+        accessible_pools = db(
+            (db.dhcp_pool.team_id == None) | (db.dhcp_pool.team_id.belongs(accessible_teams))
+        ).select(db.dhcp_pool.id)
+        query &= db.dhcp_reservation.pool_id.belongs([p.id for p in accessible_pools])
+
     reservations = db(query).select(orderby=db.dhcp_reservation.ip_address)
 
     return jsonify([
@@ -400,6 +421,9 @@ def create_reservation():
     pool = db.dhcp_pool[data['poolId']]
     if not pool:
         return jsonify({'error': 'DHCP pool not found'}), 404
+
+    if not _can_access_pool(get_current_user(), pool):
+        return jsonify({'error': 'Access denied'}), 403
 
     # Check for conflicts
     mac = data['macAddress'].upper()
@@ -445,6 +469,13 @@ def delete_reservation(reservation_id):
     if not res:
         return jsonify({'error': 'Reservation not found'}), 404
 
+    pool = db.dhcp_pool[res.pool_id]
+    if not pool:
+        return jsonify({'error': 'DHCP pool not found'}), 404
+
+    if not _can_access_pool(get_current_user(), pool):
+        return jsonify({'error': 'Access denied'}), 403
+
     del db.dhcp_reservation[reservation_id]
     db.commit()
 
@@ -464,11 +495,11 @@ def get_user_team_ids(user_id):
 
 def _can_access_pool(user, pool):
     """Check if user can access a DHCP pool."""
-    if user.get('globalRole') in ['SystemAdmin', 'OrgAdmin']:
+    if user.get('global_role') in ['SystemAdmin', 'OrgAdmin']:
         return True
     if pool.team_id is None:
         return True
-    return pool.team_id in get_user_team_ids(user['id'])
+    return pool.team_id in get_user_team_ids(user['user_id'])
 
 
 def _validate_ip_range(start, end):

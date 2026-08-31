@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 # the platform (dns-server/dhcp-server/ntp-server verifiers).
 _DOMAIN_JWT_ALGORITHMS = ["ES256", "RS256"]
 
+# Generic client-facing error message for unexpected exceptions. Mirrors
+# app.utils.responses.internal_error's contract (full detail logged
+# server-side via logger.error/exception above each use, never echoed to
+# the caller) — this module cannot import app.utils.responses directly
+# (see _generate_ephemeral_es256_keypair docstring: imported bare by the
+# acceptance-test harness, where app.* resolves to a different package).
+_GENERIC_ERROR_MESSAGE = "Internal server error"
+
 
 @dataclass(slots=True)
 class ConfigData:
@@ -301,7 +309,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to create deployment domain: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def rollover_domain_jwt(self, db: DB, domain_id: int, admin_user: str = "") -> Dict[str, Any]:
@@ -330,7 +338,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to rollover JWT: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def create_client_config(
@@ -374,7 +382,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to create client config: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def update_client_config(
@@ -420,7 +428,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to update client config: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def _verify_domain_jwt(self, db: DB, jwt_token: str) -> Optional[Dict[str, Any]]:
@@ -586,7 +594,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to register client: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def pull_client_config(
@@ -662,7 +670,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to pull client config: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def assign_config_to_client(
@@ -702,7 +710,7 @@ class ClientConfigManager:
 
         except Exception as e:
             logger.error(f"Failed to assign config to client: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": _GENERIC_ERROR_MESSAGE}
 
     @_with_db
     def get_domain_clients(self, db: DB, domain_id: int) -> List[Dict[str, Any]]:

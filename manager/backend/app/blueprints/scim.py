@@ -102,6 +102,31 @@ class SCIMListResponse:
 
 # ── Middleware ───────────────────────────────────────────────────────────────
 
+# Global roles a SCIM token may never touch, regardless of provisioning
+# scope. There is no per-token tenant/org column on auth_user today (adding
+# one is a schema change, out of scope here), so this is the strongest safe
+# proxy: block SCIM-driven deactivation/rewrite/deletion of the platform's
+# most privileged accounts to prevent lockout/takeover.
+_SCIM_PROTECTED_ROLES = {'SystemAdmin'}
+
+
+def _scim_manageable_user(user) -> bool:
+    """
+    True if a SCIM bearer token may read/manage this user record.
+
+    SCIM tokens are meant to manage only identities they themselves
+    provisioned (external_id is set exclusively by the SCIM create_user
+    flow) — a locally-created admin account never has external_id set, so
+    this is the strongest scope boundary available without adding a
+    tenant/org column to auth_user (schema change, out of scope). Privileged
+    accounts are excluded outright regardless of provisioning origin.
+    """
+    if user is None:
+        return False
+    if user.global_role in _SCIM_PROTECTED_ROLES:
+        return False
+    return bool(user.external_id)
+
 def require_scim_token():
     """Validate SCIM bearer token before processing request.
 
@@ -256,12 +281,16 @@ def list_users():
 
         username = filter_param[12:].strip('"')
         user_rec = db(db.auth_user.username == username).select().first()
-        if user_rec:
+        if user_rec and _scim_manageable_user(user_rec):
             users = [user_rec]
             total_count = 1
     else:
-        # List all active users (pagination)
-        user_recs = db(db.auth_user.active == True).select()
+        # List active, SCIM-provisioned users only (pagination) — never
+        # enumerate locally-created or privileged accounts via SCIM.
+        user_recs = [
+            u for u in db(db.auth_user.active == True).select()
+            if _scim_manageable_user(u)
+        ]
         total_count = len(user_recs)
 
         # Apply pagination (1-based startIndex)
@@ -296,7 +325,7 @@ def get_user(user_id: str):
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
-    if not user:
+    if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
 
     scim_user = _user_record_to_scim(user)
@@ -380,7 +409,7 @@ def update_user(user_id: str):
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
-    if not user:
+    if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
 
     data = request.get_json() or {}
@@ -426,7 +455,7 @@ def patch_user(user_id: str):
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
-    if not user:
+    if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
 
     data = request.get_json() or {}
@@ -485,7 +514,7 @@ def delete_user(user_id: str):
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
-    if not user:
+    if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
 
     # Soft-delete: deactivate user. Refresh flow checks user.active and fails.

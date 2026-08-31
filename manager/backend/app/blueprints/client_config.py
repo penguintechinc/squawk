@@ -8,6 +8,7 @@ from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
 from app.middleware.rbac import requires_scope
+from app.utils.decorators import audit_log
 from app.utils.responses import internal_error
 
 client_config_bp = Blueprint('client_config', __name__)
@@ -116,6 +117,7 @@ def create_domain():
 @token_required
 @requires_scope('config:admin')
 @_check_client_config_flag()
+@audit_log('domain_jwt_rollover', resource_type='deployment_domain')
 def rollover_jwt(domain_id: int):
     """
     Rollover JWT token for a deployment domain.

@@ -10,10 +10,10 @@ SSO logins bypass TOTP MFA because the IdP owns MFA.
 """
 
 import secrets
-from flask import Blueprint, request, jsonify, current_app, make_response
+from flask import Blueprint, request, jsonify, current_app, make_response, g
 from app.services.sso_service import SSOService, OIDCConfig
 from app.services.auth_service import AuthService
-from app.utils.decorators import validate_json
+from app.utils.decorators import validate_json, audit_log
 
 sso_bp = Blueprint('sso', __name__)
 
@@ -119,6 +119,7 @@ def authorize(name: str):
 
 @sso_bp.route('/api/v1/auth/sso/<name>/callback', methods=['POST'])
 @validate_json('code', 'state')
+@audit_log('sso_login', resource_type='sso_provider')
 def callback(name: str):
     """
     Handle IdP callback: exchange code for tokens, validate ID token, JIT provision.
@@ -168,6 +169,10 @@ def callback(name: str):
         }), 404
 
     p = provider[0]
+
+    # Attribute the audit event to this provider for every outcome from
+    # here on (success or any later validation failure).
+    g.audit_resource_id = p['id']
 
     # Reconstruct OIDCConfig from database record
     config = OIDCConfig(
@@ -255,6 +260,8 @@ def callback(name: str):
         return jsonify({
             'error': 'User not found after provisioning'
         }), 500
+
+    g.audit_actor_id = user_record['id']
 
     # Issue tokens (no MFA required for SSO)
     access_token = AuthService.create_access_token(

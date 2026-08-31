@@ -12,12 +12,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 import logging
 
 from app.services.scim_service import SCIMTokenService
 from app.services.auth_service import AuthService
 from app.services.license_service import LicenseService
+from app.utils.decorators import audit_log
 from app.extensions import limiter
 
 logger = logging.getLogger(__name__)
@@ -334,6 +335,7 @@ def get_user(user_id: str):
 
 @scim_bp.route('/Users', methods=['POST'])
 @limiter.limit('20/minute')
+@audit_log('scim_user_created', resource_type='user')
 def create_user():
     """JIT create a user (provisioning).
 
@@ -344,7 +346,7 @@ def create_user():
     if isinstance(result, tuple):
         return result
 
-    from flask import g
+    g.audit_tenant = g.tenant
 
     db = current_app.db
     data = request.get_json() or {}
@@ -390,6 +392,7 @@ def create_user():
     # Retrieve the created user
     user = db(db.auth_user.username == username).select().first()
     scim_user = _user_record_to_scim(user)
+    g.audit_resource_id = user.id
 
     logger.info(f"SCIM user created", extra={"user_id": user.id, "username": username})
 
@@ -397,6 +400,7 @@ def create_user():
 
 
 @scim_bp.route('/Users/<user_id>', methods=['PUT'])
+@audit_log('scim_user_updated', resource_type='user')
 def update_user(user_id: str):
     """Replace a user (SCIM PUT = full replace).
 
@@ -406,11 +410,15 @@ def update_user(user_id: str):
     if isinstance(result, tuple):
         return result
 
+    g.audit_tenant = g.tenant
+
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
     if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
+
+    g.audit_resource_id = user.id
 
     data = request.get_json() or {}
 
@@ -442,6 +450,7 @@ def update_user(user_id: str):
 
 
 @scim_bp.route('/Users/<user_id>', methods=['PATCH'])
+@audit_log('scim_user_patched', resource_type='user')
 def patch_user(user_id: str):
     """Partial update of a user (SCIM PATCH).
 
@@ -452,11 +461,15 @@ def patch_user(user_id: str):
     if isinstance(result, tuple):
         return result
 
+    g.audit_tenant = g.tenant
+
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
     if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
+
+    g.audit_resource_id = user.id
 
     data = request.get_json() or {}
     operations = data.get('Operations', [])
@@ -501,6 +514,7 @@ def patch_user(user_id: str):
 
 
 @scim_bp.route('/Users/<user_id>', methods=['DELETE'])
+@audit_log('scim_user_deprovisioned', resource_type='user')
 def delete_user(user_id: str):
     """Deprovision (deactivate) a user.
 
@@ -511,11 +525,15 @@ def delete_user(user_id: str):
     if isinstance(result, tuple):
         return result
 
+    g.audit_tenant = g.tenant
+
     db = current_app.db
 
     user = db.auth_user[int(user_id)] if user_id.isdigit() else None
     if not _scim_manageable_user(user):
         return scim_error('resourceNotFound', f'User {user_id} not found', 404)
+
+    g.audit_resource_id = user.id
 
     # Soft-delete: deactivate user. Refresh flow checks user.active and fails.
     db(db.auth_user.id == user.id).update(active=False)
@@ -530,6 +548,7 @@ def delete_user(user_id: str):
 
 @scim_bp.route('/admin/tokens', methods=['POST'])
 @limiter.limit('5/minute')
+@audit_log('scim_token_minted', resource_type='scim_token')
 def mint_scim_token():
     """Mint a new SCIM bearer token (admin only, enterprise tier required).
 
@@ -552,6 +571,12 @@ def mint_scim_token():
 
     # Verify caller is authenticated user (not SCIM bearer)
     token_payload = verify_jwt(request.headers.get('Authorization', ''))
+    if token_payload:
+        # Attribute the audit event to the caller even if the scope/license
+        # check below denies the request (get_current_user() has nothing to
+        # return here -- this route authenticates manually, not via
+        # @token_required).
+        g.audit_actor_id = token_payload.get('user_id')
     if not token_payload or not has_scope(token_payload.get('scope', ''), 'admin:super'):
         return {'error': 'Forbidden'}, 403
 
@@ -566,6 +591,8 @@ def mint_scim_token():
 
     plaintext, token_hash = SCIMTokenService.create_token(description, tenant)
     token_id = SCIMTokenService.store_token(plaintext, description, tenant)
+    g.audit_resource_id = token_id
+    g.audit_tenant = tenant
 
     logger.info(f"SCIM token minted", extra={"token_id": token_id, "tenant": tenant})
 
@@ -578,13 +605,22 @@ def mint_scim_token():
 
 
 @scim_bp.route('/admin/tokens/<token_id>', methods=['DELETE'])
+@audit_log('scim_token_revoked', resource_type='scim_token')
 def revoke_scim_token(token_id: str):
     """Revoke a SCIM token (admin only)."""
     from app.middleware import verify_jwt, has_scope
 
     token_payload = verify_jwt(request.headers.get('Authorization', ''))
+    if token_payload:
+        g.audit_actor_id = token_payload.get('user_id')
     if not token_payload or not has_scope(token_payload.get('scope', ''), 'admin:super'):
         return {'error': 'Forbidden'}, 403
+
+    try:
+        g.audit_resource_id = int(token_id)
+    except (TypeError, ValueError):
+        pass  # Left unattributed; SCIMTokenService.revoke_token below still
+        # raises the same ValueError as before this change for a non-numeric id.
 
     success = SCIMTokenService.revoke_token(int(token_id))
     if not success:

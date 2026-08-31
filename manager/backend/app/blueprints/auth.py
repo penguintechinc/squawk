@@ -3,7 +3,7 @@ Authentication API blueprint.
 Handles login, logout, token refresh, and user info.
 """
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from app.services.auth_service import AuthService
 from app.middleware.auth import token_required, get_current_user
 from app.utils.decorators import validate_json, audit_log
@@ -42,6 +42,21 @@ def login():
     data = request.get_json()
     username = data['username']
     password = data['password']
+
+    # Resolve the targeted account for audit attribution *before*
+    # authenticating. get_current_user() is always None here (no JWT exists
+    # yet at login), so without this a brute-force campaign against a valid
+    # username would write audit rows with actor_id=NULL on every failed
+    # attempt -- untraceable to the account under attack. This is a
+    # read-only lookup (independent of password/lockout state) and never
+    # reveals account existence to the caller; only the audit trail sees it.
+    target_user = current_app.db(
+        current_app.db.auth_user.username == username
+    ).select().first()
+    if target_user:
+        g.audit_actor_id = target_user.id
+        g.audit_resource_type = 'user'
+        g.audit_resource_id = target_user.id
 
     # Authenticate user
     user = AuthService.authenticate_user(username, password)
@@ -86,6 +101,7 @@ def login():
 @auth_bp.route('/api/v1/auth/refresh', methods=['POST'])
 @limiter.limit('20/minute')
 @validate_json('refreshToken')
+@audit_log('token_refresh', resource_type='user')
 def refresh():
     """
     Refresh (rotate) tokens using a refresh token.
@@ -107,6 +123,15 @@ def refresh():
     """
     data = request.get_json()
     refresh_token = data['refreshToken']
+
+    # Resolve the token's subject for audit attribution before rotation --
+    # get_current_user() has nothing to return here (no access token on this
+    # route). decode_token() verifies the signature, so this is safe even
+    # for an attacker-supplied token (bad signature simply yields None).
+    payload = AuthService.decode_token(refresh_token)
+    if payload and payload.get('type') == 'refresh':
+        g.audit_actor_id = payload.get('user_id')
+        g.audit_resource_id = payload.get('user_id')
 
     tokens = AuthService.refresh_access_token(refresh_token)
     if not tokens:
@@ -230,6 +255,7 @@ def change_password():
 
 @auth_bp.route('/api/v1/auth/token', methods=['POST'])
 @limiter.limit('30/minute')
+@audit_log('machine_token_grant', resource_type='machine_client')
 def token():
     """
     OAuth2 token endpoint supporting multiple grant types.
@@ -330,10 +356,22 @@ def token():
         # Verify client (constant-time check)
         client = AuthService.verify_machine_client(client_id, client_secret)
         if not client:
+            # Attribute the audit failure to the targeted client_id even
+            # though authentication failed, so repeated bad-secret attempts
+            # against one client are traceable (mirrors the login target
+            # attribution below). This performs the same lookup
+            # verify_machine_client already did internally, so it adds no
+            # new distinguishable timing signal.
+            existing = current_app.db(
+                current_app.db.machine_client.client_id == client_id
+            ).select().first()
+            g.audit_resource_id = existing.id if existing else None
             return jsonify({
                 'error': 'invalid_client',
                 'error_description': 'Client authentication failed'
             }), 401
+
+        g.audit_resource_id = client['id']
 
         # Determine granted scopes (requested ⊆ registered)
         requested_scope = request.form.get('scope', '').strip()
@@ -413,6 +451,13 @@ def token():
 
         trust_anchor = db((db.oidc_trust_anchor.issuer == issuer) &
                          (db.oidc_trust_anchor.active == True)).select().first()
+
+        if trust_anchor:
+            # Attribute the audit event to the trust anchor for both the
+            # success path and any validation failure below (subject
+            # pattern mismatch, signature/claims failure).
+            g.audit_resource_type = 'oidc_trust_anchor'
+            g.audit_resource_id = trust_anchor.id
 
         if not trust_anchor:
             return jsonify({

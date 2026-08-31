@@ -220,8 +220,10 @@ def update_sso_provider(provider_id: int):
             update_fields[field] = data[field]
 
     if update_fields:
-        provider.update_record(**update_fields)
+        # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+        db(db.sso_providers.id == provider_id).update(**update_fields)
         db.commit()
+        provider = db.sso_providers[provider_id]
 
     return jsonify({
         'id': provider['id'],

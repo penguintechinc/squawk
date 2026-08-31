@@ -250,7 +250,8 @@ def update_dhcp_pool(pool_id):
         update_fields['range_end'] = end
 
     if update_fields:
-        pool.update_record(**update_fields)
+        # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+        db(db.dhcp_pool.id == pool.id).update(**update_fields)
         db.commit()
 
     return jsonify({'message': 'Pool updated successfully'}), 200
@@ -271,8 +272,9 @@ def delete_dhcp_pool(pool_id):
     if not _can_access_pool(get_current_user(), pool):
         return jsonify({'error': 'Access denied'}), 403
 
-    # Cascade delete will remove leases and reservations
-    del db.dhcp_pool[pool_id]
+    # Cascade delete will remove leases and reservations.
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet idiom.
+    db(db.dhcp_pool.id == pool_id).delete()
     db.commit()
 
     return jsonify({'message': 'DHCP pool deleted successfully'}), 200
@@ -350,8 +352,9 @@ def release_lease(pool_id, lease_id):
     if not _can_access_pool(get_current_user(), pool):
         return jsonify({'error': 'Access denied'}), 403
 
-    # Mark as released
-    lease.update_record(status='released')
+    # Mark as released. penguin-dal has no Row.update_record(); use the
+    # QuerySet idiom.
+    db(db.dhcp_lease.id == lease.id).update(status='released')
     db.commit()
 
     return jsonify({
@@ -476,7 +479,8 @@ def delete_reservation(reservation_id):
     if not _can_access_pool(get_current_user(), pool):
         return jsonify({'error': 'Access denied'}), 403
 
-    del db.dhcp_reservation[reservation_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.dhcp_reservation.id == reservation_id).delete()
     db.commit()
 
     return jsonify({'message': 'Reservation deleted successfully'}), 200

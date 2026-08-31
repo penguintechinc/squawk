@@ -256,8 +256,12 @@ def update_ioc_feed(feed_id):
     if 'description' in data:
         update_fields['description'] = data['description']
 
-    feed.update_record(**update_fields)
+    # penguin-dal has no Row.update_record(); use the QuerySet update idiom
+    # (see gh audit: PUT routes 500'd because that method never existed).
+    db(db.ioc_feed.id == feed.id).update(**update_fields)
     db.commit()
+
+    feed = db.ioc_feed[feed_id]
 
     return jsonify({
         'id': feed.id,
@@ -282,7 +286,8 @@ def delete_ioc_feed(feed_id):
     if not feed:
         return jsonify({'error': 'IOC feed not found'}), 404
 
-    del db.ioc_feed[feed_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.ioc_feed.id == feed_id).delete()
     db.commit()
 
     return jsonify({
@@ -360,8 +365,9 @@ def trigger_ioc_feed_sync(feed_id):
                 'feed_name': feed.name
             }), 500
 
-        # Update feed metadata on success
-        feed.update_record(
+        # Update feed metadata on success. penguin-dal has no
+        # Row.update_record(); use the QuerySet idiom.
+        db(db.ioc_feed.id == feed.id).update(
             last_updated=datetime.utcnow(),
             last_success=datetime.utcnow()
         )

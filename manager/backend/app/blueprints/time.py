@@ -231,7 +231,8 @@ def update_time_server(server_id):
             update_fields[db_field] = data[field]
 
     if update_fields:
-        server.update_record(**update_fields)
+        # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+        db(db.time_server.id == server.id).update(**update_fields)
         db.commit()
 
     return jsonify({'message': 'Time server updated successfully'}), 200
@@ -252,7 +253,8 @@ def delete_time_server(server_id):
     if not _can_access_server(get_current_user(), server):
         return jsonify({'error': 'Access denied'}), 403
 
-    del db.time_server[server_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.time_server.id == server_id).delete()
     db.commit()
 
     return jsonify({'message': 'Time server deleted successfully'}), 200
@@ -385,7 +387,7 @@ def trigger_time_sync():
     )
 
     # Update server status
-    server.update_record(
+    db(db.time_server.id == server.id).update(
         status='synchronized',
         last_sync=datetime.utcnow(),
         last_offset_ms=offset_after,

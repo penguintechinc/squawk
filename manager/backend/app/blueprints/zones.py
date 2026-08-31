@@ -210,14 +210,15 @@ def update_zone(zone_id):
         return jsonify({'error': 'Zone not found'}), 404
 
     data = request.get_json()
+    update_fields = {}
 
     if 'visibility' in data:
         if not validate_visibility(data['visibility']):
             return jsonify({'error': 'Invalid visibility'}), 400
-        zone.update_record(visibility=data['visibility'])
+        update_fields['visibility'] = data['visibility']
 
     if 'description' in data:
-        zone.update_record(description=data['description'])
+        update_fields['description'] = data['description']
 
     if 'team_id' in data:
         new_team_id = data['team_id']
@@ -225,9 +226,13 @@ def update_zone(zone_id):
         # (SystemAdmin bypasses via can_access_team's superadmin check).
         if new_team_id is not None and not can_access_team(new_team_id):
             return jsonify({'error': 'Cannot assign zone to a team you do not belong to'}), 403
-        zone.update_record(team_id=new_team_id)
+        update_fields['team_id'] = new_team_id
 
-    db.commit()
+    if update_fields:
+        # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+        db(db.dns_zone.id == zone_id).update(**update_fields)
+        db.commit()
+        zone = db.dns_zone[zone_id]
 
     return jsonify({
         'id': zone.id,
@@ -253,8 +258,9 @@ def delete_zone(zone_id):
     if not zone:
         return jsonify({'error': 'Zone not found'}), 404
 
-    # Delete zone (cascade will delete records)
-    del db.dns_zone[zone_id]
+    # Delete zone (cascade will delete records).
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet idiom.
+    db(db.dns_zone.id == zone_id).delete()
     db.commit()
 
     return jsonify({
@@ -390,8 +396,11 @@ def update_dns_record(zone_id, record_id):
     if 'port' in data:
         update_fields['port'] = data['port']
 
-    record.update_record(**update_fields)
+    # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+    db(db.dns_record.id == record.id).update(**update_fields)
     db.commit()
+
+    record = db.dns_record[record_id]
 
     return jsonify({
         'id': record.id,
@@ -418,7 +427,8 @@ def delete_dns_record(zone_id, record_id):
     if not record or record.zone_id != zone_id:
         return jsonify({'error': 'Record not found'}), 404
 
-    del db.dns_record[record_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.dns_record.id == record_id).delete()
     db.commit()
 
     return jsonify({

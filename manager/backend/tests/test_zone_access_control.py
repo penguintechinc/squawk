@@ -113,23 +113,28 @@ class TestZoneMutationsRequireWriteScope:
 class TestZoneWriteScopePositiveControl:
     """OrgAdmin (zones:write) can mutate an org-wide zone; delete needs zones:admin.
 
-    NOTE: the installed penguin-dal build in this environment has no
-    Row.update_record()/TableProxy.__delitem__ — a pre-existing, unrelated
-    DAL/app mismatch affecting every PUT/DELETE route in this codebase (see
-    PR notes), not something introduced by this fix. With TESTING=True,
-    Flask re-raises that exception into the test rather than returning a
-    500, so a clean 403 JSON response and this specific downstream
-    AttributeError/TypeError are mutually exclusive outcomes — reaching the
-    latter is itself proof the authz gate let an authorized caller through.
+    regression: gh-dal-api-fix — the installed penguin-dal build has no
+    Row.update_record()/TableProxy.__delitem__, so these routes previously
+    500'd for every authorized caller (see app/blueprints/zones.py, fixed to
+    the `db(db.dns_zone.id == ...).update()/.delete()` QuerySet idiom).
+    These assertions now verify the mutation actually persisted, not just
+    that authz let the caller through.
     """
 
     def test_orgadmin_can_update_public_zone(self, app, orgadmin_token, public_zone):
-        with app.test_client() as client, pytest.raises(AttributeError, match='update_record'):
-            client.put(
+        with app.test_client() as client:
+            response = client.put(
                 f'/api/v1/zones/{public_zone}',
                 json={'description': 'updated by orgadmin'},
                 headers={'Authorization': f'Bearer {orgadmin_token}'},
             )
+            assert response.status_code == 200
+            assert response.get_json()['description'] == 'updated by orgadmin'
+
+        with app.app_context():
+            db = app.db
+            zone = db.dns_zone[public_zone]
+            assert zone.description == 'updated by orgadmin'
 
     def test_orgadmin_cannot_delete_public_zone(self, app, orgadmin_token, public_zone):
         """Delete requires zones:admin (SystemAdmin only), mirrors dhcp:admin/time:admin."""
@@ -141,11 +146,16 @@ class TestZoneWriteScopePositiveControl:
             assert response.status_code == 403
 
     def test_sysadmin_can_delete_public_zone(self, app, sysadmin_token, public_zone):
-        with app.test_client() as client, pytest.raises(TypeError, match='item deletion'):
-            client.delete(
+        with app.test_client() as client:
+            response = client.delete(
                 f'/api/v1/zones/{public_zone}',
                 headers={'Authorization': f'Bearer {sysadmin_token}'},
             )
+            assert response.status_code == 200
+
+        with app.app_context():
+            db = app.db
+            assert db.dns_zone[public_zone] is None
 
 
 class TestCreateZoneTeamOwnership:

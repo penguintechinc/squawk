@@ -217,9 +217,10 @@ def change_password():
     if not AuthService.verify_password(data['current_password'], user_record.password_hash):
         return jsonify({'error': 'Current password is incorrect'}), 401
 
-    # Hash and update new password
+    # Hash and update new password. penguin-dal has no Row.update_record();
+    # use the QuerySet idiom.
     new_password_hash = AuthService.hash_password(data['new_password'])
-    user_record.update_record(password_hash=new_password_hash)
+    db(db.auth_user.id == user_record.id).update(password_hash=new_password_hash)
     db.commit()
 
     return jsonify({

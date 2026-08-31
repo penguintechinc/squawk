@@ -103,18 +103,21 @@ class TestDhcpPoolCrossTeamIsolation:
         token = _team_scoped_token(
             app, jwt_keypair, team_a_and_b['user_id'], 'dhcp:admin dhcp:read'
         )
-        # NOTE: `del db.dhcp_pool[...]` raises in this environment — the
-        # installed penguin-dal build's TableProxy has no __delitem__ (a
-        # pre-existing, unrelated DAL/app mismatch affecting every DELETE
-        # route in this codebase; see PR notes). With TESTING=True, Flask
-        # re-raises rather than returning 500, so reaching this specific
-        # exception (instead of a clean 403 JSON body) is itself proof the
-        # authz gate let the same-team caller through.
-        with app.test_client() as client, pytest.raises(TypeError, match='item deletion'):
-            client.delete(
+        # regression: gh-dal-api-fix — `del db.dhcp_pool[...]` used to raise
+        # (installed penguin-dal's TableProxy has no __delitem__), so this
+        # route 500'd for every caller regardless of authz. Fixed to the
+        # `db(db.dhcp_pool.id == ...).delete()` QuerySet idiom; now verify
+        # the same-team caller's delete actually succeeds and persists.
+        with app.test_client() as client:
+            response = client.delete(
                 f'/api/v1/dhcp/pools/{pool_id}',
                 headers={'Authorization': f'Bearer {token}'},
             )
+            assert response.status_code == 200
+
+        with app.app_context():
+            db = app.db
+            assert db.dhcp_pool[pool_id] is None
 
 
 class TestTimeServerCrossTeamIsolation:
@@ -155,16 +158,21 @@ class TestTimeServerCrossTeamIsolation:
         token = _team_scoped_token(
             app, jwt_keypair, team_a_and_b['user_id'], 'time:write time:read'
         )
-        # NOTE: `server.update_record(...)` raises in this environment — the
-        # installed penguin-dal build's Row has no update_record() (a
-        # pre-existing, unrelated DAL/app mismatch affecting every PUT route
-        # in this codebase; see PR notes). With TESTING=True, Flask
-        # re-raises rather than returning 500, so reaching this specific
-        # exception (instead of a clean 403 JSON body) is itself proof the
-        # authz gate let the same-team caller through.
-        with app.test_client() as client, pytest.raises(AttributeError, match='update_record'):
-            client.put(
+        # regression: gh-dal-api-fix — `server.update_record(...)` used to
+        # raise (installed penguin-dal's Row has no update_record()), so
+        # this route 500'd for every caller regardless of authz. Fixed to
+        # the `db(db.time_server.id == ...).update()` QuerySet idiom; now
+        # verify the same-team caller's update actually succeeds and
+        # persists.
+        with app.test_client() as client:
+            response = client.put(
                 f'/api/v1/time/servers/{server_id}',
                 json={'serverUrl': 'ntp://10.0.0.99'},
                 headers={'Authorization': f'Bearer {token}'},
             )
+            assert response.status_code == 200
+
+        with app.app_context():
+            db = app.db
+            server = db.time_server[server_id]
+            assert server.server_url == 'ntp://10.0.0.99'

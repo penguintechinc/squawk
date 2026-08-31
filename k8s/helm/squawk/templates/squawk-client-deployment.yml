@@ -40,7 +40,7 @@ spec:
         # here for the same DNS-loop reason; use the auto-injected Service
         # env vars instead of a hostname.
         - name: SQUAWK_SERVER_URL
-          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)"
+          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)/dns/query"
         - name: SQUAWK_UDP_ADDRESS
           value: "0.0.0.0:{{ .Values.dnsClient.listenPort }}"
         - name: SQUAWK_TCP_ADDRESS

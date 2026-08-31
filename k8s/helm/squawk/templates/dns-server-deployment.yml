@@ -38,6 +38,12 @@ spec:
           value: {{ .Values.dnsServer.env.valkeyHost | quote }}
         - name: VALKEY_PORT
           value: {{ .Values.dnsServer.env.valkeyPort | quote }}
+        # dns-server/app/config.py only reads CACHE_URL as a full connection
+        # string (VALKEY_HOST/PORT above are unused by the app) — without
+        # this it falls back to redis://localhost:6379 and never connects to
+        # the valkey Service (see templates/valkey-service.yml).
+        - name: CACHE_URL
+          value: {{ printf "redis://%s:%s" .Values.dnsServer.env.valkeyHost .Values.dnsServer.env.valkeyPort | quote }}
         - name: LOG_LEVEL
           value: {{ .Values.dnsServer.env.logLevel | quote }}
         - name: DNS_PORT

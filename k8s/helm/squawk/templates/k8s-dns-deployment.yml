@@ -49,7 +49,7 @@ spec:
         # instead of a values-driven hostname, since the binary's IP-only
         # requirement is the same in every environment, not alpha-specific.
         - name: SQUAWK_SERVER_URL
-          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)/dns-query"
+          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)/dns/query"
         - name: SQUAWK_UDP_ADDRESS
           value: {{ printf "0.0.0.0:%d" (.Values.k8sDns.listenPort | int) | quote }}
         - name: SQUAWK_TCP_ADDRESS

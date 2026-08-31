@@ -24,7 +24,7 @@ import hashlib
 import base64
 import uuid
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -34,11 +34,9 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
 from flask import current_app
 
-# SAML 2.0 XML parsing with defused XML (prevents XXE)
-from defusedxml import ElementTree as ET
-from saml2.response import AuthnResponse
 from saml2.config import Config as Saml2Config
-from saml2 import BINDING_HTTP_REDIRECT, BINDING_HTTP_POST
+from saml2.client import Saml2Client
+from saml2 import BINDING_HTTP_POST
 
 
 @dataclass(slots=True)
@@ -229,16 +227,33 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
         db
     ) -> Optional[ValidatedSAMLAssertion]:
         """
-        Parse, validate, and extract claims from SAML Response using pysaml2.
+        Parse, validate, and extract claims from SAML Response using pysaml2's
+        standard SP entry point, `Saml2Client.parse_authn_request_response`.
 
-        pysaml2's AuthnResponse handles all critical validations:
-        1. XML signature verification (including digest validation and reference binding — prevents XSW attacks)
+        This is the code path pysaml2 actually wires signature/audience/time
+        verification through. (A prior version of this method constructed
+        `AuthnResponse` directly and called `.loads()` + `.is_ok()`, which
+        never exercises real signature verification -- and even passed
+        constructor arguments `AuthnResponse` doesn't accept, so the whole
+        thing always raised and was silently swallowed by the broad
+        `except Exception` below, "passing" by accident.)
+
+        `Saml2Client.parse_authn_request_response` verifies, and raises/
+        returns None on failure of:
+        1. XML signature (per `want_assertions_signed`/`want_response_signed`)
         2. Issuer == idp_entity_id
-        3. Destination == sp_acs_url
+        3. Destination/Recipient == sp_acs_url
         4. Audience == sp_entity_id
         5. NotBefore/NotOnOrAfter with clock skew
-        6. InResponseTo matches stored request ID
-        7. Assertion ID replay prevention
+        6. Response-level InResponseTo against `outstanding` (below) --
+           `allow_unsolicited=False` rejects unsolicited/IdP-initiated
+           responses outright.
+
+        On top of that, this method additionally enforces (defense in depth,
+        not solely reliant on the library's internal wiring):
+        - Assertion-level SubjectConfirmationData + matching InResponseTo
+        - Assertion ID replay prevention (DB-backed)
+        - Exactly one assertion per response
 
         Args:
             config: SAML provider configuration
@@ -265,6 +280,9 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
             return None
 
         expected_request_id = attempt['code_verifier']
+        if not expected_request_id:
+            current_app.logger.warning("SAML login attempt missing AuthnRequest ID")
+            return None
 
         try:
             # Decode SAML Response
@@ -281,7 +299,13 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
                             ],
                         },
                         'want_assertions_signed': config.want_assertions_signed,
+                        'want_response_signed': config.want_assertions_signed,
                         'authn_requests_signed': False,
+                        # Only the AuthnRequest ID stored for this login
+                        # attempt (passed via `outstanding` below) is ever
+                        # considered solicited -- reject anything else,
+                        # including unsolicited/IdP-initiated responses.
+                        'allow_unsolicited': False,
                     },
                 },
                 'metadata': {
@@ -307,20 +331,25 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
             }
 
             saml2_config_obj = Saml2Config().load(saml2_config)
+            saml_client = Saml2Client(saml2_config_obj)
 
-            # Use pysaml2's AuthnResponse to parse and validate the response
-            # This handles: signature verification (with digest + reference validation), issuer, audience, destination, time checks
-            auth_response = AuthnResponse(saml2_config_obj, return_unsigned=False)
-            auth_response.loads(saml_bytes)
+            # `outstanding` binds the Response's InResponseTo to exactly the
+            # AuthnRequest ID we generated for this login attempt -- any
+            # other value (or none) is treated as unsolicited and rejected.
+            authn_response = saml_client.parse_authn_request_response(
+                saml_bytes.decode('utf-8'),
+                BINDING_HTTP_POST,
+                outstanding={expected_request_id: '/'},
+            )
 
-            # Validate the response
-            if not auth_response.is_ok():
-                current_app.logger.warning(f"SAML response validation failed: {auth_response.status}")
+            if authn_response is None:
+                current_app.logger.warning(
+                    "SAML response rejected by pysaml2 "
+                    "(signature/issuer/audience/time/InResponseTo)"
+                )
                 return None
 
-            # pysaml2 validates signature, issuer, audience, destination, and time range automatically
-            # Extract the assertion
-            assertions = auth_response.assertion
+            assertions = authn_response.assertions
             if not assertions:
                 current_app.logger.warning("SAML response missing assertions")
                 return None
@@ -331,8 +360,34 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
 
             assertion = assertions[0]
 
+            # === Belt-and-suspenders SubjectConfirmationData/InResponseTo ===
+            # pysaml2 already bound the *Response*-level InResponseTo via
+            # `outstanding` above; also require the *assertion*-level
+            # SubjectConfirmationData explicitly, so an assertion with none
+            # (or a forged one) can't slip through some other binding path.
+            subject_confirmation_data = None
+            if assertion.subject and assertion.subject.subject_confirmation:
+                for sub_conf in assertion.subject.subject_confirmation:
+                    if sub_conf.subject_confirmation_data:
+                        subject_confirmation_data = sub_conf.subject_confirmation_data
+                        break
+
+            if not subject_confirmation_data:
+                current_app.logger.warning("SAML assertion missing SubjectConfirmationData")
+                return None
+
+            if subject_confirmation_data.in_response_to != expected_request_id:
+                current_app.logger.warning(
+                    "SAML InResponseTo mismatch: expected %s, got %s",
+                    expected_request_id, subject_confirmation_data.in_response_to,
+                )
+                return None
+
             # Extract subject (NameID)
-            subject = assertion.subject.text if assertion.subject else None
+            subject = (
+                assertion.subject.name_id.text
+                if assertion.subject and assertion.subject.name_id else None
+            )
             if not subject:
                 current_app.logger.warning("SAML assertion missing subject")
                 return None
@@ -359,20 +414,11 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
                 )
                 db.commit()
 
-            # === Validate InResponseTo ===
-            if assertion.subject_confirmation_data:
-                in_response_to = assertion.subject_confirmation_data.in_response_to
-                if in_response_to != expected_request_id:
-                    current_app.logger.warning(
-                        f"SAML InResponseTo mismatch: expected {expected_request_id}, got {in_response_to}"
-                    )
-                    return None
-
             # === Extract Email from Attributes ===
             email = None
             name = None
-            if assertion.attribute_statement:
-                for attr in assertion.attribute_statement.attribute:
+            for attr_statement in (assertion.attribute_statement or []):
+                for attr in attr_statement.attribute:
                     attr_name = attr.name
                     attr_values = attr.attribute_value
                     if attr_values:
@@ -390,7 +436,7 @@ ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"><saml:Issuer>{c
                 return None
 
             # Extract issuer and audience (pysaml2 already validated these match our config)
-            issuer = str(assertion.issuer)
+            issuer = assertion.issuer.text if assertion.issuer else config.idp_entity_id
             audience = None
             if assertion.conditions and assertion.conditions.audience_restriction:
                 audience = assertion.conditions.audience_restriction[0].audience.text

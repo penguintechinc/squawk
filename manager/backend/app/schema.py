@@ -34,6 +34,8 @@ auth_user = Table(
     Column("sso_provider", String(100)),  # SSO provider name (null if local auth)
     Column("sso_subject", String(500)),  # IdP-specific user identifier (e.g. sub claim)
     Column("external_id", String(255), unique=True, index=True),  # SCIM provisioning identifier
+    Column("failed_login_count", Integer, nullable=False, server_default="0"),  # Lockout tracking
+    Column("locked_until", DateTime),  # Exponential-backoff lockout expiry, NULL when not locked
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )

@@ -5,12 +5,14 @@ Handles MFA enrollment, activation, verification, and disabling.
 Endpoints require authentication except mfa-verify which uses pre-auth token.
 """
 
+from datetime import datetime
+
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required, get_current_user
 from app.services.auth_service import AuthService
 from app.services.mfa_service import MFAService
 from app.utils.decorators import validate_json, audit_log
-from werkzeug.exceptions import BadRequest
+from app.extensions import limiter
 
 mfa_bp = Blueprint('mfa', __name__)
 
@@ -192,6 +194,7 @@ def disable():
 
 
 @mfa_bp.route('/api/v1/auth/mfa-verify', methods=['POST'])
+@limiter.limit('10/minute')
 @validate_json('pre_auth_token')
 def mfa_verify():
     """
@@ -227,6 +230,21 @@ def mfa_verify():
     payload = MFAService.decode_pre_auth_token(pre_auth_token)
     if not payload:
         return jsonify({'error': 'Invalid or expired pre-auth token'}), 401
+
+    # Single-use: a pre-auth token grants exactly one verification attempt.
+    # Without this, an attacker who obtains a pre-auth token (e.g. via a
+    # shared device or intercepted response) could throw unlimited TOTP
+    # guesses at it for its full 5-minute validity window. Consume the jti
+    # immediately -- before checking the code -- so it's burned regardless
+    # of whether this attempt succeeds or fails.
+    jti = payload.get('jti')
+    if not jti or AuthService.is_jti_consumed(jti):
+        return jsonify({'error': 'Invalid or expired pre-auth token'}), 401
+    AuthService.consume_jti(
+        jti, payload.get('user_id'),
+        datetime.utcfromtimestamp(payload['exp']),
+        reason='mfa_verify_attempted'
+    )
 
     user_id = payload['user_id']
     db = current_app.db

@@ -148,6 +148,75 @@ class AuthService:
         return jwt.encode(payload, jwt_secret, algorithm='HS256')
 
     @staticmethod
+    def decode_server_jwt_with_grace(token: str, jwt_secret: str,
+                                     grace_seconds: int = 300) -> Optional[Dict]:
+        """Verify a server JWT allowing a short post-expiry grace window.
+
+        Used only as proof-of-identity for gRPC `RefreshToken`: a caller
+        presenting its own (possibly just-expired) server JWT demonstrates it
+        once held a valid credential for this server_id, without granting an
+        unbounded replay window. The signature is still fully verified over
+        the server's stored secret; only `exp`/`iat` get a bounded leeway.
+
+        Returns:
+            Decoded payload if signature is valid and type == 'server',
+            None otherwise (bad signature, wrong type, or beyond grace).
+        """
+        try:
+            payload = jwt.decode(
+                token, jwt_secret, algorithms=['HS256'],
+                options={'require': ['exp', 'iat']},
+                leeway=grace_seconds,
+            )
+        except (ExpiredSignatureError, InvalidSignatureError, InvalidTokenError):
+            return None
+
+        if payload.get('type') != 'server':
+            return None
+
+        return payload
+
+    @staticmethod
+    def verify_server_jwt_from_db(db, token: str) -> Optional[int]:
+        """Verify a legacy per-server JWT and return its server_id claim.
+
+        Decodes the token *unverified* only to discover which server's
+        secret to re-verify against, then fully verifies signature and
+        expiry using that server's stored secret. Returns None on any
+        failure (missing/unknown server, bad signature, expired, wrong
+        type). Shared by the REST `server_token_required` middleware path
+        and the gRPC server-auth interceptor so both enforce an identical
+        check against a caller-supplied server identity.
+
+        Args:
+            db: penguin-dal DB instance (must expose `dns_server`).
+            token: Bearer token string (no "Bearer " prefix).
+
+        Returns:
+            The verified server_id, or None if the token does not prove a
+            valid, current identity for any known server.
+        """
+        try:
+            unverified = jwt.decode(token, options={"verify_signature": False})
+        except Exception:
+            return None
+
+        server_id = unverified.get('server_id')
+        token_type = unverified.get('type')
+        if not server_id or token_type != 'server':
+            return None
+
+        server = db.dns_server[server_id]
+        if not server:
+            return None
+
+        payload = AuthService.decode_token(token, server.jwt_secret)
+        if not payload:
+            return None
+
+        return server_id
+
+    @staticmethod
     def decode_token(token: str, secret_key: Optional[str] = None) -> Optional[Dict]:
         """
         Decode and validate JWT token.
@@ -199,8 +268,16 @@ class AuthService:
         """
         Authenticate user with username and password.
 
+        Enforces account lockout with exponential backoff after repeated
+        failed attempts: once `LOGIN_LOCKOUT_THRESHOLD` consecutive failures
+        accumulate, the account is locked for an exponentially increasing
+        window (capped at `LOGIN_LOCKOUT_MAX_SECONDS`), independent of any
+        IP-based rate limiting -- this defends against slow/distributed
+        brute force that a per-IP limit alone would not catch.
+
         Returns:
-            User dict if authenticated, None otherwise
+            User dict if authenticated, None otherwise (invalid credentials,
+            inactive account, or currently locked out).
         """
         db = current_app.db
 
@@ -208,8 +285,35 @@ class AuthService:
         if not user or not user.active:
             return None
 
-        if not AuthService.verify_password(password, user.password_hash):
+        now = datetime.utcnow()
+        locked_until = user.get('locked_until')
+        if locked_until and locked_until > now:
             return None
+
+        if not AuthService.verify_password(password, user.password_hash):
+            threshold = current_app.config.get('LOGIN_LOCKOUT_THRESHOLD', 5)
+            base_seconds = current_app.config.get('LOGIN_LOCKOUT_BASE_SECONDS', 30)
+            max_seconds = current_app.config.get('LOGIN_LOCKOUT_MAX_SECONDS', 3600)
+
+            failed_count = (user.get('failed_login_count') or 0) + 1
+            update_fields = {'failed_login_count': failed_count}
+
+            if failed_count >= threshold:
+                backoff_seconds = min(
+                    base_seconds * (2 ** (failed_count - threshold)), max_seconds
+                )
+                update_fields['locked_until'] = now + timedelta(seconds=backoff_seconds)
+
+            db(db.auth_user.id == user.id).update(**update_fields)
+            db.commit()
+            return None
+
+        # Successful login: reset lockout state.
+        if (user.get('failed_login_count') or 0) or user.get('locked_until'):
+            db(db.auth_user.id == user.id).update(
+                failed_login_count=0, locked_until=None
+            )
+            db.commit()
 
         # Get user's team roles
         team_roles = {}
@@ -251,6 +355,27 @@ class AuthService:
         """True if the refresh-token jti has been revoked (rotation/logout)."""
         db = current_app.db
         return bool(db(db.revoked_token.jti == jti).count())
+
+    @staticmethod
+    def is_jti_consumed(jti: str) -> bool:
+        """True if a jti already appears on the shared denylist.
+
+        Public alias of `is_refresh_token_revoked`: the same `revoked_token`
+        table doubles as a generic single-use-jti denylist (refresh-token
+        rotation, MFA pre-auth token consumption).
+        """
+        return AuthService.is_refresh_token_revoked(jti)
+
+    @staticmethod
+    def consume_jti(jti: str, user_id: Optional[int], expires_at: datetime,
+                    reason: str) -> None:
+        """Mark a jti as consumed/revoked on the shared denylist.
+
+        Public wrapper around `_revoke_jti` for callers outside this class
+        (e.g. the MFA pre-auth token single-use check) that need to burn a
+        jti without going through the refresh-token-specific methods.
+        """
+        AuthService._revoke_jti(jti, user_id, expires_at, reason)
 
     @staticmethod
     def revoke_refresh_token(refresh_token: str, reason: str = 'logout') -> bool:

@@ -36,6 +36,11 @@ message RegisterResponse {
 message RefreshTokenRequest {
   string jwt = 1;
   string server_id = 2;
+  // Fallback proof-of-identity when no current/near-expiry `jwt` is held
+  // yet (e.g. first refresh shortly after registration). The server must
+  // still prove it controls this exact server_id -- see
+  // ManagerServicer.RefreshToken.
+  string join_key = 3;
 }
 
 message RefreshTokenResponse {

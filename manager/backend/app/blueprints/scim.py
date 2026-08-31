@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from flask import Blueprint, request, jsonify, current_app
 import logging
 
 from app.services.scim_service import SCIMTokenService
 from app.services.auth_service import AuthService
 from app.services.license_service import LicenseService
+from app.extensions import limiter
 
 logger = logging.getLogger(__name__)
 scim_bp = Blueprint('scim', __name__, url_prefix='/scim/v2')
@@ -303,6 +304,7 @@ def get_user(user_id: str):
 
 
 @scim_bp.route('/Users', methods=['POST'])
+@limiter.limit('20/minute')
 def create_user():
     """JIT create a user (provisioning).
 
@@ -498,6 +500,7 @@ def delete_user(user_id: str):
 # ── Admin Endpoints (Gated by Scope) ────────────────────────────────────────
 
 @scim_bp.route('/admin/tokens', methods=['POST'])
+@limiter.limit('5/minute')
 def mint_scim_token():
     """Mint a new SCIM bearer token (admin only, enterprise tier required).
 
@@ -516,7 +519,6 @@ def mint_scim_token():
         }
     """
     # Check user has admin:super scope
-    from flask import g
     from app.middleware import verify_jwt, has_scope
 
     # Verify caller is authenticated user (not SCIM bearer)
@@ -549,7 +551,6 @@ def mint_scim_token():
 @scim_bp.route('/admin/tokens/<token_id>', methods=['DELETE'])
 def revoke_scim_token(token_id: str):
     """Revoke a SCIM token (admin only)."""
-    from flask import g
     from app.middleware import verify_jwt, has_scope
 
     token_payload = verify_jwt(request.headers.get('Authorization', ''))

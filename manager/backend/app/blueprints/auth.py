@@ -7,12 +7,14 @@ from flask import Blueprint, request, jsonify, current_app
 from app.services.auth_service import AuthService
 from app.middleware.auth import token_required, get_current_user
 from app.utils.decorators import validate_json, audit_log
+from app.extensions import limiter
 import json
 
 auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/api/v1/auth/login', methods=['POST'])
+@limiter.limit('10/minute')
 @validate_json('username', 'password')
 @audit_log('user_login')
 def login():
@@ -82,6 +84,7 @@ def login():
 
 
 @auth_bp.route('/api/v1/auth/refresh', methods=['POST'])
+@limiter.limit('20/minute')
 @validate_json('refreshToken')
 def refresh():
     """
@@ -182,6 +185,7 @@ def me():
 
 
 @auth_bp.route('/api/v1/auth/change-password', methods=['POST'])
+@limiter.limit('5/minute')
 @token_required
 @validate_json('current_password', 'new_password')
 @audit_log('password_changed')
@@ -224,6 +228,7 @@ def change_password():
 
 
 @auth_bp.route('/api/v1/auth/token', methods=['POST'])
+@limiter.limit('30/minute')
 def token():
     """
     OAuth2 token endpoint supporting multiple grant types.

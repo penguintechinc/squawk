@@ -6,7 +6,6 @@ No real AWS credentials or KMS calls — uses mocked boto3.
 """
 
 import os
-import sys
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 
@@ -16,11 +15,13 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
-
-# Suppress the penguin_limiter mock during imports
-sys.modules['penguin_limiter'] = MagicMock()
-sys.modules['penguin_limiter.storage'] = MagicMock()
-sys.modules['penguin_limiter.storage.redis_store'] = MagicMock()
+# NOTE: penguin_limiter is mocked once, globally, in conftest.py -- do not
+# re-mock it here. A second `sys.modules['penguin_limiter'] = MagicMock()`
+# at collection time would clobber conftest's fake (whose `.limit()` behaves
+# as an identity decorator) with a bare MagicMock, and MagicMock's default
+# call behavior (returns a fresh mock, discarding the wrapped function)
+# breaks every blueprint route decorated with @limiter.limit(...) for the
+# rest of the test session.
 
 
 class TestLocalPemProvider:
@@ -184,7 +185,6 @@ class TestAwsKmsProvider:
         """AwsKmsProvider.sign calls KMS and converts DER to raw signature."""
         from app.services.signing_provider import AwsKmsProvider
         from app.utils.crypto import generate_ephemeral_es256_keypair
-        from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
         import hashlib
 
         private_pem, public_pem = generate_ephemeral_es256_keypair()

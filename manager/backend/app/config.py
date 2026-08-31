@@ -66,6 +66,19 @@ class Config:
     RATELIMIT_STORAGE_URL = REDIS_URL
     RATELIMIT_DEFAULT = os.getenv('RATE_LIMIT_DEFAULT', '100/hour')
 
+    # Trusted reverse-proxy hop count for Werkzeug's ProxyFix. Only the
+    # client IP forwarded by exactly this many trusted hops is honored;
+    # everything beyond it (including client-supplied X-Forwarded-For
+    # entries) is ignored. Must match the actual number of proxies
+    # (ingress/gateway) in front of this service, or the rate limiter can be
+    # bypassed by a spoofed header.
+    TRUSTED_PROXY_HOP_COUNT = int(os.getenv('TRUSTED_PROXY_HOP_COUNT', 1))
+
+    # Account lockout / exponential backoff after repeated failed logins.
+    LOGIN_LOCKOUT_THRESHOLD = int(os.getenv('LOGIN_LOCKOUT_THRESHOLD', 5))
+    LOGIN_LOCKOUT_BASE_SECONDS = int(os.getenv('LOGIN_LOCKOUT_BASE_SECONDS', 30))
+    LOGIN_LOCKOUT_MAX_SECONDS = int(os.getenv('LOGIN_LOCKOUT_MAX_SECONDS', 3600))
+
     # Server
     MAX_WORKERS = int(os.getenv('MAX_WORKERS', 4))
     MAX_CONCURRENT_REQUESTS = int(os.getenv('MAX_CONCURRENT_REQUESTS', 1000))

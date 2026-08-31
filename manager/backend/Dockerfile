@@ -7,8 +7,13 @@
 FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc AS base
 
 # Install system dependencies
+# xmlsec1: pysaml2's SAML assertion signature verification shells out to
+# this binary (saml2.sigver.CryptoBackendXmlSec1) -- without it,
+# Saml2Client/Saml2Config raise SigverError before ever comparing a
+# signature, i.e. SAML SSO silently fails closed instead of actually
+# verifying anything.
 RUN apt-get update && apt-get install -y \
-    build-essential libpq-dev ca-certificates curl && \
+    build-essential libpq-dev ca-certificates curl xmlsec1 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM base AS backend

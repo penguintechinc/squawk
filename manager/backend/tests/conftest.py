@@ -8,6 +8,7 @@ Includes ES256 JWT keypair fixtures for asymmetric token signing/verification.
 
 import os
 import sys
+import types
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,10 +18,67 @@ from sqlalchemy import create_engine, text
 # Ensure app package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Mock penguin_limiter which is not yet published
-sys.modules['penguin_limiter'] = MagicMock()
-sys.modules['penguin_limiter.storage'] = MagicMock()
-sys.modules['penguin_limiter.storage.redis_store'] = MagicMock()
+
+# Mock penguin_limiter which is not yet published. `.limit(...)` MUST behave
+# as an identity decorator here -- a plain MagicMock's default behavior
+# (calling a mock returns a *fresh* mock, discarding the wrapped view
+# function) would silently replace every rate-limited route with a mock
+# object, breaking Flask routing and any @wraps()-based decorator layered on
+# top (MagicMock has no __name__, so functools.wraps raises AttributeError).
+class FlaskRateLimiter:
+    """Test double for penguin_limiter.FlaskRateLimiter: no-op everywhere.
+
+    Named to match the real class (tests assert on __class__.__name__ to
+    tell "mocked" from "real dependency present" apart). Stores
+    config/storage/key_func under the same private attribute names as the
+    real class so tests can introspect app/extensions.py's wiring (e.g.
+    skip_private_ips, key_func identity) consistently whether or not the
+    real penguin_limiter package is installed.
+    """
+
+    def __init__(self, config=None, storage=None, key_func=None, *args, **kwargs):
+        self._config = config
+        self._storage = storage
+        self._key_func = key_func
+
+    def init_app(self, app):
+        pass
+
+    def limit(self, *args, **kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+
+    def exempt(self, fn):
+        return fn
+
+
+class RateLimitConfig:
+    def __init__(self, *args, skip_private_ips=True, **kwargs):
+        self.skip_private_ips = skip_private_ips
+
+    @classmethod
+    def from_string(cls, *args, **kwargs):
+        return cls(**kwargs)
+
+
+class MemoryStorage:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+_fake_penguin_limiter = types.ModuleType('penguin_limiter')
+_fake_penguin_limiter.FlaskRateLimiter = FlaskRateLimiter
+_fake_penguin_limiter.RateLimitConfig = RateLimitConfig
+_fake_penguin_limiter.MemoryStorage = MemoryStorage
+
+_fake_storage_pkg = types.ModuleType('penguin_limiter.storage')
+_fake_redis_store = types.ModuleType('penguin_limiter.storage.redis_store')
+_fake_redis_store.RedisStorage = MagicMock()
+
+sys.modules['penguin_limiter'] = _fake_penguin_limiter
+sys.modules['penguin_limiter.storage'] = _fake_storage_pkg
+sys.modules['penguin_limiter.storage.redis_store'] = _fake_redis_store
 
 
 @pytest.fixture(scope="session")

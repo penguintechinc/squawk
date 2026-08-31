@@ -7,6 +7,7 @@ import os
 
 from flask import Flask
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import Config
 from app.db import init_db
@@ -17,6 +18,18 @@ def create_app(config_class: type = Config) -> Flask:
     """Create and configure Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Trust exactly N reverse-proxy hops (ingress/gateway) for
+    # X-Forwarded-For/-Proto/-Host/-Port/-Prefix. Without this, Werkzeug's
+    # request.remote_addr is either the raw TCP peer (the proxy itself, if
+    # one sits in front) or -- if a header is trusted blindly elsewhere --
+    # whatever a client chooses to send. ProxyFix rewrites remote_addr using
+    # only the trusted hop, so header spoofing beyond that hop is ignored.
+    hop_count = app.config.get('TRUSTED_PROXY_HOP_COUNT', 1)
+    app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+        app.wsgi_app, x_for=hop_count, x_proto=hop_count,
+        x_host=hop_count, x_port=hop_count, x_prefix=hop_count
+    )
 
     # Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
     from app.observability import init_tracing
@@ -52,23 +65,11 @@ def create_app(config_class: type = Config) -> Flask:
         )
         return response
 
-    # Rate limiting via penguin-limiter
-    from penguin_limiter import FlaskRateLimiter, MemoryStorage, RateLimitConfig
-
-    _limit_str = app.config.get("RATELIMIT_DEFAULT", "100/hour")
-    _storage_url = app.config.get("RATELIMIT_STORAGE_URL")
-
-    if _storage_url:
-        import redis
-        from penguin_limiter.storage.redis_store import RedisStorage
-        _storage = RedisStorage(client=redis.Redis.from_url(_storage_url))
-    else:
-        _storage = MemoryStorage()
-
-    limiter = FlaskRateLimiter(
-        config=RateLimitConfig.from_string(_limit_str),
-        storage=_storage,
-    )
+    # Rate limiting via penguin-limiter. The limiter instance itself is a
+    # module-level singleton (app/extensions.py) so blueprint modules can
+    # decorate individual routes with @limiter.limit(...) at import time;
+    # here we just bind the global before/after-request hook to this app.
+    from app.extensions import limiter
     limiter.init_app(app)
     app.limiter = limiter
 

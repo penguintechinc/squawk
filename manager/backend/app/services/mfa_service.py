@@ -7,6 +7,7 @@ Uses pyotp for TOTP generation and cryptography for secret encryption.
 
 import json
 import secrets
+import uuid
 from typing import Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -169,6 +170,10 @@ class MFAService:
             'user_id': user_id,
             'type': 'pre_auth',
             'scope': 'mfa:verify',
+            # Unique token id: lets the mfa-verify endpoint consume this
+            # token on first use, capping it to a single verification
+            # attempt instead of unlimited guesses within its 5-min window.
+            'jti': str(uuid.uuid4()),
             'exp': datetime.utcnow() + timedelta(minutes=5),
             'iat': datetime.utcnow()
         }

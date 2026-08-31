@@ -226,9 +226,19 @@ def update_saml_provider(provider_id: int):
                 'detail': str(e)
             }), 400
 
-    # Update fields
-    db(db.saml_providers.id == provider_id).update(**data)
-    db.commit()
+    # Update only allowlisted fields — never mass-assign the raw request
+    # body (would let a caller overwrite id/name/tenant, mirrors
+    # sso_admin.py's update_sso_provider pattern).
+    update_fields = {}
+    for field in ['display_name', 'idp_entity_id', 'idp_sso_url', 'idp_x509_cert',
+                  'sp_entity_id', 'sp_acs_url', 'name_id_format',
+                  'want_assertions_signed', 'enabled']:
+        if field in data:
+            update_fields[field] = data[field]
+
+    if update_fields:
+        db(db.saml_providers.id == provider_id).update(**update_fields)
+        db.commit()
 
     return jsonify({
         'id': provider_id,

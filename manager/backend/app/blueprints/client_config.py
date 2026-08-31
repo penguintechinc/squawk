@@ -6,7 +6,8 @@ Handles client configuration management and retrieval.
 import os
 from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
-from app.middleware.auth import token_required
+from app.middleware.auth import token_required, get_current_user
+from app.middleware.rbac import requires_scope
 from app.utils.responses import internal_error
 
 client_config_bp = Blueprint('client_config', __name__)
@@ -15,6 +16,17 @@ client_config_bp = Blueprint('client_config', __name__)
 def _get_deployment_id() -> str:
     """Get stable deployment identifier for PostHog flag checks."""
     return os.getenv('HOSTNAME', 'squawk-manager')
+
+
+def _actor_id() -> str:
+    """Identify the caller for audit attribution from the authenticated
+    JWT (g.current_user), never from a client-supplied header — an
+    X-User-ID header can be set to any value by the caller.
+    """
+    user = get_current_user()
+    if not user:
+        return 'unknown'
+    return str(user.get('user_id') or user.get('username') or 'unknown')
 
 
 def _check_client_config_flag():
@@ -48,6 +60,7 @@ def _check_client_config_flag():
 
 @client_config_bp.route('/api/v1/client-config/domains', methods=['POST'])
 @token_required
+@requires_scope('config:write')
 @_check_client_config_flag()
 def create_domain():
     """
@@ -86,7 +99,7 @@ def create_domain():
         result = client_config_mgr.create_deployment_domain(
             name=name,
             description=description,
-            created_by=request.headers.get('X-User-ID', 'unknown'),
+            created_by=_actor_id(),
         )
 
         if result.get('success'):
@@ -101,6 +114,7 @@ def create_domain():
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/jwt-rollover',
                          methods=['POST'])
 @token_required
+@requires_scope('config:admin')
 @_check_client_config_flag()
 def rollover_jwt(domain_id: int):
     """
@@ -123,7 +137,7 @@ def rollover_jwt(domain_id: int):
         client_config_mgr = current_app.client_config_manager
         result = client_config_mgr.rollover_domain_jwt(
             domain_id=domain_id,
-            admin_user=request.headers.get('X-User-ID', 'unknown'),
+            admin_user=_actor_id(),
         )
 
         if result.get('success'):
@@ -138,6 +152,7 @@ def rollover_jwt(domain_id: int):
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/configs',
                          methods=['POST'])
 @token_required
+@requires_scope('config:write')
 @_check_client_config_flag()
 def create_config(domain_id: int):
     """
@@ -184,7 +199,7 @@ def create_config(domain_id: int):
             domain_id=domain_id,
             config_data=config_data,
             description=description,
-            created_by=request.headers.get('X-User-ID', 'unknown'),
+            created_by=_actor_id(),
         )
 
         if result.get('success'):
@@ -199,6 +214,7 @@ def create_config(domain_id: int):
 @client_config_bp.route('/api/v1/client-config/configs/<int:config_id>',
                          methods=['PUT'])
 @token_required
+@requires_scope('config:write')
 @_check_client_config_flag()
 def update_config(config_id: int):
     """
@@ -237,7 +253,7 @@ def update_config(config_id: int):
             config_id=config_id,
             config_data=config_data,
             description=description,
-            changed_by=request.headers.get('X-User-ID', 'unknown'),
+            changed_by=_actor_id(),
         )
 
         if result.get('success'):
@@ -357,6 +373,7 @@ def pull_config():
 
 @client_config_bp.route('/api/v1/client-config/assign', methods=['POST'])
 @token_required
+@requires_scope('config:write')
 @_check_client_config_flag()
 def assign_config():
     """
@@ -390,7 +407,7 @@ def assign_config():
         result = client_config_mgr.assign_config_to_client(
             client_id=data.get('client_id'),
             config_id=data.get('config_id'),
-            assigned_by=request.headers.get('X-User-ID', 'unknown'),
+            assigned_by=_actor_id(),
         )
 
         if result.get('success'):
@@ -405,6 +422,7 @@ def assign_config():
 @client_config_bp.route('/api/v1/client-config/domains/<int:domain_id>/clients',
                          methods=['GET'])
 @token_required
+@requires_scope('config:read')
 @_check_client_config_flag()
 def get_domain_clients(domain_id: int):
     """
@@ -437,6 +455,7 @@ def get_domain_clients(domain_id: int):
 
 @client_config_bp.route('/api/v1/client-config/stats', methods=['GET'])
 @token_required
+@requires_scope('config:read')
 @_check_client_config_flag()
 def get_stats():
     """

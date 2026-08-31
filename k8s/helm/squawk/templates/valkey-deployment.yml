@@ -33,8 +33,17 @@ spec:
           protocol: TCP
         resources:
           {{- toYaml .Values.valkey.resources | nindent 10 }}
+        volumeMounts:
+        # readOnlyRootFilesystem forbids writes to the image's default
+        # WORKDIR (/data); valkey-server's default save points (RDB
+        # snapshotting) need a writable /data or it fails on write.
+        - name: data
+          mountPath: /data
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
@@ -50,3 +59,6 @@ spec:
             - ping
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+      - name: data
+        emptyDir: {}

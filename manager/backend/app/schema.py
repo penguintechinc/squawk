@@ -140,7 +140,11 @@ dns_server = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(100), nullable=False),
-    Column("join_key", String(64), unique=True, nullable=False),
+    # SHA-256 hex digest of the join key; plaintext shown once at
+    # create/regenerate, never stored (looked up by hash, see JoinKeyService).
+    Column("join_key_hash", String(64), unique=True, nullable=False, index=True),
+    # Fernet-encrypted at rest (recoverable -- used as the HMAC signing/
+    # verification secret for server JWTs; see app.utils.crypto.get_fernet_cipher).
     Column("jwt_secret", String(255), nullable=False),
     Column("status", String(20), nullable=False, server_default="offline"),
     Column("last_heartbeat", DateTime),
@@ -265,7 +269,10 @@ token = Table(
     "token",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("token", String(255), unique=True, nullable=False),
+    # SHA-256 hex digest of the DNS auth token; plaintext shown once at
+    # create/regenerate, never stored (looked up by hash on every DNS query,
+    # see AuthService.validate_dns_token).
+    Column("token_hash", String(64), unique=True, nullable=False, index=True),
     Column("name", String(100), nullable=False),
     Column("team_id", Integer, ForeignKey("team.id", ondelete="CASCADE")),
     Column("created_by", Integer, ForeignKey("auth_user.id",
@@ -276,7 +283,7 @@ token = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, onupdate=func.now()),
 )
-Index("idx_token_active", token.c.token, token.c.active)
+Index("idx_token_active", token.c.token_hash, token.c.active)
 
 # ── WHOIS Cache ─────────────────────────────────────────────────────────────
 
@@ -469,7 +476,11 @@ deployment_domain = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(100), unique=True, nullable=False),
     Column("description", Text),
-    Column("jwt_token", String(512), unique=True, nullable=False),
+    # SHA-256 hex digest of the current signed domain JWT. The JWT itself is
+    # self-verifying (ES256/RS256 signature); the hash only enables the
+    # revocation/rollover equality check without keeping a long-lived (365
+    # day) bearer credential readable at rest.
+    Column("jwt_token_hash", String(64), unique=True, nullable=False),
     Column("jwt_expires", DateTime, nullable=False),
     Column("active", Boolean, nullable=False, server_default="1"),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),

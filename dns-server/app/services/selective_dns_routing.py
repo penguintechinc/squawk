@@ -10,6 +10,7 @@ Core concept:
 - Same DNS endpoint serves different responses based on user's group membership
 """
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -84,8 +85,11 @@ class SelectiveDNSRouter:
         db = self._get_db()
 
         try:
-            # Look up token in the token table
-            token_record = db(db.token.token == token).select().first()
+            # Look up token by its SHA-256 hash -- the `token` table only
+            # persists `token_hash` at rest (see [[fix-token-hash-at-rest]]),
+            # never the plaintext value.
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            token_record = db(db.token.token_hash == token_hash).select().first()
             if token_record:
                 return token_record.id
             return None

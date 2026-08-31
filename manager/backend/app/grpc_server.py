@@ -198,10 +198,19 @@ class ManagerServicer:
 
             authenticated = False
 
+            # jwt_secret is Fernet-encrypted at rest; decrypt before use as
+            # the HMAC verification key. A corrupted/foreign ciphertext must
+            # fail closed (treated as "no valid proof presented"), not crash
+            # the RPC.
+            try:
+                decrypted_secret = JoinKeyService.decrypt_jwt_secret(server.jwt_secret)
+            except Exception:
+                decrypted_secret = None
+
             presented_jwt = (request.jwt or '').strip()
-            if presented_jwt:
+            if presented_jwt and decrypted_secret is not None:
                 claims = AuthService.decode_server_jwt_with_grace(
-                    presented_jwt, server.jwt_secret
+                    presented_jwt, decrypted_secret
                 )
                 if claims is not None and claims.get('server_id') == server_id:
                     authenticated = True
@@ -226,10 +235,12 @@ class ManagerServicer:
                 return
 
             try:
-                # Generate new JWT
+                # Generate new JWT (re-decrypt: the `authenticated` branch
+                # above may have taken the join_key path, which never
+                # computed decrypted_secret)
                 new_jwt = AuthService.create_server_jwt(
                     server_id=server.id,
-                    jwt_secret=server.jwt_secret
+                    jwt_secret=JoinKeyService.decrypt_jwt_secret(server.jwt_secret)
                 )
 
                 return manager_service_pb2.RefreshTokenResponse(jwt=new_jwt)

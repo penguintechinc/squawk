@@ -2,7 +2,6 @@
 import os
 import sys
 
-import pytest
 from sqlalchemy import inspect
 
 # Ensure app package is importable
@@ -46,9 +45,12 @@ def test_config_tables_exist(db):
     assert 'feed_type' in ioc_cols
     assert 'active' in ioc_cols
 
-    # Check token columns
+    # Check token columns. Plaintext `token` is intentionally not a column
+    # (hashed at rest, see [[fix-token-hash-at-rest]]) -- assert the hash
+    # column instead.
     token_cols = [col['name'] if isinstance(col, dict) else col.name for col in insp.get_columns('token')]
-    assert 'token' in token_cols
+    assert 'token_hash' in token_cols
+    assert 'token' not in token_cols
 
 
 def test_dns_tables_exist(db):

@@ -18,11 +18,19 @@ construction isn't exercised here. `manager_service_pb2` is monkeypatched
 with a tiny fake for the two RefreshToken success-path assertions that need
 to build a `RefreshTokenResponse`; the rejection paths (the security-
 relevant behavior) don't touch it at all.
+
+`dns_server` rows now store `join_key_hash`/an encrypted `jwt_secret`
+(see [[fix-token-hash-at-rest]]) -- `_insert_dns_server()` below hashes/
+encrypts on insert exactly like JoinKeyService does at runtime, and returns
+the plaintext values the tests need to build requests/tokens with, since
+`server.join_key`/`server.jwt_secret` read back from the row are no longer
+usable as-is.
 """
 
 from __future__ import annotations
 
 import types
+from dataclasses import dataclass
 from datetime import timedelta
 
 import grpc
@@ -30,6 +38,29 @@ import pytest
 
 from app import grpc_server as gs
 from app.services.auth_service import AuthService
+from app.services.join_key_service import JoinKeyService
+
+
+@dataclass(slots=True)
+class _ServerFixture:
+    """Plaintext join_key/jwt_secret alongside the inserted row id -- the DB
+    row itself only ever stores the hash/encrypted form."""
+    id: int
+    join_key: str
+    jwt_secret: str
+
+
+def _insert_dns_server(db, *, name: str, join_key: str, jwt_secret: str, **kwargs) -> int:
+    """Insert a dns_server row with hashed join_key / encrypted jwt_secret,
+    mirroring JoinKeyService.create_dns_server's at-rest handling."""
+    server_id = db.dns_server.insert(
+        name=name,
+        join_key_hash=JoinKeyService.hash_join_key(join_key),
+        jwt_secret=JoinKeyService.encrypt_jwt_secret(jwt_secret),
+        **kwargs,
+    )
+    db.commit()
+    return server_id
 
 
 class _FakeContext:
@@ -38,7 +69,7 @@ class _FakeContext:
 
     class Aborted(Exception):
         def __init__(self, code, details):
-            super().__init__(details)
+            super().__init__(code, details)
             self.code = code
             self.details = details
 
@@ -128,16 +159,12 @@ def test_valid_server_jwt_allows_through(app, db):
     """A caller presenting a genuine, current server JWT for a real
     dns_server row reaches the real handler unchanged."""
     with app.app_context():
-        server_id = db.dns_server.insert(
-            name='grpc-test-server',
-            join_key='k' * 64,
-            jwt_secret='s' * 40,
-            region='us-east',
-            status='online',
+        plaintext_secret = 's' * 40
+        server_id = _insert_dns_server(
+            db, name='grpc-test-server', join_key='k' * 64,
+            jwt_secret=plaintext_secret, region='us-east', status='online',
         )
-        db.commit()
-        server = db.dns_server[server_id]
-        token = AuthService.create_server_jwt(server_id=server.id, jwt_secret=server.jwt_secret)
+        token = AuthService.create_server_jwt(server_id=server_id, jwt_secret=plaintext_secret)
 
     interceptor = gs.ServerAuthInterceptor(app)
     handler = grpc.unary_unary_rpc_method_handler(lambda req, ctx: "ok")
@@ -157,16 +184,12 @@ def test_server_jwt_for_different_server_still_authenticates_call(app, db):
     path. This test documents that boundary rather than asserting a
     resource-level check the interceptor itself doesn't perform."""
     with app.app_context():
-        server_id = db.dns_server.insert(
-            name='grpc-test-server-2',
-            join_key='k' * 64,
-            jwt_secret='s' * 40,
-            region='us-east',
-            status='online',
+        plaintext_secret = 's' * 40
+        server_id = _insert_dns_server(
+            db, name='grpc-test-server-2', join_key='k' * 64,
+            jwt_secret=plaintext_secret, region='us-east', status='online',
         )
-        db.commit()
-        server = db.dns_server[server_id]
-        token = AuthService.create_server_jwt(server_id=server.id, jwt_secret=server.jwt_secret)
+        token = AuthService.create_server_jwt(server_id=server_id, jwt_secret=plaintext_secret)
 
     interceptor = gs.ServerAuthInterceptor(app)
     handler = grpc.unary_unary_rpc_method_handler(lambda req, ctx: "ok")
@@ -196,22 +219,22 @@ class _RefreshRequest:
 @pytest.fixture
 def dns_server_row(app, db):
     with app.app_context():
-        server_id = db.dns_server.insert(
-            name='refresh-test-server',
-            join_key='j' * 64,
-            jwt_secret='r' * 40,
-            region='us-east',
-            status='online',
+        plaintext_join_key = 'j' * 64
+        plaintext_jwt_secret = 'r' * 40
+        server_id = _insert_dns_server(
+            db, name='refresh-test-server', join_key=plaintext_join_key,
+            jwt_secret=plaintext_jwt_secret, region='us-east', status='online',
         )
-        db.commit()
-        return server_id
+        return _ServerFixture(
+            id=server_id, join_key=plaintext_join_key, jwt_secret=plaintext_jwt_secret
+        )
 
 
 def test_refresh_token_rejects_with_no_proof(app, dns_server_row):
     with app.app_context():
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row))
+        request = _RefreshRequest(server_id=str(dns_server_row.id))
 
         with pytest.raises(_FakeContext.Aborted) as exc_info:
             servicer.RefreshToken(request, ctx)
@@ -220,17 +243,16 @@ def test_refresh_token_rejects_with_no_proof(app, dns_server_row):
 
 def test_refresh_token_rejects_jwt_for_wrong_server(app, db, dns_server_row):
     with app.app_context():
-        other_id = db.dns_server.insert(
-            name='other-server', join_key='o' * 64, jwt_secret='o' * 40,
+        other_secret = 'o' * 40
+        other_id = _insert_dns_server(
+            db, name='other-server', join_key='o' * 64, jwt_secret=other_secret,
             region='us-west', status='online',
         )
-        db.commit()
-        other = db.dns_server[other_id]
-        wrong_token = AuthService.create_server_jwt(server_id=other.id, jwt_secret=other.jwt_secret)
+        wrong_token = AuthService.create_server_jwt(server_id=other_id, jwt_secret=other_secret)
 
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row), jwt=wrong_token)
+        request = _RefreshRequest(server_id=str(dns_server_row.id), jwt=wrong_token)
 
         with pytest.raises(_FakeContext.Aborted) as exc_info:
             servicer.RefreshToken(request, ctx)
@@ -241,7 +263,7 @@ def test_refresh_token_rejects_wrong_join_key(app, dns_server_row):
     with app.app_context():
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row), join_key='wrong-key')
+        request = _RefreshRequest(server_id=str(dns_server_row.id), join_key='wrong-key')
 
         with pytest.raises(_FakeContext.Aborted) as exc_info:
             servicer.RefreshToken(request, ctx)
@@ -250,8 +272,9 @@ def test_refresh_token_rejects_wrong_join_key(app, dns_server_row):
 
 def test_refresh_token_accepts_valid_current_jwt(app, db, dns_server_row, monkeypatch):
     with app.app_context():
-        server = db.dns_server[dns_server_row]
-        current_token = AuthService.create_server_jwt(server_id=server.id, jwt_secret=server.jwt_secret)
+        current_token = AuthService.create_server_jwt(
+            server_id=dns_server_row.id, jwt_secret=dns_server_row.jwt_secret
+        )
 
         fake_pb2 = types.SimpleNamespace(
             RefreshTokenResponse=lambda jwt: types.SimpleNamespace(jwt=jwt)
@@ -260,20 +283,18 @@ def test_refresh_token_accepts_valid_current_jwt(app, db, dns_server_row, monkey
 
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row), jwt=current_token)
+        request = _RefreshRequest(server_id=str(dns_server_row.id), jwt=current_token)
 
         response = servicer.RefreshToken(request, ctx)
         assert response.jwt
         # A server JWT has second-granularity exp/iat and no jti, so two
         # calls within the same second are legitimately byte-identical --
         # assert it's a valid, re-verifiable token rather than "different".
-        assert AuthService.decode_token(response.jwt, server.jwt_secret) is not None
+        assert AuthService.decode_token(response.jwt, dns_server_row.jwt_secret) is not None
 
 
 def test_refresh_token_accepts_valid_join_key(app, db, dns_server_row, monkeypatch):
     with app.app_context():
-        server = db.dns_server[dns_server_row]
-
         fake_pb2 = types.SimpleNamespace(
             RefreshTokenResponse=lambda jwt: types.SimpleNamespace(jwt=jwt)
         )
@@ -281,7 +302,9 @@ def test_refresh_token_accepts_valid_join_key(app, db, dns_server_row, monkeypat
 
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row), join_key=server.join_key)
+        request = _RefreshRequest(
+            server_id=str(dns_server_row.id), join_key=dns_server_row.join_key
+        )
 
         response = servicer.RefreshToken(request, ctx)
         assert response.jwt
@@ -295,14 +318,13 @@ def test_refresh_token_accepts_near_expiry_jwt_within_grace(app, db, dns_server_
     from datetime import datetime
 
     with app.app_context():
-        server = db.dns_server[dns_server_row]
         payload = {
-            'server_id': server.id,
+            'server_id': dns_server_row.id,
             'type': 'server',
             'exp': datetime.utcnow() - timedelta(seconds=10),
             'iat': datetime.utcnow() - timedelta(hours=24),
         }
-        just_expired = pyjwt.encode(payload, server.jwt_secret, algorithm='HS256')
+        just_expired = pyjwt.encode(payload, dns_server_row.jwt_secret, algorithm='HS256')
 
         fake_pb2 = types.SimpleNamespace(
             RefreshTokenResponse=lambda jwt: types.SimpleNamespace(jwt=jwt)
@@ -311,7 +333,7 @@ def test_refresh_token_accepts_near_expiry_jwt_within_grace(app, db, dns_server_
 
         servicer = gs.ManagerServicer(app)
         ctx = _FakeContext()
-        request = _RefreshRequest(server_id=str(dns_server_row), jwt=just_expired)
+        request = _RefreshRequest(server_id=str(dns_server_row.id), jwt=just_expired)
 
         response = servicer.RefreshToken(request, ctx)
         assert response.jwt

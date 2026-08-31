@@ -12,6 +12,7 @@ Features:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from dataclasses import dataclass
 from functools import wraps
@@ -57,6 +58,14 @@ class OverrideRecord:
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
 
+
+
+def _sha256_hex(value: str) -> str:
+    """Hex-encoded SHA-256 digest, used for at-rest hashing of the
+    deployment-domain JWT (equality-only lookup; see app.utils.crypto for
+    the shared, non-bare-importable equivalent -- duplicated here for the
+    same reason as ``_generate_ephemeral_es256_keypair`` below)."""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _generate_ephemeral_es256_keypair() -> tuple[str, str]:
@@ -269,11 +278,14 @@ class ClientConfigManager:
             # Generate JWT token
             domain_jwt = self._generate_domain_jwt(name)
 
-            # Insert domain
+            # Insert domain. Only the JWT's hash is persisted -- the token is
+            # self-verifying via signature; the hash exists solely to support
+            # the revocation/rollover equality check below without keeping a
+            # long-lived (365 day) bearer credential readable at rest.
             domain_id = db.deployment_domain.insert(
                 name=name,
                 description=description,
-                jwt_token=domain_jwt,
+                jwt_token_hash=_sha256_hex(domain_jwt),
                 jwt_expires=datetime.now() + timedelta(days=365),
                 active=True,
             )
@@ -301,9 +313,9 @@ class ClientConfigManager:
 
             new_jwt = self._generate_domain_jwt(domain.name)
 
-            # Update domain
+            # Update domain (hash only -- see create_deployment_domain)
             db(db.deployment_domain.id == domain_id).update(
-                jwt_token=new_jwt,
+                jwt_token_hash=_sha256_hex(new_jwt),
                 jwt_expires=datetime.now() + timedelta(days=365),
             )
 
@@ -429,10 +441,10 @@ class ClientConfigManager:
             if not domain_name:
                 return None
 
-            # Find domain in database
+            # Find domain in database (hash lookup -- see create_deployment_domain)
             domain = db(
                 (db.deployment_domain.name == domain_name)
-                & (db.deployment_domain.jwt_token == jwt_token)
+                & (db.deployment_domain.jwt_token_hash == _sha256_hex(jwt_token))
                 & (db.deployment_domain.active == True)
             ).select().first()
 
@@ -460,9 +472,10 @@ class ClientConfigManager:
     ) -> Dict[str, Any]:
         """Verify user authentication token with optional mTLS cert validation."""
         try:
-            # Check if token exists and is active
+            # Check if token exists and is active (hash lookup -- see
+            # [[fix-token-hash-at-rest]]; plaintext is never stored)
             token_record = db(
-                (db.token.token == user_token) & (db.token.active == True)
+                (db.token.token_hash == _sha256_hex(user_token)) & (db.token.active == True)
             ).select().first()
 
             if not token_record:

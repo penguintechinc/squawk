@@ -133,8 +133,17 @@ def server_token_required(f):
             if not server:
                 return jsonify({'error': 'Server not found'}), 401
 
+            # jwt_secret is Fernet-encrypted at rest; decrypt before use as
+            # the HMAC verification key. Fail closed on a corrupted/foreign
+            # ciphertext rather than raising through the auth path.
+            from app.services.join_key_service import JoinKeyService
+            try:
+                secret = JoinKeyService.decrypt_jwt_secret(server.jwt_secret)
+            except Exception:
+                return jsonify({'error': 'Invalid or expired server token'}), 401
+
             # Validate with server-specific secret
-            payload = AuthService.decode_token(token, server.jwt_secret)
+            payload = AuthService.decode_token(token, secret)
             if not payload:
                 return jsonify({'error': 'Invalid or expired server token'}), 401
 

@@ -7,7 +7,7 @@ Endpoints require authentication except mfa-verify which uses pre-auth token.
 
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from app.middleware.auth import token_required, get_current_user
 from app.services.auth_service import AuthService
 from app.services.mfa_service import MFAService
@@ -196,6 +196,7 @@ def disable():
 @mfa_bp.route('/api/v1/auth/mfa-verify', methods=['POST'])
 @limiter.limit('10/minute')
 @validate_json('pre_auth_token')
+@audit_log('mfa_verify', resource_type='user')
 def mfa_verify():
     """
     Verify MFA code and issue full JWT tokens.
@@ -247,6 +248,13 @@ def mfa_verify():
     )
 
     user_id = payload['user_id']
+
+    # Attribute the audit event to the account under verification -- there
+    # is no JWT yet at this point (pre-auth token only), so get_current_user()
+    # would otherwise leave actor_id NULL for both success and failure.
+    g.audit_actor_id = user_id
+    g.audit_resource_id = user_id
+
     db = current_app.db
     user_record = db(db.auth_user.id == user_id).select().first()
 

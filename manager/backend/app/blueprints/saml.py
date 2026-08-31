@@ -10,10 +10,10 @@ SAML logins bypass TOTP MFA because the IdP owns MFA.
 """
 
 import secrets
-from flask import Blueprint, request, jsonify, current_app, make_response, redirect
+from flask import Blueprint, request, jsonify, current_app, make_response, redirect, g
 from app.services.saml_service import SAMLService, SAMLConfig
 from app.services.auth_service import AuthService
-from app.utils.decorators import validate_json
+from app.utils.decorators import audit_log
 
 saml_bp = Blueprint('saml', __name__)
 
@@ -23,6 +23,7 @@ BINDING_COOKIE_TTL = 600  # 10 minutes (matches login attempt expiry)
 
 
 @saml_bp.route('/api/v1/auth/saml/<name>/login', methods=['GET'])
+@audit_log('saml_sso_initiated', resource_type='saml_provider')
 def login(name: str):
     """
     Redirect user to IdP's SAML SSO endpoint.
@@ -42,6 +43,7 @@ def login(name: str):
         }), 404
 
     p = provider[0]
+    g.audit_resource_id = p['id']
 
     # Reconstruct SAMLConfig from database record
     config = SAMLConfig(
@@ -77,6 +79,7 @@ def login(name: str):
 
 
 @saml_bp.route('/api/v1/auth/saml/<name>/acs', methods=['POST'])
+@audit_log('saml_login', resource_type='saml_provider')
 def acs(name: str):
     """
     SAML Assertion Consumer Service (ACS): handle IdP callback.
@@ -126,6 +129,7 @@ def acs(name: str):
         }), 404
 
     p = provider[0]
+    g.audit_resource_id = p['id']
 
     # Reconstruct SAMLConfig from database record
     config = SAMLConfig(
@@ -186,6 +190,7 @@ def acs(name: str):
 
     # Fetch user details
     user = db.auth_user[user_id]
+    g.audit_actor_id = user['id']
 
     # Generate tokens (SSO users bypass TOTP)
     access_token, refresh_token = AuthService.create_tokens(

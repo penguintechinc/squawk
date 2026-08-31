@@ -3,7 +3,7 @@ Utility decorators for Squawk DNS Manager.
 """
 
 from functools import wraps
-from flask import jsonify, current_app, request
+from flask import jsonify, current_app, request, g
 import time
 import logging
 import os
@@ -211,6 +211,25 @@ def audit_log(action: str, resource_type: str | None = None):
         @audit_log('token_deleted')  # resource_type inferred from context
         def delete_token(token_id):
             ...
+
+    Pre-auth attribution override:
+        Some security-relevant events (login, MFA verify, SSO/SAML callbacks,
+        token refresh, machine client token grants) happen before
+        get_current_user() has anything to return -- there is no JWT yet, or
+        the caller is a pre-auth/machine identity. For these, the wrapped
+        view may set any of the following on flask.g *before returning* to
+        supply the target/actor identity the decorator can't infer on its
+        own; each falls back to the JWT-derived/kwarg-inferred value above
+        if unset:
+
+            g.audit_actor_id, g.audit_tenant, g.audit_resource_type, g.audit_resource_id
+
+        Example:
+            @audit_log('user_login')
+            def login():
+                ...
+                g.audit_actor_id = target_user_id  # even on failed auth
+                ...
     """
     def decorator(f):
         @wraps(f)
@@ -218,6 +237,18 @@ def audit_log(action: str, resource_type: str | None = None):
             import json
             from datetime import datetime
             from app.middleware.auth import get_current_user
+
+            # Clear any pre-auth attribution left on g by an earlier
+            # request. flask.g is scoped to the *application* context, not
+            # strictly one request -- callers that keep a single app
+            # context open across multiple requests (e.g. `with
+            # app.app_context():` in tests) would otherwise leak one
+            # request's g.audit_* values into the next request that
+            # doesn't set them itself. A normal WSGI request always gets a
+            # fresh app context, so this is a no-op in production.
+            for _attr in ('audit_actor_id', 'audit_tenant', 'audit_resource_type', 'audit_resource_id'):
+                if hasattr(g, _attr):
+                    delattr(g, _attr)
 
             user = get_current_user()
             actor_id = user.get('user_id') if user else None
@@ -236,9 +267,18 @@ def audit_log(action: str, resource_type: str | None = None):
                             inferred_resource_type = key.rsplit('_id' if key.endswith('_id') else 'id', 1)[0]
                         break
 
+            def _apply_g_overrides():
+                """Let the wrapped view supply pre-auth attribution via flask.g."""
+                nonlocal actor_id, tenant, resource_id, inferred_resource_type
+                actor_id = getattr(g, 'audit_actor_id', actor_id)
+                tenant = getattr(g, 'audit_tenant', tenant)
+                resource_id = getattr(g, 'audit_resource_id', resource_id)
+                inferred_resource_type = getattr(g, 'audit_resource_type', inferred_resource_type)
+
             try:
                 # Execute the wrapped function
                 result = f(*args, **kwargs)
+                _apply_g_overrides()
 
                 # Extract outcome from result
                 outcome = 'success'
@@ -255,6 +295,7 @@ def audit_log(action: str, resource_type: str | None = None):
 
             except Exception as e:
                 # Audit the failure, log the error, re-raise
+                _apply_g_overrides()
                 outcome = 'failure'
                 status_code = 500
                 request_id = request.headers.get('X-Request-ID')

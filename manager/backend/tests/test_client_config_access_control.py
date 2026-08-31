@@ -9,6 +9,7 @@ direct app.posthog mutation) is used so the flag override never leaks into
 other test modules sharing the session-scoped `app` fixture.
 """
 
+import hashlib
 import pytest
 
 from app.services.auth_service import AuthService
@@ -70,7 +71,7 @@ def deployment_domain(app):
         db = app.db
         domain_id = db.deployment_domain.insert(
             name='rollover-test-domain',
-            jwt_token='placeholder-jwt',
+            jwt_token_hash=hashlib.sha256(b'placeholder-jwt').hexdigest(),
             jwt_expires=__import__('datetime').datetime.now(),
             active=True,
         )

@@ -210,7 +210,13 @@ class AuthService:
         if not server:
             return None
 
-        payload = AuthService.decode_token(token, server.jwt_secret)
+        from app.services.join_key_service import JoinKeyService
+        try:
+            secret = JoinKeyService.decrypt_jwt_secret(server.jwt_secret)
+        except Exception:
+            return None
+
+        payload = AuthService.decode_token(token, secret)
         if not payload:
             return None
 
@@ -457,7 +463,11 @@ class AuthService:
         """
         db = current_app.db
 
-        token_record = db((db.token.token == token) & (db.token.active == True)).select().first()
+        from app.utils.crypto import sha256_hex
+        token_hash = sha256_hex(token)
+        token_record = db(
+            (db.token.token_hash == token_hash) & (db.token.active == True)
+        ).select().first()
         if not token_record:
             return {'valid': False}
 
@@ -466,7 +476,8 @@ class AuthService:
             return {'valid': False}
 
         # Update last used
-        token_record.update_record(last_used=datetime.utcnow())
+        db(db.token.id == token_record.id).update(last_used=datetime.utcnow())
+        db.commit()
 
         # Get allowed zones for this token's team
         allowed_zones = []

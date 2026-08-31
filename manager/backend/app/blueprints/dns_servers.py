@@ -295,10 +295,10 @@ def refresh_server_token(server_id):
     if not server:
         return jsonify({'error': 'Server not found'}), 404
 
-    # Generate new JWT
+    # Generate new JWT (jwt_secret is Fernet-encrypted at rest; decrypt first)
     new_jwt = AuthService.create_server_jwt(
         server_id=server.id,
-        jwt_secret=server.jwt_secret
+        jwt_secret=JoinKeyService.decrypt_jwt_secret(server.jwt_secret)
     )
 
     return jsonify({

@@ -2,8 +2,58 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
-from typing import Optional, Tuple
+from typing import Tuple
+
+
+def sha256_hex(value: str) -> str:
+    """Return the hex-encoded SHA-256 digest of a UTF-8 string.
+
+    Used for fast, unique-indexed at-rest hashing of high-entropy secrets
+    that are looked up by exact value on every request (DNS resolver
+    tokens, DNS-server join keys, deployment-domain JWTs) -- a plain unique
+    index on the hash gives O(1) lookup, unlike bcrypt which requires an
+    unindexable per-row comparison. NOT for passwords/low-entropy secrets
+    (see bcrypt in AuthService for those).
+    """
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def get_fernet_cipher(info: bytes):
+    """Derive a Fernet cipher from the app's `SECRET_KEY` via HKDF-SHA256.
+
+    `info` scopes the derived key to a single use case (e.g.
+    ``b"dns-server-jwt-secret-encryption"``) so the same `SECRET_KEY` yields
+    independent keys per secret type -- mirrors the pattern already used by
+    MFAService/SSOService/SAMLService, centralized here for reuse.
+
+    Returns:
+        A `cryptography.fernet.Fernet` cipher instance.
+
+    Raises:
+        ValueError: if `SECRET_KEY` is not configured.
+    """
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.backends import default_backend
+    from flask import current_app
+
+    secret_key = current_app.config.get("SECRET_KEY", "").encode("utf-8")
+    if not secret_key:
+        raise ValueError("SECRET_KEY not configured")
+
+    kdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=info,
+        backend=default_backend(),
+    )
+    derived_key = kdf.derive(secret_key)
+    b64_key = base64.urlsafe_b64encode(derived_key)
+    return Fernet(b64_key)
 
 
 def compute_kid_from_public_pem(public_pem: str) -> str:

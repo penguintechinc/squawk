@@ -452,8 +452,9 @@ class WHOISManager:
             existing = db(db.whois_cache.query == query).select().first()
 
             if existing:
-                # Update existing
-                existing.update_record(
+                # Update existing. penguin-dal has no Row.update_record();
+                # use the QuerySet idiom.
+                db(db.whois_cache.id == existing.id).update(
                     query_type=query_type,
                     parsed_data=whois_data,
                     registrar=registrar,

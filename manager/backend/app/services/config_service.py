@@ -208,10 +208,11 @@ class ConfigService:
         """
         db = current_app.db
 
-        # Update server status
+        # Update server status. penguin-dal has no Row.update_record();
+        # use the QuerySet idiom.
         server = db.dns_server[server_id]
         if server:
-            server.update_record(
+            db(db.dns_server.id == server_id).update(
                 status='online',
                 last_heartbeat=datetime.utcnow(),
                 updated_at=datetime.utcnow()

@@ -240,9 +240,12 @@ def update_user(user_id):
     if 'active' in data:
         update_fields['active'] = bool(data['active'])
 
-    # Update user
-    user.update_record(**update_fields)
-    db.commit()
+    # Update user. penguin-dal has no Row.update_record(); use the
+    # QuerySet idiom.
+    if update_fields:
+        db(db.auth_user.id == user.id).update(**update_fields)
+        db.commit()
+        user = db.auth_user[user_id]
 
     return jsonify({
         'id': user.id,
@@ -272,8 +275,9 @@ def delete_user(user_id):
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    # Soft delete
-    user.update_record(active=False)
+    # Soft delete. penguin-dal has no Row.update_record(); use the
+    # QuerySet idiom.
+    db(db.auth_user.id == user.id).update(active=False)
     db.commit()
 
     return jsonify({

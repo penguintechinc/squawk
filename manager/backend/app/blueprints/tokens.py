@@ -239,7 +239,8 @@ def delete_token(token_id):
     if not _can_manage_token(token, get_current_user()):
         return jsonify({'error': 'Access denied'}), 403
 
-    del db.token[token_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.token.id == token_id).delete()
     db.commit()
 
     return jsonify({

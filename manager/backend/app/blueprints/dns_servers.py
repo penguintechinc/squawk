@@ -112,8 +112,9 @@ def delete_dns_server(server_id):
     if not server:
         return jsonify({'error': 'DNS server not found'}), 404
 
-    # Delete server (cascade will delete metrics)
-    del db.dns_server[server_id]
+    # Delete server (cascade will delete metrics).
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet idiom.
+    db(db.dns_server.id == server_id).delete()
     db.commit()
 
     return jsonify({

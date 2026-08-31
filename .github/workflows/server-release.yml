@@ -32,6 +32,9 @@ jobs:
 
       - name: Run tests with coverage
         run: |
+          # Intentionally non-gating: real aggregate coverage has not yet reached
+          # the 98% target here (tracked separately). Do not unmask until the
+          # underlying test-coverage work lands.
           python3 -m pytest dns-server/tests \
             --cov=dns-server/app \
             --cov-report=xml:coverage.xml --cov-report=term-missing \

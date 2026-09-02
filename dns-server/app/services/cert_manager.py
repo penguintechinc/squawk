@@ -439,7 +439,10 @@ class CertManager:
                     NameOID.ORGANIZATIONAL_UNIT_NAME,
                     os.getenv("SERVER_OU", "DNS Server"),
                 ),
-                x509.NameAttribute(NameOID.COMMON_NAME, hostname),
+                # X.509 CommonName is capped at 64 chars; the full hostname
+                # still goes in the SAN above (a long FQDN would otherwise
+                # raise ValueError during cert generation).
+                x509.NameAttribute(NameOID.COMMON_NAME, hostname[:64]),
             ]
         )
 

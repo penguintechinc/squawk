@@ -5,6 +5,13 @@ Handles login, logout, token refresh, and user info.
 
 from flask import Blueprint, request, jsonify, current_app, g
 from app.services.auth_service import AuthService
+from app.services.cookie_auth import (
+    REFRESH_COOKIE_NAME,
+    clear_auth_cookies,
+    csrf_check_passes,
+    generate_csrf_token,
+    set_auth_cookies,
+)
 from app.middleware.auth import token_required, get_current_user
 from app.utils.decorators import validate_json, audit_log
 from app.extensions import limiter
@@ -85,7 +92,7 @@ def login():
     )
     refresh_token = AuthService.create_refresh_token(user['id'])
 
-    return jsonify({
+    response = jsonify({
         'accessToken': access_token,
         'refreshToken': refresh_token,
         'user': {
@@ -95,12 +102,18 @@ def login():
             'global_role': user['global_role'],
             'team_roles': user['team_roles']
         }
-    }), 200
+    })
+    # Additive: cookie-based clients (dns-webui) authenticate via these
+    # HttpOnly cookies instead of reading the tokens above out of the JSON
+    # body -- see app/services/cookie_auth.py. Bearer-token clients ignore
+    # the cookies and keep using the JSON tokens unchanged.
+    csrf_token = generate_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return response, 200
 
 
 @auth_bp.route('/api/v1/auth/refresh', methods=['POST'])
 @limiter.limit('20/minute')
-@validate_json('refreshToken')
 @audit_log('token_refresh', resource_type='user')
 def refresh():
     """
@@ -110,9 +123,16 @@ def refresh():
     access + refresh token pair is issued. Reusing a rotated or revoked
     refresh token returns 401.
 
+    The refresh token is read from the JSON body (existing bearer-token
+    clients) if present, otherwise from the HttpOnly refresh_token cookie
+    (dns-webui, which never has JS-level access to the token). Cookie-based
+    requests must also present a matching X-CSRF-Token header (double-submit
+    against the csrf_token cookie) since the browser attaches the cookie
+    automatically.
+
     Request:
         {
-            "refreshToken": "..."
+            "refreshToken": "..."   # optional if refresh_token cookie is set
         }
 
     Response:
@@ -121,8 +141,21 @@ def refresh():
             "refreshToken": "..."
         }
     """
-    data = request.get_json()
-    refresh_token = data['refreshToken']
+    data = request.get_json(silent=True) or {}
+    refresh_token = data.get('refreshToken')
+    from_cookie = False
+    if not refresh_token:
+        refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+        from_cookie = bool(refresh_token)
+
+    if not refresh_token:
+        return jsonify({
+            'error': 'Missing required fields',
+            'missing_fields': ['refreshToken']
+        }), 400
+
+    if from_cookie and not csrf_check_passes():
+        return jsonify({'error': 'Invalid or missing CSRF token'}), 403
 
     # Resolve the token's subject for audit attribution before rotation --
     # get_current_user() has nothing to return here (no access token on this
@@ -137,10 +170,13 @@ def refresh():
     if not tokens:
         return jsonify({'error': 'Invalid or expired refresh token'}), 401
 
-    return jsonify({
+    response = jsonify({
         'accessToken': tokens['access_token'],
         'refreshToken': tokens['refresh_token']
-    }), 200
+    })
+    csrf_token = generate_csrf_token()
+    set_auth_cookies(response, tokens['access_token'], tokens['refresh_token'], csrf_token)
+    return response, 200
 
 
 @auth_bp.route('/api/v1/auth/logout', methods=['POST'])
@@ -148,15 +184,17 @@ def refresh():
 @audit_log('user_logout')
 def logout():
     """
-    Logout user: revoke the refresh token server-side.
+    Logout user: revoke the refresh token server-side and clear auth cookies.
 
     Request (optional body):
         {
-            "refreshToken": "..."
+            "refreshToken": "..."   # falls back to the refresh_token cookie
         }
 
     The access token (15 min) simply ages out; the long-lived refresh token
-    is revoked here so it cannot mint new access tokens after logout.
+    is revoked here so it cannot mint new access tokens after logout. This
+    route requires @token_required, so a cookie-authenticated request has
+    already passed the CSRF check there.
 
     Response:
         {
@@ -164,13 +202,15 @@ def logout():
         }
     """
     data = request.get_json(silent=True) or {}
-    refresh_token = data.get('refreshToken')
+    refresh_token = data.get('refreshToken') or request.cookies.get(REFRESH_COOKIE_NAME)
     if refresh_token:
         AuthService.revoke_refresh_token(refresh_token, reason='logout')
 
-    return jsonify({
+    response = jsonify({
         'message': 'Logged out successfully'
-    }), 200
+    })
+    clear_auth_cookies(response)
+    return response, 200
 
 
 @auth_bp.route('/api/v1/auth/me', methods=['GET'])

@@ -9,20 +9,20 @@ const Login: React.FC = () => {
   const { setAuthenticated } = useAuth();
 
   const handleSuccess = (response: LoginResponse) => {
+    // response.token/refreshToken are not used here: the backend already
+    // set them as HttpOnly cookies on this same login response (see
+    // manager/backend/app/services/cookie_auth.py). setAuthenticated only
+    // needs the user for client-side UI state.
     if (response.token && response.user) {
-      setAuthenticated(
-        {
-          id: Number(response.user.id),
-          email: response.user.email,
-          first_name: response.user.name?.split(' ')[0] || '',
-          last_name: response.user.name?.split(' ').slice(1).join(' ') || '',
-          is_admin: response.user.roles?.includes('admin') || false,
-          is_active: true,
-          created_on: '',
-        },
-        response.token,
-        response.refreshToken || '',
-      );
+      setAuthenticated({
+        id: Number(response.user.id),
+        email: response.user.email,
+        first_name: response.user.name?.split(' ')[0] || '',
+        last_name: response.user.name?.split(' ').slice(1).join(' ') || '',
+        is_admin: response.user.roles?.includes('admin') || false,
+        is_active: true,
+        created_on: '',
+      });
       navigate('/');
     }
   };

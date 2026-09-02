@@ -39,6 +39,14 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
 
+    # Cookie-based auth (dns-webui). Defaults to Secure=True (HTTPS-only) in
+    # every environment -- only disable for local HTTP development, never
+    # inferred from DEBUG/TESTING, so a misconfigured prod deploy fails
+    # closed. COOKIE_DOMAIN is unset (host-only cookie) unless the frontend
+    # and API are deployed on different subdomains of the same parent.
+    COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'true').lower() == 'true'
+    COOKIE_DOMAIN = os.getenv('COOKIE_DOMAIN') or None
+
     # SPIFFE/mTLS service-to-service identity (preferred over per-server JWTs).
     # The service mesh / gateway terminates mTLS and forwards the verified peer
     # SPIFFE ID in the XFCC header. When present, it supersedes the legacy
@@ -106,6 +114,10 @@ class DevelopmentConfig(Config):
     # Development-only ephemeral secrets (never use in production)
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-ephemeral-secret-key-only')
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
+    # Local dev typically runs over plain HTTP; still explicit opt-in via
+    # env var so it's never silently disabled by DEBUG alone in a shared
+    # or misconfigured environment.
+    COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'false').lower() == 'true'
 
     def __init__(self) -> None:
         """Generate ephemeral ES256 keypair if not configured."""
@@ -162,6 +174,11 @@ class TestingConfig(Config):
     # Testing-only ephemeral secrets (never use in production)
     SECRET_KEY = 'test-ephemeral-secret-key-only'
     JWT_SECRET_KEY = 'test-ephemeral-jwt-key-only'
+    # The Flask/Werkzeug test client talks plain HTTP; a Secure cookie set
+    # here would still be recorded, but keeping this False mirrors real
+    # local/dev HTTP behavior and avoids masking a client-side secure-cookie
+    # bug behind the test client's more lenient cookie jar.
+    COOKIE_SECURE = False
 
     def __init__(self) -> None:
         """Generate ephemeral ES256 keypair for testing."""

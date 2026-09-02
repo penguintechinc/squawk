@@ -18,7 +18,19 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import Boolean, Column, DateTime, Integer, MetaData, String, Table
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    MetaData,
+    String,
+    Table,
+    Text,
+    text,
+)
 
 from app.services.selective_dns_routing import SelectiveDNSRouter
 
@@ -50,6 +62,75 @@ def token_table(db_engine):
     yield table
     with db_engine.begin() as conn:
         conn.execute(table.delete())
+
+
+@pytest.fixture(autouse=True)
+def selective_routing_tables(db_engine):
+    """Self-contained schema for dns_group / dns_routing_zone /
+    user_group_assignment / group_zone_access -- mirrors the pattern in
+    test_selective_dns_routing_token_hash.py's `token_table` fixture.
+
+    conftest.py's tables come from importing manager/backend/app/schema.py,
+    which silently falls back to empty metadata when manager/ isn't checked
+    out alongside dns-server (exactly the Docker-image CI build). This
+    fixture creates the same tables (column-for-column, per schema.py)
+    directly against the raw `db_engine`, independent of that import.
+
+    `checkfirst=True` makes table creation a no-op when the real schema
+    already created them; teardown only deletes rows (FK pragma toggled
+    off/on around the delete, same as conftest's autouse `clean_db_tables`),
+    never drops tables -- so this can't collide with, or depend on, that
+    fixture's own cleanup, and repeated runs from a clean DB are safe.
+    """
+    metadata = MetaData()
+
+    dns_group = Table(
+        "dns_group", metadata,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("name", String(100), unique=True, nullable=False),
+        Column("description", Text),
+        Column("visibility_levels", JSON),
+        Column("created_at", DateTime, nullable=True),
+        Column("updated_at", DateTime, nullable=True),
+    )
+    dns_routing_zone = Table(
+        "dns_routing_zone", metadata,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("name", String(255), unique=True, nullable=False),
+        Column("visibility", String(50), nullable=False),
+        Column("description", Text),
+        Column("created_at", DateTime, nullable=True),
+        Column("updated_at", DateTime, nullable=True),
+    )
+    user_group_assignment = Table(
+        "user_group_assignment", metadata,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("user_id", Integer, nullable=False),
+        Column("group_id", Integer, ForeignKey("dns_group.id", ondelete="CASCADE"),
+               nullable=False),
+        Column("role", String(50), nullable=False, default="member"),
+        Column("assigned_at", DateTime, nullable=True),
+        Column("updated_at", DateTime, nullable=True),
+    )
+    group_zone_access = Table(
+        "group_zone_access", metadata,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("group_id", Integer, ForeignKey("dns_group.id", ondelete="CASCADE"),
+               nullable=False),
+        Column("zone_id", Integer, ForeignKey("dns_routing_zone.id", ondelete="CASCADE"),
+               nullable=False),
+        Column("created_at", DateTime, nullable=True),
+    )
+
+    metadata.create_all(db_engine, checkfirst=True)
+    yield
+    with db_engine.begin() as conn:
+        conn.execute(text("PRAGMA foreign_keys = OFF"))
+        conn.execute(group_zone_access.delete())
+        conn.execute(user_group_assignment.delete())
+        conn.execute(dns_routing_zone.delete())
+        conn.execute(dns_group.delete())
+        conn.execute(text("PRAGMA foreign_keys = ON"))
 
 
 def _insert_token(db_engine, table, *, plaintext: str, name: str = "test-token") -> int:
@@ -255,7 +336,10 @@ class TestCanResolveDomain:
         router.create_dns_zone("internal.company.com", "internal", "desc", "admin")
         assert router.can_resolve_domain(None, "internal.company.com") is False
 
-    def test_nonpublic_zone_unknown_token_denied(self, router: SelectiveDNSRouter):
+    def test_nonpublic_zone_unknown_token_denied(self, router: SelectiveDNSRouter, token_table):
+        # `token_table` is required even though no row is inserted:
+        # _get_user_id_from_token still reflects+queries the `token` table
+        # for any non-empty token string, so it must exist.
         router.create_dns_zone("internal.company.com", "internal", "desc", "admin")
         assert router.can_resolve_domain("no-such-token", "internal.company.com") is False
 

@@ -47,6 +47,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
 
       # For build-mode: autobuild (go), the init step above builds the source
       # automatically. Interpreted languages (python, javascript-typescript)

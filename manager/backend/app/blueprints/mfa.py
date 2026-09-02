@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app, g
 from app.middleware.auth import token_required, get_current_user
 from app.services.auth_service import AuthService
+from app.services.cookie_auth import generate_csrf_token, set_auth_cookies
 from app.services.mfa_service import MFAService
 from app.utils.decorators import validate_json, audit_log
 from app.extensions import limiter
@@ -303,7 +304,7 @@ def mfa_verify():
     )
     refresh_token = AuthService.create_refresh_token(user_id)
 
-    return jsonify({
+    response = jsonify({
         'accessToken': access_token,
         'refreshToken': refresh_token,
         'user': {
@@ -313,4 +314,8 @@ def mfa_verify():
             'global_role': user_record['global_role'],
             'team_roles': team_roles
         }
-    }), 200
+    })
+    # Additive, same as /auth/login -- see app/services/cookie_auth.py.
+    csrf_token = generate_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return response, 200

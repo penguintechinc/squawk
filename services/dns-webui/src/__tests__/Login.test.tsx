@@ -103,9 +103,14 @@ describe('Login page', () => {
         expect.objectContaining({
           id: 1,
           email: 'test@example.com',
-        }),
-        'test-token',
-        'refresh-token'
+        })
+      );
+      // Tokens must never be passed to client-side state -- they arrive
+      // only as HttpOnly Set-Cookie headers on the login response.
+      expect(mockSetAuthenticated).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
       );
     });
   });
@@ -143,9 +148,7 @@ describe('Login page', () => {
           first_name: 'Test',
           last_name: 'User',
           is_admin: true,
-        }),
-        expect.any(String),
-        expect.any(String)
+        })
       );
     });
   });

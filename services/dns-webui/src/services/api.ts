@@ -14,29 +14,56 @@ import type {
   BlockedQuery,
 } from '../types/api';
 
+// Double-submit CSRF cookie/header pair. This is NOT the auth token: it is
+// a JS-readable random value the server also stores in the (non-HttpOnly)
+// csrf_token cookie, and must be echoed back in a header on state-changing
+// requests. It defends the cookie-auth flow against CSRF; it grants no
+// access on its own. See manager/backend/app/services/cookie_auth.py.
+const CSRF_COOKIE_NAME = 'csrf_token';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+function readCookie(name: string): string | null {
+  const escaped = name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1');
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
   headers: { 'Content-Type': 'application/json' },
+  // The access/refresh JWTs live in HttpOnly cookies set by the server --
+  // never in localStorage or any other JS-readable storage (CWE-522).
+  // withCredentials sends those cookies automatically and lets the
+  // browser store the Set-Cookie response from login/refresh; the token
+  // value itself is never read or attached by this client.
+  withCredentials: true,
 });
 
-// Request interceptor: add Bearer token
+// Request interceptor: attach the double-submit CSRF header on
+// state-changing requests. GETs are side-effect-free and skip it.
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('access_token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const method = (config.method || 'get').toLowerCase();
+  if (MUTATING_METHODS.has(method)) {
+    const csrfToken = readCookie(CSRF_COOKIE_NAME);
+    if (csrfToken && config.headers) {
+      config.headers[CSRF_HEADER_NAME] = csrfToken;
+    }
   }
   return config;
 });
 
-// Response interceptor: handle 401 with token refresh
+// Response interceptor: handle 401 by refreshing via the HttpOnly
+// refresh_token cookie -- the browser attaches it automatically, so there
+// is no token for this client to read, store, or forward manually.
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (token: string) => void;
+  resolve: () => void;
   reject: (error: unknown) => void;
 }> = [];
 
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+const processQueue = (error: unknown) => {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve()));
   failedQueue = [];
 };
 
@@ -47,46 +74,36 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    if (error.response?.status === 401 && !original._retry) {
+    const isRefreshCall = original.url?.includes('/auth/refresh');
+    const isAuthCheckCall = original.url?.includes('/auth/me');
+
+    if (error.response?.status === 401 && !original._retry && !isRefreshCall) {
       if (isRefreshing) {
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then((token) => {
-          if (original.headers)
-            original.headers.Authorization = `Bearer ${token}`;
-          return api(original);
-        });
+        }).then(() => api(original));
       }
 
       original._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
-
       try {
-        // Flask-JWT-Extended expects refresh token in Authorization header
-        const { data } = await axios.post(
-          (import.meta.env.VITE_API_URL || '') + '/api/v1/auth/refresh',
-          {},
-          { headers: { Authorization: `Bearer ${refreshToken}` } },
-        );
-        const newToken = data.access_token;
-        localStorage.setItem('access_token', newToken);
-        if (original.headers)
-          original.headers.Authorization = `Bearer ${newToken}`;
-        processQueue(null, newToken);
+        // refresh_token cookie is sent automatically (scoped to
+        // /api/v1/auth); the request interceptor above attaches the CSRF
+        // header since this is a POST.
+        await api.post('/api/v1/auth/refresh', {});
+        processQueue(null);
         return api(original);
       } catch (refreshError) {
-        processQueue(refreshError, null);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        processQueue(refreshError);
+        // Don't hard-navigate for the silent "am I logged in" probe
+        // (useAuth.checkAuth -> /auth/me) -- a logged-out visitor on
+        // /login is expected to 401 here, and redirecting to the page
+        // it's already on would reload-loop. Its caller already handles
+        // the rejection by setting isAuthenticated=false.
+        if (!isAuthCheckCall) {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -6,6 +6,10 @@ import logging
 from functools import wraps
 from flask import request, jsonify, current_app, g
 from app.services.auth_service import AuthService
+from app.services.cookie_auth import (
+    csrf_check_passes,
+    extract_bearer_or_cookie_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,22 +17,27 @@ logger = logging.getLogger(__name__)
 def token_required(f):
     """
     Decorator to require valid JWT token.
+
+    Accepts the token from either the Authorization header (existing
+    bearer-token clients: manager/frontend, the Go client, machine clients)
+    or the HttpOnly access_token cookie (dns-webui). When the token comes
+    from the cookie, a matching double-submit CSRF header is required on
+    state-changing requests -- see app/services/cookie_auth.py.
+
     Extracts user information from token and stores in g.current_user.
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
+        token, from_cookie = extract_bearer_or_cookie_token()
 
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
-            try:
-                token = auth_header.split(' ')[1]  # Bearer <token>
-            except IndexError:
-                return jsonify({'error': 'Invalid authorization header format'}), 401
+        if request.headers.get('Authorization') and not token:
+            return jsonify({'error': 'Invalid authorization header format'}), 401
 
         if not token:
             return jsonify({'error': 'Authentication token required'}), 401
+
+        if from_cookie and not csrf_check_passes():
+            return jsonify({'error': 'Invalid or missing CSRF token'}), 403
 
         # Decode and validate token
         payload = AuthService.decode_token(token)

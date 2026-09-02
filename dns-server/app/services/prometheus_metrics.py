@@ -9,7 +9,7 @@ import time
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional
-from collections import Counter, defaultdict, deque
+from collections import Counter as CollectionsCounter, defaultdict, deque
 import threading
 from pydal import DAL
 from prometheus_client import (
@@ -289,7 +289,7 @@ class PrometheusMetrics:
                 # forever). Trim to the most-queried domains once we
                 # exceed the cap.
                 if len(self.top_domains) > self._MAX_TOP_DOMAINS:
-                    trimmed = Counter(self.top_domains).most_common(
+                    trimmed = CollectionsCounter(self.top_domains).most_common(
                         self._MAX_TOP_DOMAINS
                     )
                     self.top_domains = defaultdict(int, trimmed)

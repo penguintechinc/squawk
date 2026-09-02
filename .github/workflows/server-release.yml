@@ -28,17 +28,17 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          cd dns-server && pip install -r requirements.txt pytest pytest-cov
+          cd dns-server && pip install -r requirements.txt -r requirements-dev.txt pytest pytest-cov
 
       - name: Run tests with coverage
         run: |
-          # Intentionally non-gating: real aggregate coverage has not yet reached
-          # the 98% target here (tracked separately). Do not unmask until the
-          # underlying test-coverage work lands.
+          # Gating: dns-server coverage must stay at/above the 90% house standard.
+          # requirements-dev.txt (installed above) provides test-only deps such
+          # as `responses` that some suites import at collection time.
           python3 -m pytest dns-server/tests \
             --cov=dns-server/app \
             --cov-report=xml:coverage.xml --cov-report=term-missing \
-            --cov-fail-under=98 -v --tb=short || true
+            --cov-fail-under=90 -v --tb=short
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6

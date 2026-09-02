@@ -1,0 +1,19 @@
+name: "Squawk CodeQL config"
+
+# Test code triggers production-oriented CodeQL queries as false positives
+# (fixture credentials, and membership checks like `"host" in collection` that
+# the URL-substring-sanitization query misreads as URL sanitization). Exclude
+# test and vendored code from analysis; production source is still scanned.
+paths-ignore:
+  - '**/tests/**'
+  - '**/test_*.py'
+  - '**/*_test.py'
+  - '**/*_test.go'
+  - '**/__tests__/**'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.spec.ts'
+  - '**/*.spec.tsx'
+  - '**/node_modules/**'
+  - '**/venv/**'
+  - '**/.venv/**'

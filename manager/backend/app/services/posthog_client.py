@@ -69,10 +69,7 @@ class PostHogClient:
                     properties={"source": "posthog_client"},
                     timeout=2,
                 )
-                logger.info(
-                    f"PostHog initialized: host={self.host}, "
-                    f"api_key={self.api_key[:8]}..."
-                )
+                logger.info(f"PostHog initialized: host={self.host}")
             except (socket.error, TimeoutError) as e:
                 logger.warning(f"PostHog initial connectivity check failed: {e}")
 

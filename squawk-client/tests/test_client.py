@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
+import requests.exceptions
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'bins'))
@@ -77,25 +78,25 @@ class TestDNSOverHTTPSClient:
         # First server fails, second succeeds
         mock_fail_response = Mock()
         mock_fail_response.status_code = 500
-        
+
         mock_success_response = Mock()
         mock_success_response.status_code = 200
         mock_success_response.json.return_value = {'Status': 0, 'Answer': []}
-        
+
         mock_session_instance = Mock()
         mock_session_instance.get.side_effect = [
-            Exception("Connection failed"),
+            requests.exceptions.RequestException("Connection failed"),
             mock_success_response
         ]
         mock_session.return_value = mock_session_instance
-        
+
         client = DNSOverHTTPSClient(
             dns_server_urls=[
-                'https://server1.com/resolve',
-                'https://server2.com/resolve'
+                'https://127.0.0.1:8053/resolve',
+                'https://127.0.0.2:8053/resolve'
             ]
         )
-        
+
         result = client.query('example.com', 'A')
         assert result['Status'] == 0
     
@@ -130,7 +131,9 @@ class TestDNSOverHTTPSClient:
 
 class TestSquawkDNSGrpcClient:
     """Test gRPC DNS client"""
-    
+
+    @patch('client.PROTOBUF_AVAILABLE', True)
+    @patch('client.GRPC_AVAILABLE', True)
     @patch('client.grpc.insecure_channel')
     @patch('client.DNSQueryServiceStub')
     def test_grpc_client_initialization(self, mock_stub, mock_channel):
@@ -139,13 +142,16 @@ class TestSquawkDNSGrpcClient:
             server_url='grpc://localhost:50052',
             token='test-token'
         )
-        
+
         assert client.server_url == 'grpc://localhost:50052'
         assert client.token == 'test-token'
-    
+
+    @patch('client.PROTOBUF_AVAILABLE', True)
+    @patch('client.GRPC_AVAILABLE', True)
+    @patch('client.QueryRequest')
     @patch('client.grpc.insecure_channel')
     @patch('client.DNSQueryServiceStub')
-    def test_grpc_query(self, mock_stub, mock_channel):
+    def test_grpc_query(self, mock_stub, mock_channel, mock_query_request):
         """Test gRPC DNS query"""
         # Mock gRPC response
         mock_response = Mock()
@@ -160,56 +166,63 @@ class TestSquawkDNSGrpcClient:
             ioc_blocked=False,
             server_id='server-1'
         )
-        
+
         mock_stub_instance = Mock()
         mock_stub_instance.Query.return_value = mock_response
         mock_stub.return_value = mock_stub_instance
-        
+
         client = SquawkDNSGrpcClient(
             server_url='grpc://localhost:50052',
             use_grpc=True
         )
-        
+
         result = client.query('example.com', 'A')
         assert result['Status'] == 0
-    
+
+    @patch('client.PROTOBUF_AVAILABLE', True)
+    @patch('client.GRPC_AVAILABLE', True)
+    @patch('client.BatchQueryRequest')
+    @patch('client.QueryRequest')
     @patch('client.grpc.insecure_channel')
     @patch('client.DNSQueryServiceStub')
-    def test_grpc_batch_query(self, mock_stub, mock_channel):
+    def test_grpc_batch_query(self, mock_stub, mock_channel, mock_query_request, mock_batch_query_request):
         """Test gRPC batch query"""
         mock_response = Mock()
         mock_response.responses = []
-        
+
         mock_stub_instance = Mock()
         mock_stub_instance.BatchQuery.return_value = mock_response
         mock_stub.return_value = mock_stub_instance
-        
+
         client = SquawkDNSGrpcClient(
             server_url='grpc://localhost:50052',
             use_grpc=True
         )
-        
+
         domains = ['example1.com', 'example2.com', 'example3.com']
         results = client.batch_query(domains, 'A')
-        
+
         assert isinstance(results, list)
-    
+
+    @patch('client.PROTOBUF_AVAILABLE', True)
+    @patch('client.GRPC_AVAILABLE', True)
+    @patch('client.HealthCheckRequest')
     @patch('client.grpc.insecure_channel')
     @patch('client.DNSQueryServiceStub')
-    def test_grpc_health_check(self, mock_stub, mock_channel):
+    def test_grpc_health_check(self, mock_stub, mock_channel, mock_health_request):
         """Test gRPC health check"""
         mock_response = Mock()
         mock_response.status = 1  # SERVING
-        
+
         mock_stub_instance = Mock()
         mock_stub_instance.HealthCheck.return_value = mock_response
         mock_stub.return_value = mock_stub_instance
-        
+
         client = SquawkDNSGrpcClient(
             server_url='grpc://localhost:50052',
             use_grpc=True
         )
-        
+
         health = client.health_check()
         assert health['status'] == 'serving'
 

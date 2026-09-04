@@ -1,0 +1,50 @@
+{{- if .Values.ntpServer.enabled }}
+# IMPORTANT — TLS/SNI PASSTHROUGH REQUIRED for port 4460 (NTS-KE):
+# ntp-server terminates TLS itself on 4460 (needs the RFC 5705 TLS exporter
+# per RFC 8915), so any Gateway/Ingress/LoadBalancer placed in front of this
+# Service MUST forward raw TCP 4460 without terminating TLS (TLS/SNI
+# passthrough, e.g. Gateway API TLSRoute with "Passthrough" mode, or a plain
+# L4 LoadBalancer). Terminating TLS upstream of this Service breaks NTS-KE
+# key establishment entirely.
+#
+# Port 123/udp is remapped to targetPort 11123: the container is rootless
+# (runAsNonRoot, no capabilities) and cannot bind < 1024/udp without
+# NET_BIND_SERVICE. App listens on NTP_UDP_PORT=11123 in-container; this
+# Service exposes the standard NTP port 123/udp externally. If real
+# in-container binding to 123/udp is required later, that requires adding
+# the NET_BIND_SERVICE capability — a documented root/capability exception
+# needing explicit user approval (devops-containers.md), not implemented here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.ntpServer.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ntpServer.service.type | default "ClusterIP" }}
+  ports:
+  - name: ntp-http
+    port: 8082
+    targetPort: 8082
+    protocol: TCP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.http }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.http }}
+    {{- end }}
+  - name: nts-ke
+    port: 4460
+    targetPort: 4460
+    protocol: TCP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.ntsKe }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.ntsKe }}
+    {{- end }}
+  - name: ntp-udp
+    port: 123
+    targetPort: 11123
+    protocol: UDP
+    {{- if and (eq (.Values.ntpServer.service.type | default "ClusterIP") "NodePort") .Values.ntpServer.service.nodePorts.ntp }}
+    nodePort: {{ .Values.ntpServer.service.nodePorts.ntp }}
+    {{- end }}
+  selector:
+    {{- include "squawk.ntpServer.selectorLabels" . | nindent 4 }}
+{{- end }}

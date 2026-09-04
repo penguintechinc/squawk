@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "timezone": "America/Chicago",
+  "labels": ["type:chore", "component:ci"],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["type:security", "priority:high"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "docker": {
+    "enabled": true,
+    "pinDigests": true
+  },
+  "packageRules": [
+    {
+      "description": "Pin all external image digests (standards: SHA256 digest in all envs)",
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "description": "PenguinTech first-party images update by tag, no digest churn",
+      "matchPackagePatterns": ["ghcr.io/penguintechinc/"],
+      "pinDigests": false
+    },
+    {
+      "description": "Group GitHub Actions bumps (pinned to full commit SHA)",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "pinDigests": true
+    },
+    {
+      "description": "Group Go module updates",
+      "matchManagers": ["gomod"],
+      "groupName": "go modules"
+    }
+  ],
+  "pip_requirements": { "enabled": true },
+  "npm": { "enabled": true },
+  "gomod": { "enabled": true },
+  "github-actions": { "enabled": true }
+}

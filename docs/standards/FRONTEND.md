@@ -307,13 +307,13 @@ const handleSubmit = (e) => {
 
 ## 📚 Essentials
 
-**Required dependencies**:
-- `react` 18.2+, `react-dom` - Core framework
-- `react-router-dom` 6.20+ - Page routing
-- `axios` 1.6+ - HTTP requests
-- `@tanstack/react-query` 5.0+ - Server state management
-- `vite` 5.0+ - Build tool (faster than Create React App)
-- `eslint`, `prettier` - Code quality
+**Required dependencies** (pin to exact versions — no `^` or `~`):
+- `react` 18.2.0, `react-dom` 18.2.0 - Core framework
+- `react-router-dom` 6.20.0 - Page routing
+- `axios` 1.6.0 - HTTP requests
+- `@tanstack/react-query` 5.0.0 - Server state management
+- `vite` 5.0.0 - Build tool (faster than Create React App)
+- `eslint` 8.55.0, `prettier` 3.1.0 - Code quality
 
 **Scripts in package.json**:
 ```json
@@ -345,3 +345,43 @@ CMD ["nginx", "-g", "daemon off;"]
 ```
 
 Build locally with `npm run build`, Docker serves the static files with nginx. Fast and lightweight!
+
+## 📦 Shared React Libraries (MANDATORY)
+
+All React applications **MUST** use `@penguintechinc/react-libs` for common components. See the [React Libraries Standards](REACT_LIBS.md) for complete documentation.
+
+**Required components:**
+
+| Component | Purpose | When to Use |
+|-----------|---------|-------------|
+| `AppConsoleVersion` | Console version logging | **Every app** |
+| `LoginPageBuilder` | Login/auth page | Apps with authentication |
+| `SidebarMenu` | Navigation sidebar | Apps with sidebar navigation |
+| `FormModalBuilder` | Modal forms | All modal dialogs with forms |
+
+**Quick example:**
+
+```tsx
+import { LoginPageBuilder, AppConsoleVersion, SidebarMenu } from '@penguintechinc/react-libs';
+
+// In App.tsx
+function App() {
+  return (
+    <>
+      <AppConsoleVersion appName="MyApp" webuiVersion="1.0.0" />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/*" element={<MainLayout />} />
+      </Routes>
+    </>
+  );
+}
+```
+
+**Do NOT implement custom versions of:**
+- ❌ Login pages → use `LoginPageBuilder`
+- ❌ Navigation sidebars → use `SidebarMenu`
+- ❌ Modal forms → use `FormModalBuilder`
+- ❌ Version logging → use `AppConsoleVersion`
+
+📚 **Full documentation**: [React Libraries Standards](REACT_LIBS.md)

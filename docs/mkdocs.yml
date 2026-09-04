@@ -53,6 +53,8 @@ nav:
   - Architecture:
     - System Architecture: ARCHITECTURE.md
     - Token Management: TOKEN_MANAGEMENT.md
+  - Security & Operations:
+    - Enterprise Security & Hardening: ENTERPRISE_SECURITY.md
   - Development:
     - Contributing Guide: CONTRIBUTING.md
     - Development Setup: DEVELOPMENT.md

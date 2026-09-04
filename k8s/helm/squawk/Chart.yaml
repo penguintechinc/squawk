@@ -1,0 +1,6 @@
+apiVersion: v2
+name: squawk
+description: Squawk DNS-over-HTTPS management system
+type: application
+version: 2.1.0
+appVersion: "v2.1.x"

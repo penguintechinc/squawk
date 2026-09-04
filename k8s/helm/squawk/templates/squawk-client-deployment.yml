@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: squawk-client
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsClient.labels" . | nindent 4 }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.dnsClient.replicas }}
+{{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.dnsClient.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.dnsClient.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: squawk-client
+        image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsClient.image.repository }}:{{ .Values.dnsClient.image.tag }}
+        imagePullPolicy: {{ .Values.dnsClient.image.pullPolicy | default "Always" }}
+        # The root command defaults to a one-shot query mode requiring -d
+        # <domain>; the actual UDP/TCP bridge daemon lives behind the
+        # "forward" subcommand, which reads its config from the env vars
+        # below (already correctly set) rather than needing CLI flags.
+        args:
+          - forward
+        env:
+        # See k8s-dns-deployment.yml — the client binary rejects a hostname
+        # here for the same DNS-loop reason; use the auto-injected Service
+        # env vars instead of a hostname.
+        - name: SQUAWK_SERVER_URL
+          value: "http://$(DNS_SERVER_SERVICE_HOST):$(DNS_SERVER_SERVICE_PORT)/dns/query"
+        - name: SQUAWK_UDP_ADDRESS
+          value: "0.0.0.0:{{ .Values.dnsClient.listenPort }}"
+        - name: SQUAWK_TCP_ADDRESS
+          value: "0.0.0.0:{{ .Values.dnsClient.listenPort }}"
+        - name: SQUAWK_LISTEN_UDP
+          value: "true"
+        - name: SQUAWK_LISTEN_TCP
+          value: "true"
+        ports:
+        - name: dns-udp
+          containerPort: {{ .Values.dnsClient.listenPort }}
+          protocol: UDP
+        - name: dns-tcp
+          containerPort: {{ .Values.dnsClient.listenPort }}
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.dnsClient.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          tcpSocket:
+            port: {{ .Values.dnsClient.listenPort }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: {{ .Values.dnsClient.listenPort }}
+          initialDelaySeconds: 5
+          periodSeconds: 5

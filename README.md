@@ -1,18 +1,18 @@
-[![Publish Docker image](https://github.com/PenguinCloud/project-template/actions/workflows/docker-image.yml/badge.svg)](https://github.com/PenguinCloud/core/actions/workflows/docker-image.yml) [![version](https://img.shields.io/badge/version-5.1.1-blue.svg)](https://semver.org) 
+[![Build](https://github.com/penguintechinc/squawk/actions/workflows/build.yml/badge.svg)](https://github.com/penguintechinc/squawk/actions/workflows/build.yml) [![Server Release](https://github.com/penguintechinc/squawk/actions/workflows/server-release.yml/badge.svg)](https://github.com/penguintechinc/squawk/actions/workflows/server-release.yml) [![codecov](https://codecov.io/gh/penguintechinc/squawk/branch/main/graph/badge.svg)](https://codecov.io/gh/penguintechinc/squawk) [![version](https://img.shields.io/badge/version-2.1.1-blue.svg)](https://semver.org)
 
 ```
                     ____
-                .-~    ~-. 
+                .-~    ~-.
            .--~'        '~.
          .~'       ___    '~.
         /         (o o)      \         ____
        |     ___   \_/   ___  |       /
        |    (   '~-----~'   ) |      /  SQUAWK!
-       \     '~-._______.-~' /      <   
+       \     '~-._______.-~' /      <
         '~.       ___       .~'      \   DNS-over-HTTPS with Secure Authentication for clientless applications
           '~-._  (__) _.-~'           \____
               '~~---~~'
-              
+
 ```
 
 # Squawk - DNS-over-HTTPS Proxy System
@@ -56,6 +56,20 @@ Squawk is a secure, scalable DNS-over-HTTPS (DoH) proxy system that provides aut
 - **Per-domain access control lists**: Granular permission management
 - **SSL/TLS support**: Encrypted communications with HTTP/3
 - **Input validation**: Comprehensive security checks
+- **Asymmetric JWT (ES256/RS256)**: Manager-signed, public-key-verified tokens with required tenant claim
+- **Signed images + SBOM**: cosign keyless signatures and SPDX SBOM attestation on release images
+- **Secrets hashed/encrypted at rest**: DNS resolver tokens and DNS-server join keys are stored as SHA-256 hashes and looked up by hash — the plaintext value is shown only once, at creation. Per-server `jwt_secret` and machine-client secrets are Fernet-encrypted at rest
+- **Authenticated operational endpoints**: dns-server `/metrics` and `/status` require a valid JWT bearer token; metrics never emit raw token values (query sources are hashed). `/health` stays open for probes
+- **Rate limiting on by default**: proxy-aware (ProxyFix) so `X-Forwarded-For` spoofing can't bypass limits; per-endpoint auth limits with account lockout on repeated failed logins; the distributed (Valkey) rate-limit backend fails closed
+- **Refresh-token rotation & single-use MFA**: refresh tokens are single-use and rotate on every use; the MFA pre-auth token is single-use
+- **Cookie-based web session**: the React web console keeps JWTs in HttpOnly + Secure + SameSite cookies with CSRF double-submit protection — never in browser `localStorage`
+- **Authenticated gRPC**: manager gRPC requires a server JWT and TLS (`SQUAWK_GRPC_INSECURE=true` is dev-only)
+- **Verified SAML assertions**: SAML 2.0 assertion signatures are cryptographically verified (pysaml2 + xmlsec1); OIDC/SAML SSO logins delegate MFA to the identity provider
+- **Authenticated NTS time sync**: NTS-KE requires an `ntp:client` JWT scope, NTS authenticators are cryptographically verified, and TLS 1.3 is enforced
+
+For enterprise deployment hardening — asymmetric JWT key setup, tenant isolation,
+image signature verification, Kubernetes runtime hardening, and Renovate — see
+[docs/ENTERPRISE_SECURITY.md](docs/ENTERPRISE_SECURITY.md).
 
 ## Architecture
 
@@ -310,15 +324,21 @@ auth: your-token-here
 
 ### Database Schema
 
-The system uses a simple database schema for token management:
+The Manager stores tokens **hashed at rest**. Only the SHA-256 hash of a token
+is persisted (unique, indexed) and lookups are performed by hash — the plaintext
+token is returned once, at creation/regeneration, and never again. Conceptually:
 
 ```sql
-CREATE TABLE auth (
+CREATE TABLE token (
     id INTEGER PRIMARY KEY,
-    token VARCHAR(255) NOT NULL,
-    domain TEXT NOT NULL
+    token_hash VARCHAR(64) NOT NULL UNIQUE,  -- SHA-256 of the token; never plaintext
+    name VARCHAR(255) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE
 );
 ```
+
+DNS-server join keys are stored the same way (`join_key_hash`), and per-server
+`jwt_secret` values are Fernet-encrypted at rest.
 
 ### Domain Permissions
 
@@ -446,7 +466,7 @@ Squawk provides comprehensive logging with real client IP detection and syslog s
 ```json
 {
   "timestamp": "2024-01-15T10:30:45.123Z",
-  "event_type": "dns_query", 
+  "event_type": "dns_query",
   "client_ip": "203.0.113.45",
   "query_name": "example.com",
   "query_type": "A",
@@ -518,7 +538,7 @@ Squawk supports Google Authenticator TOTP-based MFA for enhanced account securit
    ```bash
    # Require MFA for all users
    REQUIRE_MFA=true
-   
+
    # Customize MFA issuer name
    MFA_ISSUER="Your Company DNS"
    ```
@@ -563,7 +583,7 @@ http://localhost:8080/dns_console/admin/sso
 ```json
 {
   "sso_url": "https://idp.company.com/sso/saml",
-  "sls_url": "https://idp.company.com/slo/saml", 
+  "sls_url": "https://idp.company.com/slo/saml",
   "entity_id": "squawk-dns",
   "x509cert": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
   "attribute_mapping": {
@@ -588,7 +608,7 @@ http://localhost:8080/dns_console/admin/sso
   "admin_groups": ["cn=dns-admins,cn=groups,dc=company,dc=com"],
   "attribute_mapping": {
     "email": "mail",
-    "first_name": "givenName", 
+    "first_name": "givenName",
     "last_name": "sn"
   }
 }
@@ -601,7 +621,7 @@ http://localhost:8080/dns_console/admin/sso
   "client_id": "squawk-dns-client-id",
   "client_secret": "client-secret-here",
   "auth_url": "https://oauth.company.com/oauth/authorize",
-  "token_url": "https://oauth.company.com/oauth/token", 
+  "token_url": "https://oauth.company.com/oauth/token",
   "userinfo_url": "https://oauth.company.com/oauth/userinfo",
   "scopes": ["openid", "profile", "email"],
   "redirect_uri": "https://dns.company.com/dns_console/auth/oauth/callback"
@@ -869,6 +889,12 @@ k6 run tests/load-test.js
 # Benchmark caching
 CACHE_ENABLED=true VALKEY_URL=redis://localhost:6379 python tests/benchmark_cache.py
 ```
+
+### Continuous Integration & Coverage
+
+- **CodeQL** static analysis runs on every push/PR across `python`, `go`, and `javascript-typescript`
+- **bandit** (Python) and **gosec** (Go) run as enforced, build-gating security scans in CI
+- **Coverage gate**: dns-server tests are gated at **90%** (`--cov-fail-under=90`) — the build fails below the threshold
 
 ## Why Squawk?
 

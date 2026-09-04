@@ -1,0 +1,44 @@
+# =============================================================================
+# EXAMPLE / TEMPLATE ONLY — DO NOT apply this file as-is.
+# NEVER commit a real copy of this file with actual key material to git.
+# =============================================================================
+#
+# Shape of the `squawk-jwt-keys` Secret referenced by both the Helm chart
+# (k8s/helm/squawk) and the Kustomize base (k8s/kustomize/base):
+#
+#   manager (signer)                reads jwt-private-key + jwt-public-key
+#   dns-server, dhcp-server,
+#   ntp-server (verifiers)          read ONLY jwt-public-key
+#
+# Preferred provisioning path — generate keys, then create the Secret
+# directly from the generated PEM files (real key material never touches a
+# YAML file on disk):
+#
+#   ./scripts/gen-jwt-keys.sh --output /tmp/squawk-jwt-keys
+#   kubectl create secret generic squawk-jwt-keys -n squawk \
+#     --from-file=jwt-private-key=/tmp/squawk-jwt-keys/jwt_private_key_es256.pem \
+#     --from-file=jwt-public-key=/tmp/squawk-jwt-keys/jwt_public_key_es256.pem
+#
+# Verifier deployments (dns-server, dhcp-server, ntp-server) mount this same
+# Secret but use `items:` in the pod spec to project ONLY the jwt-public-key
+# entry — the private key is never mounted into a verifier pod even though
+# it lives in the same Secret object.
+#
+# If you must express the Secret as YAML (e.g. for Sealed Secrets / External
+# Secrets Operator input), replace the placeholders below with real PEM
+# content and NEVER commit the result:
+apiVersion: v1
+kind: Secret
+metadata:
+  name: squawk-jwt-keys
+  namespace: squawk
+type: Opaque
+stringData:
+  jwt-private-key: |
+    -----BEGIN PRIVATE KEY-----
+    REPLACE — generate via scripts/gen-jwt-keys.sh
+    -----END PRIVATE KEY-----
+  jwt-public-key: |
+    -----BEGIN PUBLIC KEY-----
+    REPLACE — generate via scripts/gen-jwt-keys.sh
+    -----END PUBLIC KEY-----

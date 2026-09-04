@@ -1,16 +1,33 @@
 # DHCP-over-HTTPS Server Requirements
 # Squawk Project - Python 3.13
+# Pin exact versions for reproducibility
 
 # Web framework
-quart>=0.19.0
-hypercorn>=0.17.0
+# Flask/Werkzeug pinned <3.1: Quart depends on Flask's sansio package, and
+# Flask 3.1+ requires a PROVIDE_AUTOMATIC_OPTIONS config key this Quart line
+# does not set, breaking route registration.
+quart==0.20.0
+flask==3.0.0
+werkzeug==3.1.4
+hypercorn==0.17.3
 
-# HTTP client for auth validation
-aiohttp>=3.9.0
+# Database (penguin-dal for runtime, never raw SQLAlchemy for queries)
+# penguin-dal doesn't bundle a DB driver (it supports postgresql/mysql/
+# sqlite) — DATABASE_URL here is postgresql, so psycopg2-binary is required.
+# alembic (+ transitive sqlalchemy) owns schema init/migrations only, per
+# backend-database.md — this service previously had no schema-management
+# story at all and relied on tables existing out-of-band.
+penguin-dal==0.3.0
+psycopg2-binary==2.9.10
+alembic>=1.13.0
+PyJWT==2.13.0
 
-# Database (optional, for persistent leases)
-asyncpg>=0.29.0
+# Feature flags & licensing
+posthog==3.6.0
+
+# Structured logging
+structlog==24.1.0
 
 # Utilities
-python-dotenv>=1.0.0
-pyyaml>=6.0.0
+python-dotenv==1.2.2
+pyyaml==6.0.1

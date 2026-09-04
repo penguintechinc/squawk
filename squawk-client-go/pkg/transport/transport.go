@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+// maxResponseBodySize caps how many bytes are read from any transport response body.
+// DNS/DHCP/NTP payloads are small; this generous cap prevents a malicious or
+// compromised upstream from OOM-ing the client via an unbounded io.ReadAll.
+const maxResponseBodySize = 64 * 1024 // 64 KiB
+
 // Mode represents the communication protocol mode.
 type Mode string
 

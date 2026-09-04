@@ -2,48 +2,191 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'v*.*.x' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, 'v*.*.x' ]
+
+env:
+  PYTHON_VERSION: '3.13'
+  GO_VERSION: '1.25.12'
+  NODE_VERSION: '18'
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+    - name: Lint OpenAPI spec with Spectral
+      run: |
+        npx --yes @stoplight/spectral-cli@6.16.0 lint openapi/v1.yaml
+
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install system dependencies
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev
+
+    - name: Install dependencies for coverage
+      run: |
+        cd dns-server && pip install -r requirements.txt -r requirements-dev.txt pytest pytest-cov
+
+    - name: Run tests with coverage
+      run: |
+        # Gating: dns-server coverage must stay at/above the 90% house standard.
+        # requirements-dev.txt (installed above) provides test-only deps such as
+        # `responses` that some suites import at collection time.
+        python3 -m pytest dns-server/tests \
+          --cov=dns-server/app \
+          --cov-report=xml:coverage.xml --cov-report=term-missing \
+          --cov-fail-under=90 -v --tb=short
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: unittests
+        fail_ci_if_error: false
+
     - name: Build DNS Server Docker image for testing
       run: |
         docker build -f dns-server/Dockerfile --build-arg SQUAWK_ENV=test -t squawk-dns-server:test dns-server/
-    
+
     - name: Run unit tests on complete application image
       run: |
         docker run --rm -w /app/dns-server squawk-dns-server:test python3.13 -m pytest tests/ -v --tb=short
-    
+
+    - name: Test DHCP server (penguin-dal persistence + JWT auth)
+      run: |
+        pip install -r dhcp-server/requirements.txt pytest pytest-asyncio
+        python3 -m pytest dhcp-server/tests -v --tb=short
+
+    - name: Test NTP server (RFC 8915 NTS)
+      run: |
+        pip install -r ntp-server/requirements.txt pytest pytest-asyncio
+        openssl req -x509 -newkey rsa:2048 -keyout /tmp/ntp_test.key -out /tmp/ntp_test.crt -days 1 -nodes -subj "/CN=localhost"
+        JWT_SECRET_KEY=ci-test-secret-32-bytes-minimum-len \
+          TLS_CERT_FILE=/tmp/ntp_test.crt TLS_KEY_FILE=/tmp/ntp_test.key \
+          python3 -m pytest ntp-server/tests -v --tb=short
+
+    - name: Clean up Playwright artifacts
+      if: always()
+      run: rm -rf /tmp/playwright-squawk
+
+  # Acceptance tests for future feature migration (non-blocking)
+  # These tests validate parity gates for features being migrated from flask_app to app.
+  # Keep non-blocking (continue-on-error) until app/ is ready to absorb all functionality.
+  acceptance-future:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+    - name: Set up Python
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install system dependencies
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev
+
+    - name: Install dependencies for acceptance tests
+      run: |
+        cd dns-server && pip install -r requirements.txt pytest
+
+    - name: Run acceptance tests for future features
+      run: |
+        python3 -m pytest dns-server/tests_full_future/ -v --tb=short || true
+      continue-on-error: true
+
   docker-multi-build:
     runs-on: ubuntu-latest
     needs: build-and-test
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
     - name: Build unified Docker image - DNS Server
       run: |
         docker build --target dns-server -t squawk-dns-server-unified:test .
-    
-    - name: Build unified Docker image - DNS Client
+
+    - name: Build unified Docker image - DNS Client (Go)
       run: |
         docker build --target dns-client -t squawk-dns-client-unified:test .
-    
+
     - name: Test unified Docker image - DNS Server
       run: |
         docker run --rm squawk-dns-server-unified:test python3.13 --version
         docker run --rm squawk-dns-server-unified:test python -c "import sys; print(f'Virtual env: {sys.prefix}')"
         docker run --rm squawk-dns-server-unified:test python -c "import ldap; print('python-ldap OK')"
-    
-    - name: Test unified Docker image - DNS Client  
+
+    - name: Test unified Docker image - DNS Client
       run: |
         docker run --rm squawk-dns-client-unified:test python3.13 --version
         docker run --rm squawk-dns-client-unified:test python -c "import sys; print(f'Virtual env: {sys.prefix}')"
         docker run --rm squawk-dns-client-unified:test python -c "import dns.resolver; print('DNS Client OK')"
+
+    - name: Build + smoke DHCP server image
+      run: |
+        docker build -f dhcp-server/Dockerfile -t squawk-dhcp-server:test dhcp-server/
+        docker run --rm squawk-dhcp-server:test python3 -c "import penguin_dal, jwt, quart; print('DHCP server deps OK')"
+
+    - name: Build + smoke NTP server image
+      run: |
+        docker build -f ntp-server/Dockerfile -t squawk-ntp-server:test ntp-server/
+        docker run --rm squawk-ntp-server:test python3 -c "from OpenSSL import SSL; from cryptography.hazmat.primitives.ciphers.aead import AESSIV; print('NTP server deps OK')"
+
+  security-scanning:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+    - name: Set up Python for bandit
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Set up Go for gosec
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run bandit (Python security scanner, JSON report)
+      run: |
+        pip install bandit[toml]
+        bandit -r dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins \
+          -ll --format json --output bandit-results.json || true
+      continue-on-error: true
+
+    - name: Run bandit (Python security scanner, gating)
+      run: |
+        bandit -r dns-server/app manager/backend/app squawk-client/bins dhcp-server/app ntp-server/bins -ll
+
+    - name: Run gosec (Go security scanner)
+      working-directory: squawk-client-go
+      run: |
+        go install github.com/securego/gosec/v2/cmd/gosec@v2.25.0
+        gosec ./...
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+      with:
+        version: 'v0.69.3'
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225  # v4
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        category: 'trivy'

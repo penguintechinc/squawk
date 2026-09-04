@@ -59,7 +59,11 @@ func exampleSingleQuery() {
 		log.Printf("Failed to create client: %v", err)
 		return
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Warning: failed to close client: %v", err)
+		}
+	}()
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -100,7 +104,11 @@ func exampleBatchQuery() {
 		log.Printf("Failed to create client: %v", err)
 		return
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Warning: failed to close client: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -144,7 +152,11 @@ func exampleHealthCheck() {
 		log.Printf("Failed to create client: %v", err)
 		return
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Warning: failed to close client: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -173,7 +185,11 @@ func exampleMultipleRecordTypes() {
 		log.Printf("Failed to create client: %v", err)
 		return
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Warning: failed to close client: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -212,7 +228,11 @@ func exampleErrorHandling() {
 		fmt.Println("This is expected - the server doesn't exist")
 		return
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Warning: failed to close client: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

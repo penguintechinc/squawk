@@ -1,0 +1,50 @@
+# Gamma overrides — mirrors the beta resource tier (1 replica, minimal
+# resources; see devops-kubernetes.md Environment Cluster Summary). Gamma
+# runs CI-built `gamma-<epoch64>` images from `main` in its own
+# cluster/context (`dal2-gamma`), validating them before they're tagged for
+# release — same resource tier as beta, separate namespace so it never
+# collides with a beta deploy of the same product.
+
+dnsServer:
+  image:
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+dnsClient:
+  image:
+    tag: latest
+  replicas: 1
+
+valkey:
+  replicas: 1
+
+dhcpServer:
+  image:
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+ntpServer:
+  image:
+    tag: latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi

@@ -11,11 +11,14 @@
 7. [Performance Considerations](#performance-considerations)
 8. [Scalability & Deployment](#scalability--deployment)
 9. [Integration Points](#integration-points)
-10. [Future Architecture Considerations](#future-architecture-considerations)
+10. [Network Services Architecture](#network-services-architecture)
+    - [Time Synchronization (PTP/NTP)](#time-synchronization-ptpntp)
+    - [DHCP Service](#dhcp-service)
+11. [Future Architecture Considerations](#future-architecture-considerations)
 
 ## System Overview
 
-Squawk is a DNS-over-HTTPS (DoH) proxy system designed with a microservices architecture that provides secure, authenticated DNS resolution services. The system follows a modular design pattern with clear separation of concerns between DNS resolution, authentication, and management functions.
+Squawk is an enterprise network infrastructure platform providing DNS-over-HTTPS (DoH), DHCP, and Time Synchronization (PTP/NTP) services. Designed with a microservices architecture, it delivers secure, authenticated network services with centralized management. The system follows a modular design pattern with clear separation of concerns between DNS resolution, IP address management, time synchronization, authentication, and management functions.
 
 ### High-Level Architecture
 
@@ -89,7 +92,7 @@ The DNS server is the core component responsible for handling DNS-over-HTTPS req
 class DNSHandler(http.server.BaseHTTPRequestHandler):
     """
     Main request handler implementing DoH protocol.
-    
+
     Responsibilities:
     - HTTP request parsing
     - Authentication enforcement
@@ -206,7 +209,7 @@ dns_console/
    │  └─ DNSForwarder → DNSOverHTTPSClient
    └─ Direct HTTPS DoH request
 
-2. Server Processing  
+2. Server Processing
    ├─ HTTP request parsing
    ├─ Authorization header extraction
    ├─ Token validation against database
@@ -243,7 +246,7 @@ Web Console Database ←→ DNS Server Database
            │
            ├─ Real-time token validation
            ├─ Shared database schema
-           ├─ Transaction consistency  
+           ├─ Transaction consistency
            └─ Activity logging coordination
 ```
 
@@ -260,7 +263,7 @@ Web Console Database ←→ DNS Server Database
 │ name        │       │ created_at   │       │ description │
 │ description │       └──────────────┘       │ created_at  │
 │ active      │                              └─────────────┘
-│ created_at  │       
+│ created_at  │
 │ last_used   │       ┌──────────────┐
 └─────────────┘       │ query_logs   │
                       ├──────────────┤
@@ -347,13 +350,17 @@ def generate_token() -> str:
     return secrets.token_urlsafe(32)  # 256-bit entropy
 ```
 
+Tokens (and DNS-server join keys) are **stored hashed at rest** — only the
+SHA-256 hash is persisted (unique, indexed) and the plaintext is returned once,
+at creation. All lookups are performed by hash.
+
 **Token Validation Process**
 ```python
 def validate_token(token: str, domain: str) -> bool:
     """
     Multi-step validation:
     1. Token format validation
-    2. Database lookup
+    2. Database lookup by SHA-256 hash (tokens are stored hashed, never plaintext)
     3. Active status check
     4. Domain permission verification
     5. Usage logging
@@ -373,18 +380,18 @@ def check_domain_permission(token_id: int, domain: str) -> bool:
     # 1. Check for wildcard permission
     if has_wildcard_permission(token_id):
         return True
-    
+
     # 2. Check direct domain match
     if has_direct_permission(token_id, domain):
         return True
-    
+
     # 3. Check parent domain permissions
     parts = domain.split('.')
     for i in range(len(parts)):
         parent_domain = '.'.join(parts[i:])
         if has_direct_permission(token_id, parent_domain):
             return True
-    
+
     return False
 ```
 
@@ -395,8 +402,8 @@ def check_domain_permission(token_id: int, domain: str) -> bool:
 2. **Authentication**: Bearer token validation
 3. **Authorization**: Domain-level permissions
 4. **Input Validation**: Domain name sanitization
-5. **Rate Limiting**: Request throttling (future)
-6. **Audit Logging**: Complete activity trails
+5. **Rate Limiting**: On by default — proxy-aware (ProxyFix) per-endpoint auth limits with account lockout, plus per-source DNS rate limiting (distributed backend fails closed)
+6. **Audit Logging**: Complete activity trails across the auth lifecycle (login, refresh, logout, MFA, SSO, SAML, SCIM, token grant)
 
 ## Security Architecture
 
@@ -439,9 +446,14 @@ db((db.tokens.token == token_value) & (db.tokens.active == True)).select()
 
 **Token Security**
 ```python
-def secure_token_comparison(provided: str, stored: str) -> bool:
-    """Timing-attack resistant comparison."""
-    return secrets.compare_digest(provided, stored)
+def lookup_token(provided: str):
+    """Tokens are stored hashed; look up by SHA-256 hash of the presented token.
+
+    The raw token is never persisted, so validation is a hash-indexed lookup
+    rather than a plaintext comparison.
+    """
+    token_hash = hashlib.sha256(provided.encode()).hexdigest()
+    return db(db.token.token_hash == token_hash).select().first()
 ```
 
 ### Audit and Compliance
@@ -460,7 +472,7 @@ def secure_token_comparison(provided: str, stored: str) -> bool:
     "event_type": "dns_query",
     "token_id": 123,
     "domain": "example.com",
-    "query_type": "A", 
+    "query_type": "A",
     "status": "allowed",
     "client_ip": "192.168.1.100",
     "response_time_ms": 150
@@ -482,14 +494,14 @@ def secure_token_comparison(provided: str, stored: str) -> bool:
 **Database Performance**
 ```sql
 -- Optimized token lookup query
-SELECT t.active, t.last_used 
-FROM tokens t 
+SELECT t.active, t.last_used
+FROM tokens t
 WHERE t.token = ? AND t.active = TRUE
 LIMIT 1;
 
 -- Domain permission check with index usage
-SELECT 1 FROM token_domains td 
-JOIN domains d ON td.domain_id = d.id 
+SELECT 1 FROM token_domains td
+JOIN domains d ON td.domain_id = d.id
 WHERE td.token_id = ? AND d.name IN (?, ?, ?)
 LIMIT 1;
 ```
@@ -511,7 +523,7 @@ class TokenCache:
     def __init__(self, ttl=300):  # 5-minute TTL
         self.cache = {}
         self.ttl = ttl
-    
+
     def get_permissions(self, token: str) -> Optional[List[str]]:
         """Get cached token permissions"""
         pass
@@ -546,13 +558,13 @@ services:
     environment:
       - NODE_ID=1
       - DATABASE_URL=postgresql://shared-db
-  
+
   dns-server-2:
-    image: squawk:latest 
+    image: squawk:latest
     environment:
       - NODE_ID=2
       - DATABASE_URL=postgresql://shared-db
-      
+
   load-balancer:
     image: nginx:latest
     ports:
@@ -645,7 +657,7 @@ spec:
             memory: "256Mi"
             cpu: "200m"
           requests:
-            memory: "128Mi" 
+            memory: "128Mi"
             cpu: "100m"
 ```
 
@@ -657,7 +669,7 @@ spec:
 ```python
 UPSTREAM_RESOLVERS = [
     '8.8.8.8',      # Google DNS
-    '8.8.4.4',      # Google DNS Secondary  
+    '8.8.4.4',      # Google DNS Secondary
     '1.1.1.1',      # Cloudflare
     '1.0.0.1',      # Cloudflare Secondary
     '208.67.222.222', # OpenDNS
@@ -693,7 +705,7 @@ GET    /api/v1/tokens/{id}         # Get token details
 PUT    /api/v1/tokens/{id}         # Update token
 DELETE /api/v1/tokens/{id}         # Delete token
 
-# Domain management API  
+# Domain management API
 GET    /api/v1/domains             # List domains
 POST   /api/v1/domains             # Add domain
 DELETE /api/v1/domains/{id}        # Remove domain
@@ -717,7 +729,7 @@ def register_service():
         name='squawk-dns',
         service_id=f'squawk-dns-{NODE_ID}',
         port=8080,
-        check=consul.Check.http('http://localhost:8080/health', 
+        check=consul.Check.http('http://localhost:8080/health',
                                interval='10s')
     )
 ```
@@ -732,20 +744,16 @@ class DNSResponseCache:
     """Distributed DNS response caching"""
     def __init__(self):
         self.redis = redis.Redis(host='cache-cluster')
-    
+
     def get_cached_response(self, query: str, record_type: str):
         key = f"dns:{query}:{record_type}"
         return self.redis.get(key)
 ```
 
-**Rate Limiting**
-```python
-class TokenRateLimit:
-    """Token-based rate limiting"""
-    def check_rate_limit(self, token: str) -> bool:
-        # Sliding window rate limiting
-        pass
-```
+> **Note:** rate limiting is no longer planned — it shipped in v2.1.x. Auth
+> endpoints have proxy-aware per-endpoint limits with account lockout, and the
+> DNS server applies per-source rate limiting (on by default; the distributed
+> backend fails closed). See the Security Model section above.
 
 **Geographic Distribution**
 ```
@@ -766,6 +774,195 @@ class TokenRateLimit:
 └─────────────────────────────────────────────────┘
 ```
 
+## Network Services Architecture
+
+### Time Synchronization (PTP/NTP)
+
+Squawk provides enterprise-grade time synchronization with a hybrid architecture optimized for both precision and compatibility.
+
+**Architecture Overview**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Time Synchronization Architecture                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Server Side (High Precision)              Client Side (OS Compat)  │
+│  ┌─────────────────────────┐              ┌─────────────────────┐   │
+│  │     PTP (IEEE 1588)     │              │   NTPv4 + Chrony    │   │
+│  │     Primary Protocol    │              │   Local Forwarder   │   │
+│  │   (microsecond accuracy)│              │                     │   │
+│  └───────────┬─────────────┘              │  ┌───────────────┐  │   │
+│              │                            │  │ Windows Time  │  │   │
+│  ┌───────────▼─────────────┐              │  │ Service (W32) │  │   │
+│  │    NTPv4 Fallback       │              │  └───────┬───────┘  │   │
+│  │    Secondary Protocol   │◄─────────────┤          │          │   │
+│  │   (millisecond accuracy)│              │  ┌───────▼───────┐  │   │
+│  └─────────────────────────┘              │  │  macOS timed  │  │   │
+│                                           │  └───────┬───────┘  │   │
+│                                           │          │          │   │
+│                                           │  ┌───────▼───────┐  │   │
+│                                           │  │ Linux chrony/ │  │   │
+│                                           │  │ systemd-timed │  │   │
+│                                           │  └───────────────┘  │   │
+│                                           └─────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Server-Side Time Services**
+
+| Protocol | Port | Accuracy | Use Case |
+|----------|------|----------|----------|
+| PTP (IEEE 1588) | 319/320 UDP | <1 μs | Primary - Financial, industrial, data centers |
+| NTPv4 | 123 UDP | 1-10 ms | Fallback - General enterprise, legacy systems |
+
+**Client-Side Time Forwarder**
+
+The Squawk client intercepts local OS time synchronization requests (similar to DNS forwarding on port 53):
+
+```
+OS Time Request → Squawk Client (NTPv4/Chrony) → Squawk Server (PTP preferred)
+                         ↓
+                   Local Cache +
+                   Fallback to public NTP
+```
+
+**Supported Client Operating Systems**:
+- **Windows**: W32Time service interception (NTP port 123)
+- **macOS**: timed service integration
+- **Linux**: chrony/systemd-timesyncd forwarding
+
+**Time Server Database Schema**:
+```sql
+CREATE TABLE time_servers (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    server_url VARCHAR(255) NOT NULL,
+    protocol VARCHAR(10) NOT NULL,          -- 'ptp' or 'ntp'
+    stratum INTEGER DEFAULT 2,
+    priority INTEGER DEFAULT 100,
+    team_id INTEGER REFERENCES teams(id),
+    active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE time_sync_logs (
+    id INTEGER PRIMARY KEY,
+    client_id INTEGER REFERENCES tokens(id),
+    server_id INTEGER REFERENCES time_servers(id),
+    offset_ms DECIMAL(10,6),
+    delay_ms DECIMAL(10,6),
+    protocol VARCHAR(10),
+    status VARCHAR(20),
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+### DHCP Service
+
+Squawk provides centralized DHCP management for enterprise IP address allocation with team-based access control.
+
+**Architecture Overview**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DHCP Architecture                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────┐     ┌─────────────────────────────────┐   │
+│  │    DHCP Server      │     │        Manager Service          │   │
+│  │                     │     │                                 │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ IP Pool Mgmt  │  │◄────┤  │   Pool Configuration API  │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ Lease Manager │  │────►│  │   Lease Tracking DB       │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  ┌───────────────┐  │     │  ┌───────────────────────────┐  │   │
+│  │  │ Reservations  │  │◄────┤  │   Static Assignment API   │  │   │
+│  │  └───────────────┘  │     │  └───────────────────────────┘  │   │
+│  │  Port 67/68 UDP     │     │                                 │   │
+│  └─────────────────────┘     └─────────────────────────────────┘   │
+│                                           │                         │
+│                              ┌────────────▼────────────┐            │
+│                              │      Web Console        │            │
+│                              │  - Pool Management      │            │
+│                              │  - Lease Monitoring     │            │
+│                              │  - Reservation Config   │            │
+│                              └─────────────────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**DHCP Features**:
+- IP address pool management with CIDR notation
+- Static reservations by MAC address
+- Lease duration configuration
+- DHCP options (gateway, DNS, domain, NTP servers)
+- Team-based pool visibility and access control
+- Lease history and audit logging
+- Integration with DNS for dynamic DNS updates (DDNS)
+
+**DHCP Database Schema**:
+```sql
+CREATE TABLE dhcp_pools (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    network CIDR NOT NULL,                  -- e.g., '192.168.1.0/24'
+    range_start INET NOT NULL,
+    range_end INET NOT NULL,
+    gateway INET,
+    dns_servers TEXT,                       -- JSON array
+    ntp_servers TEXT,                       -- JSON array
+    domain_name VARCHAR(255),
+    lease_duration INTEGER DEFAULT 86400,   -- seconds
+    team_id INTEGER REFERENCES teams(id),
+    active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE dhcp_reservations (
+    id INTEGER PRIMARY KEY,
+    pool_id INTEGER REFERENCES dhcp_pools(id),
+    mac_address VARCHAR(17) NOT NULL,       -- 'AA:BB:CC:DD:EE:FF'
+    ip_address INET NOT NULL,
+    hostname VARCHAR(255),
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(pool_id, mac_address),
+    UNIQUE(pool_id, ip_address)
+);
+
+CREATE TABLE dhcp_leases (
+    id INTEGER PRIMARY KEY,
+    pool_id INTEGER REFERENCES dhcp_pools(id),
+    mac_address VARCHAR(17) NOT NULL,
+    ip_address INET NOT NULL,
+    hostname VARCHAR(255),
+    lease_start DATETIME NOT NULL,
+    lease_end DATETIME NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',    -- active, expired, released
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**DHCP API Endpoints**:
+```
+GET    /api/v1/dhcp/pools              # List IP pools
+POST   /api/v1/dhcp/pools              # Create pool
+GET    /api/v1/dhcp/pools/{id}         # Get pool details
+PUT    /api/v1/dhcp/pools/{id}         # Update pool
+DELETE /api/v1/dhcp/pools/{id}         # Delete pool
+
+GET    /api/v1/dhcp/pools/{id}/leases  # List active leases
+DELETE /api/v1/dhcp/pools/{id}/leases/{lease_id}  # Release lease
+
+GET    /api/v1/dhcp/reservations       # List reservations
+POST   /api/v1/dhcp/reservations       # Create reservation
+DELETE /api/v1/dhcp/reservations/{id}  # Delete reservation
+```
+
+---
+
 ### Technology Evolution
 
 **Emerging Standards**
@@ -773,6 +970,11 @@ class TokenRateLimit:
 - DNS-over-QUIC (DoQ) integration
 - DNSSEC validation
 - DNS64/NAT64 support
+- PTPv2.1 (IEEE 1588-2019) enhanced profiles
+
+> **NTS (Network Time Security) is implemented** as of v2.1.x, not emerging:
+> NTS-KE requires an `ntp:client` JWT scope, NTS authenticators are
+> cryptographically verified, and TLS 1.3 is enforced.
 
 **Cloud-Native Features**
 - Service mesh integration

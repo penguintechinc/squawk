@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-server
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: dns-server
+    app.kubernetes.io/instance: dns-server
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: dns-server
+      app.kubernetes.io/instance: dns-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: dns-server
+        app.kubernetes.io/instance: dns-server
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: dns-server
+        image: ghcr.io/penguintechinc/squawk:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: doh
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: VALKEY_HOST
+          value: "valkey"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: DNS_PORT
+          value: "8080"
+        - name: DOH_PORT
+          value: "8080"
+        # Asymmetric JWT verification (ES256/RS256) — dns-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "/etc/squawk/jwt/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: "ES256"
+        - name: JWT_ISSUER
+          value: "squawk-manager"
+        - name: JWT_AUDIENCE
+          value: "squawk"
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: /etc/squawk/jwt
+          readOnly: true
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      # dns-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: squawk-jwt-keys
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440

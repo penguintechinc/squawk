@@ -1,0 +1,26 @@
+# dhcp-server serves DHCP-over-HTTPS REST (/dhcp/*) and /health all on the
+# same port (8081) — see dhcp-server/bins/server.py. Manager/webui and any
+# in-cluster DHCP relay/agent reach it over this port; treated as
+# namespace-internal only (not world-exposed) unless a Gateway/Ingress is
+# added later.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-dhcp-server
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: dhcp-server
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: dhcp-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8081

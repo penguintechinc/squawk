@@ -6,6 +6,8 @@ import Users from '../components/Management/Users';
 import Teams from '../components/Management/Teams';
 import DNSServers from '../components/Management/DNSServers';
 import Zones from '../components/Management/Zones';
+import DHCPPools from '../components/Management/DHCPPools';
+import TimeServers from '../components/Management/TimeServers';
 import { usePermissions } from '../hooks/usePermissions';
 
 interface TabPanelProps {
@@ -45,6 +47,21 @@ export default function Management() {
       visible: permissions.canManageServers(),
     },
     {
+      label: 'DNS Zones',
+      component: <Zones />,
+      visible: permissions.canManageZones(),
+    },
+    {
+      label: 'DHCP Pools',
+      component: <DHCPPools />,
+      visible: permissions.canManageServers(),
+    },
+    {
+      label: 'Time Servers',
+      component: <TimeServers />,
+      visible: permissions.canManageServers(),
+    },
+    {
       label: 'Users',
       component: <Users />,
       visible: permissions.canManageUsers(),
@@ -53,11 +70,6 @@ export default function Management() {
       label: 'Teams',
       component: <Teams />,
       visible: permissions.canManageTeams(),
-    },
-    {
-      label: 'DNS Zones',
-      component: <Zones />,
-      visible: permissions.canManageZones(),
     },
   ];
 

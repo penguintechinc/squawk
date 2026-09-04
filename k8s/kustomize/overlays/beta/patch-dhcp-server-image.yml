@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dhcp-server
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: dhcp-server
+        image: ghcr.io/penguintechinc/squawk/dhcp-server:latest
+        imagePullPolicy: IfNotPresent

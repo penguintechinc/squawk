@@ -13,8 +13,22 @@ class TestSelectiveDNSRouter:
     
     @pytest.fixture
     def dns_router(self, temp_db):
-        """Create selective DNS router instance with test database"""
+        """Create selective DNS router instance with test database.
+
+        Seeds the canonical test principal token "test-token-123" as the first
+        row in the `token` table (PK 1) so it maps to user_id 1 — the user these
+        tests assign to groups. This seeding lives in the test fixture, never in
+        production code.
+        """
         db_url = f"sqlite://{temp_db._uri[9:]}"
+        from penguin_dal import DB
+        seed = DB(db_url)
+        try:
+            if not seed(seed.token.token == "test-token-123").select().first():
+                seed.token.insert(token="test-token-123", name="test-token-123", active=True)
+                seed.commit()
+        finally:
+            seed.close()
         return SelectiveDNSRouter(db_url)
     
     def test_initialization(self, dns_router):

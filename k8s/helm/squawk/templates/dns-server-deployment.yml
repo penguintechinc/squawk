@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.dnsServer.replicas }}
+{{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.dnsServer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.dnsServer.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: dns-server
+        image: {{ include "squawk.imageRegistry" . }}/{{ .Values.dnsServer.image.repository }}:{{ .Values.dnsServer.image.tag }}
+        imagePullPolicy: {{ .Values.dnsServer.image.pullPolicy | default "Always" }}
+        ports:
+        - name: doh
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: VALKEY_HOST
+          value: {{ .Values.dnsServer.env.valkeyHost | quote }}
+        - name: VALKEY_PORT
+          value: {{ .Values.dnsServer.env.valkeyPort | quote }}
+        # dns-server/app/config.py only reads CACHE_URL as a full connection
+        # string (VALKEY_HOST/PORT above are unused by the app) — without
+        # this it falls back to redis://localhost:6379 and never connects to
+        # the valkey Service (see templates/valkey-service.yml).
+        - name: CACHE_URL
+          value: {{ printf "redis://%s:%s" .Values.dnsServer.env.valkeyHost .Values.dnsServer.env.valkeyPort | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.dnsServer.env.logLevel | quote }}
+        - name: DNS_PORT
+          value: {{ .Values.dnsServer.env.dnsPort | quote }}
+        - name: DOH_PORT
+          value: {{ .Values.dnsServer.env.dohPort | quote }}
+        # Asymmetric JWT verification (ES256/RS256) — dns-server verifies
+        # tokens signed by manager; public key only, never the private key.
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: {{ .Values.jwt.algorithm | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.jwt.issuer | quote }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.jwt.audience | quote }}
+        volumeMounts:
+        - name: jwt-public-key
+          mountPath: {{ .Values.jwt.mountPath }}
+          readOnly: true
+        # readOnlyRootFilesystem forbids writes anywhere else under /app;
+        # manager_client.py persists its manager-sync cache to CACHE_DIR
+        # (default /app/cache) and needs a writable mount there.
+        - name: cache
+          mountPath: /app/cache
+        resources:
+          {{- toYaml .Values.dnsServer.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      # dns-server verifies only — project ONLY jwt-public-key from the
+      # shared squawk-jwt-keys Secret; the private key is never mounted here.
+      - name: jwt-public-key
+        secret:
+          secretName: {{ include "squawk.jwt.secretName" . }}
+          items:
+          - key: jwt-public-key
+            path: jwt-public-key
+          defaultMode: 0440
+      - name: cache
+        emptyDir: {}

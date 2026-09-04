@@ -2,9 +2,9 @@ name: DNS Server Release
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'v*.*.x']
   pull_request:
-    branches: ['main']
+    branches: ['main', 'v*.*.x']
 
 env:
   PYTHON_VERSION: '3.13'
@@ -16,182 +16,359 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev
+
+      - name: Install test dependencies
+        run: |
+          cd dns-server && pip install -r requirements.txt -r requirements-dev.txt pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          # Gating: dns-server coverage must stay at/above the 90% house standard.
+          # requirements-dev.txt (installed above) provides test-only deps such
+          # as `responses` that some suites import at collection time.
+          python3 -m pytest dns-server/tests \
+            --cov=dns-server/app \
+            --cov-report=xml:coverage.xml --cov-report=term-missing \
+            --cov-fail-under=90 -v --tb=short
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2  # v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
 
       - name: Build complete DNS Server application image for testing
         run: |
           docker build -f dns-server/Dockerfile --build-arg SQUAWK_ENV=test -t squawk-dns-server:release-test dns-server/
 
-      - name: Run unit tests on complete application image
+      - name: Run Docker unit tests
         run: |
           if [ -d dns-server/tests ]; then
-            docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m pytest tests/ -v --cov=bins --cov-report=term-missing --tb=short
+            docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m pytest tests/ -v --cov=app --cov-report=term-missing --tb=short
           else
             echo "No tests found, skipping test execution"
           fi
 
       - name: Run security scans on complete application image
         run: |
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m bandit -r bins/ -f json || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m bandit -r app/ -f json || true
           docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m safety check || true
 
       - name: Run linting on complete application image
         run: |
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 bins/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 bins/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          docker run --rm -w /app/dns-server squawk-dns-server:release-test python3.13 -m flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
 
-  # Build and release job only runs on main branch pushes
-  build-and-release:
-    name: Build and Release DNS Server
+  # Build and release job only runs when version tag created
+  build-platform:
+    name: Build ${{ matrix.service }} for ${{ matrix.platform }}
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        include:
+          - service: dns-server
+            target: dns-server
+          - service: dns-server-prod
+            target: production
+          - service: dns-client-python
+            target: dns-client
+          - service: dns-testing
+            target: testing
+          - service: dhcp-server
+            context: dhcp-server
+            dockerfile: dhcp-server/Dockerfile
+            image: squawk/dhcp-server
+          - service: ntp-server
+            context: ntp-server
+            dockerfile: ntp-server/Dockerfile
+            image: squawk/ntp-server
+        platform: [linux/amd64, linux/arm64]
     permissions:
       contents: write
+      packages: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 0
 
-      - name: Read version from .version file
-        id: version
-        run: |
-          VERSION=$(cat .version | tr -d '\n' | sed 's/^v//')
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG=v$VERSION-server" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4
 
-      - name: Check if server tag exists
-        id: tag_check
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.VERSION }}-server" >/dev/null 2>&1; then
-            echo "EXISTS=true" >> $GITHUB_OUTPUT
-            echo "Server tag v${{ steps.version.outputs.VERSION }}-server already exists, skipping release"
-          else
-            echo "EXISTS=false" >> $GITHUB_OUTPUT
-            echo "Server tag v${{ steps.version.outputs.VERSION }}-server does not exist, proceeding with release"
-          fi
-
-      # Docker build and push for server components
       - name: Set up Docker Buildx
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
 
       - name: Log in to GitHub Container Registry
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push DNS Server Docker images
-      - name: Build and push DNS Server Docker image (Development)
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/build-push-action@v5
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Extract platform tag
+        id: platform_tag
+        run: |
+          PLATFORM_TAG=$(echo ${{ matrix.platform }} | sed 's/linux\///')
+          echo "tag=$PLATFORM_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build and push ${{ matrix.service }} Docker image for ${{ matrix.platform }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
-          context: .
-          target: dns-server
-          platforms: linux/amd64,linux/arm64
+          context: ${{ matrix.context || '.' }}
+          file: ${{ matrix.dockerfile || './Dockerfile' }}
+          target: ${{ matrix.target }}
+          platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            penguincloud/squawk-dns-server:${{ steps.version.outputs.VERSION }}
-            penguincloud/squawk-dns-server:latest
-            ghcr.io/${{ github.repository }}-server:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}-server:latest
+            ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}:${{ steps.version.outputs.VERSION }}-${{ steps.platform_tag.outputs.tag }}
+            ghcr.io/penguintechinc/${{ matrix.image || format('squawk-{0}', matrix.service) }}:latest-${{ steps.platform_tag.outputs.tag }}
           labels: |
-            org.opencontainers.image.title=Squawk DNS Server
-            org.opencontainers.image.description=DNS-over-HTTPS server with web console and authentication
+            org.opencontainers.image.title=Squawk ${{ matrix.service }}
             org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.platform }}
 
-      - name: Build and push DNS Server Production Docker image
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/build-push-action@v5
+  merge-manifests:
+    name: Merge Docker manifests
+    runs-on: ubuntu-latest
+    needs: build-platform
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
-          context: .
-          target: production
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            penguincloud/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}
-            penguincloud/squawk-dns-server-prod:latest
-            ghcr.io/${{ github.repository }}-server-prod:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}-server-prod:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Server (Production)
-            org.opencontainers.image.description=Production-optimized DNS-over-HTTPS server
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+          fetch-depth: 0
 
-      - name: Build and push DNS Client Python Docker image
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/build-push-action@v5
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
         with:
-          context: .
-          target: dns-client
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            penguincloud/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}
-            penguincloud/squawk-dns-client-python:latest
-            ghcr.io/${{ github.repository }}-client-python:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}-client-python:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Client (Python)
-            org.opencontainers.image.description=Python DNS-over-HTTPS client with local forwarding
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Testing Docker image
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: docker/build-push-action@v5
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Merge DNS Server manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server:latest \
+            ghcr.io/penguintechinc/squawk-dns-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server:latest-arm64
+
+      - name: Merge DNS Server Production manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-server-prod:latest \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-server-prod:latest-arm64
+
+      - name: Merge DNS Client Python manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-client-python:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-client-python:latest \
+            ghcr.io/penguintechinc/squawk-dns-client-python:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-client-python:latest-arm64
+
+      - name: Merge DNS Testing manifests
+        run: |
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }} \
+            ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }}-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-testing:${{ steps.version.outputs.VERSION }}-arm64
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk-dns-testing:latest \
+            ghcr.io/penguintechinc/squawk-dns-testing:latest-amd64 \
+            ghcr.io/penguintechinc/squawk-dns-testing:latest-arm64
+
+      - name: Merge DHCP Server manifests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          docker buildx imagetools create -t "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}" \
+            "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}-amd64" \
+            "ghcr.io/penguintechinc/squawk/dhcp-server:${VERSION}-arm64"
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk/dhcp-server:latest \
+            ghcr.io/penguintechinc/squawk/dhcp-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk/dhcp-server:latest-arm64
+
+      - name: Merge NTP Server manifests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          docker buildx imagetools create -t "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}" \
+            "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}-amd64" \
+            "ghcr.io/penguintechinc/squawk/ntp-server:${VERSION}-arm64"
+          docker buildx imagetools create -t ghcr.io/penguintechinc/squawk/ntp-server:latest \
+            ghcr.io/penguintechinc/squawk/ntp-server:latest-amd64 \
+            ghcr.io/penguintechinc/squawk/ntp-server:latest-arm64
+
+      - name: Capture multi-arch manifest digests
+        id: digests
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          for pair in \
+            "dns_server:ghcr.io/penguintechinc/squawk-dns-server" \
+            "dns_server_prod:ghcr.io/penguintechinc/squawk-dns-server-prod" \
+            "dns_client_python:ghcr.io/penguintechinc/squawk-dns-client-python" \
+            "dns_testing:ghcr.io/penguintechinc/squawk-dns-testing" \
+            "dhcp_server:ghcr.io/penguintechinc/squawk/dhcp-server" \
+            "ntp_server:ghcr.io/penguintechinc/squawk/ntp-server"; do
+            key="${pair%%:*}"; img="${pair#*:}"
+            digest=$(docker buildx imagetools inspect "${img}:${VERSION}" --format '{{.Manifest.Digest}}')
+            echo "${key}=${digest}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM for DNS Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
         with:
-          context: .
-          target: testing
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            penguincloud/squawk-dns-testing:${{ steps.version.outputs.VERSION }}
-            penguincloud/squawk-dns-testing:latest
-            ghcr.io/${{ github.repository }}-testing:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}-testing:latest
-          labels: |
-            org.opencontainers.image.title=Squawk DNS Testing
-            org.opencontainers.image.description=Testing environment with comprehensive test suite
-            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+          image: ghcr.io/penguintechinc/squawk-dns-server@${{ steps.digests.outputs.dns_server }}
+          format: spdx-json
+          output-file: sbom-dns-server.spdx.json
+          artifact-name: sbom-dns-server.spdx.json
 
-      # Extract release notes from RELEASE_NOTES.md
+      - name: Generate SBOM for DNS Server Prod (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-server-prod@${{ steps.digests.outputs.dns_server_prod }}
+          format: spdx-json
+          output-file: sbom-dns-server-prod.spdx.json
+          artifact-name: sbom-dns-server-prod.spdx.json
+
+      - name: Generate SBOM for DNS Client Python (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-client-python@${{ steps.digests.outputs.dns_client_python }}
+          format: spdx-json
+          output-file: sbom-dns-client-python.spdx.json
+          artifact-name: sbom-dns-client-python.spdx.json
+
+      - name: Generate SBOM for DNS Testing (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk-dns-testing@${{ steps.digests.outputs.dns_testing }}
+          format: spdx-json
+          output-file: sbom-dns-testing.spdx.json
+          artifact-name: sbom-dns-testing.spdx.json
+
+      - name: Generate SBOM for DHCP Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk/dhcp-server@${{ steps.digests.outputs.dhcp_server }}
+          format: spdx-json
+          output-file: sbom-dhcp-server.spdx.json
+          artifact-name: sbom-dhcp-server.spdx.json
+
+      - name: Generate SBOM for NTP Server (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/squawk/ntp-server@${{ steps.digests.outputs.ntp_server }}
+          format: spdx-json
+          output-file: sbom-ntp-server.spdx.json
+          artifact-name: sbom-ntp-server.spdx.json
+
+      - name: Sign images and attest SBOMs (keyless)
+        env:
+          COSIGN_YES: "true"
+          REF_DNS_SERVER: ghcr.io/penguintechinc/squawk-dns-server@${{ steps.digests.outputs.dns_server }}
+          REF_DNS_SERVER_PROD: ghcr.io/penguintechinc/squawk-dns-server-prod@${{ steps.digests.outputs.dns_server_prod }}
+          REF_DNS_CLIENT_PYTHON: ghcr.io/penguintechinc/squawk-dns-client-python@${{ steps.digests.outputs.dns_client_python }}
+          REF_DNS_TESTING: ghcr.io/penguintechinc/squawk-dns-testing@${{ steps.digests.outputs.dns_testing }}
+          REF_DHCP_SERVER: ghcr.io/penguintechinc/squawk/dhcp-server@${{ steps.digests.outputs.dhcp_server }}
+          REF_NTP_SERVER: ghcr.io/penguintechinc/squawk/ntp-server@${{ steps.digests.outputs.ntp_server }}
+        run: |
+          sign_attest() {
+            cosign sign --yes "$1"
+            cosign attest --yes --predicate "$2" --type spdxjson "$1"
+          }
+          sign_attest "${REF_DNS_SERVER}" sbom-dns-server.spdx.json
+          sign_attest "${REF_DNS_SERVER_PROD}" sbom-dns-server-prod.spdx.json
+          sign_attest "${REF_DNS_CLIENT_PYTHON}" sbom-dns-client-python.spdx.json
+          sign_attest "${REF_DNS_TESTING}" sbom-dns-testing.spdx.json
+          sign_attest "${REF_DHCP_SERVER}" sbom-dhcp-server.spdx.json
+          sign_attest "${REF_NTP_SERVER}" sbom-ntp-server.spdx.json
+
+  # Extract release notes and create release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: merge-manifests
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
       - name: Extract Release Notes
-        if: steps.tag_check.outputs.EXISTS == 'false'
         run: |
           chmod +x .github/scripts/extract-release-notes.sh
           GITHUB_REPOSITORY="${{ github.repository }}" \
           GITHUB_SHA="${{ github.sha }}" \
           .github/scripts/extract-release-notes.sh server "${{ steps.version.outputs.VERSION }}" release_body.md
 
-      # Create GitHub Release for server
       - name: Create Server Release
-        if: steps.tag_check.outputs.EXISTS == 'false'
-        uses: actions/create-release@v1
+        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e  # v1
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.version.outputs.TAG }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
           release_name: Squawk DNS Server v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
@@ -201,17 +378,13 @@ jobs:
   notify:
     name: Notify Server Release
     runs-on: ubuntu-latest
-    needs: build-and-release
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test, merge-manifests, release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Server Release Summary
         run: |
           echo "✅ Squawk DNS Server Release Complete!"
-          echo "Version: $(cat .version)"
+          echo "Version: ${{ github.ref }}"
           echo "Docker Images: DNS Server (Dev), DNS Server (Prod), Python Client, Testing"
           echo "Features: mTLS, MFA, SSO, DNS Blackholing, Redis Caching, Web Console"
-          echo "Registries: Docker Hub (penguincloud/*) and GitHub Container Registry"
-          echo "Tag: v$(cat .version | tr -d '\n' | sed 's/^v//')-server"
+          echo "Registry: ghcr.io/penguintechinc/squawk-*"

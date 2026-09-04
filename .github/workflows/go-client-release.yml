@@ -2,12 +2,18 @@ name: Go Client Build and Release
 
 on:
   push:
-    branches: ['*']
+    branches: ['main', 'v*.*.x']
+    paths:
+      - 'squawk-client-go/**'
+      - '.github/workflows/go-client-release.yml'
   pull_request:
-    branches: ['main']
+    branches: ['main', 'v*.*.x']
+    paths:
+      - 'squawk-client-go/**'
+      - '.github/workflows/go-client-release.yml'
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.25.12'
   APP_NAME: 'squawk-dns-client'
 
 jobs:
@@ -17,241 +23,359 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('dns-client-go/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('squawk-client-go/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Install dependencies
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: go mod download
 
       - name: Run tests
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: make test
 
       - name: Run linter
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          # v1.64.8 is the last golangci-lint v1 (v2 requires go1.25 to build;
+          # CI runs go1.24). Pinned to avoid @latest drift. Migrate to v2 when
+          # the repo moves to go1.25.
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           make lint
 
       - name: Security scan
-        working-directory: dns-client-go
+        working-directory: squawk-client-go
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.11
           make security
 
-  # Build and release job - only on main branch (not PR branches)
-  build-and-release:
-    name: Build and Release Go Client
+  # Build and release job - triggered by version tags
+  build-platform:
+    name: Build Go Client (${{ matrix.platform }})
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
       packages: write
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           fetch-depth: 0
 
-      - name: Determine binary name and Docker tags
-        id: naming
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
         run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          
-          if [ "$GITHUB_REF" = "refs/heads/main" ] && [ -f .version ]; then
-            VERSION=$(cat .version | tr -d '\n' | sed 's/^v//')
-            echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
-            echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG=$VERSION" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG_LATEST=true" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=v$VERSION-client" >> $GITHUB_OUTPUT
-          else
-            echo "BINARY_NAME=squawk-beta" >> $GITHUB_OUTPUT
-            echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
-            echo "VERSION=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG=$BRANCH_NAME" >> $GITHUB_OUTPUT
-            echo "DOCKER_TAG_LATEST=false" >> $GITHUB_OUTPUT
-          fi
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
 
-      - name: Check if release tag exists
-        if: steps.naming.outputs.IS_RELEASE == 'true'
-        id: tag_check
-        run: |
-          if git rev-parse "${{ steps.naming.outputs.RELEASE_TAG }}" >/dev/null 2>&1; then
-            echo "EXISTS=true" >> $GITHUB_OUTPUT
-            echo "Release tag ${{ steps.naming.outputs.RELEASE_TAG }} already exists, skipping GitHub release creation"
-          else
-            echo "EXISTS=false" >> $GITHUB_OUTPUT
-            echo "Release tag ${{ steps.naming.outputs.RELEASE_TAG }} does not exist, proceeding with GitHub release"
-          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
 
-      # Build for all platforms using containerized approach
-      - name: Build All Platforms (Containerized)
-        working-directory: dns-client-go
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4
+
+      - name: Build Go binary for platform
+        working-directory: squawk-client-go
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BINARY_NAME: squawk
+          APP_NAME: squawk-dns-client
+          GO_VERSION: '1.25.12'
         run: |
-          # Use Docker for consistent cross-compilation environment
           docker run --rm -v $(pwd):/workspace -w /workspace \
-            golang:${{ env.GO_VERSION }}-alpine \
+            --platform ${{ matrix.platform }} \
+            golang:${{ env.GO_VERSION }}-bookworm \
             sh -c '
-              apk add --no-cache git
-              
-              echo "Building ${{ steps.naming.outputs.BINARY_NAME }} for all platforms..."
-              
-              VERSION="${{ steps.naming.outputs.VERSION }}"
-              BINARY_NAME="${{ steps.naming.outputs.BINARY_NAME }}"
-              
-              # Linux AMD64
-              mkdir -p build/linux-amd64
-              CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
-                -o build/linux-amd64/$BINARY_NAME \
-                ./cmd/${{ env.APP_NAME }}
-              
-              # Linux ARM64
-              mkdir -p build/linux-arm64
-              CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build \
-                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
-                -o build/linux-arm64/$BINARY_NAME \
-                ./cmd/${{ env.APP_NAME }}
-              
-              # macOS AMD64
-              mkdir -p build/darwin-amd64
-              CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build \
-                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
-                -o build/darwin-amd64/$BINARY_NAME \
-                ./cmd/${{ env.APP_NAME }}
-              
-              # macOS ARM64 (Apple Silicon)
-              mkdir -p build/darwin-arm64
-              CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
-                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
-                -o build/darwin-arm64/$BINARY_NAME \
-                ./cmd/${{ env.APP_NAME }}
-              
-              # Windows AMD64
-              mkdir -p build/windows-amd64
-              CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build \
-                -ldflags "-X main.version=$VERSION -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
-                -o build/windows-amd64/$BINARY_NAME.exe \
-                ./cmd/${{ env.APP_NAME }}
-              
-              echo "Build completed for all platforms"
-              find build -name "*$BINARY_NAME*" -type f -exec ls -la {} \;
+              apt-get update && apt-get install -y --no-install-recommends git
+
+              ARCH=$(echo "${{ matrix.platform }}" | cut -d/ -f2)
+              mkdir -p build/$ARCH
+              CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build \
+                -ldflags "-X main.version=${{ steps.version.outputs.VERSION }} -X main.buildTime=$(date -u +%Y-%m-%d_%H:%M:%S) -X main.gitCommit=${{ github.sha }}" \
+                -o build/$ARCH/${{ steps.version.outputs.BINARY_NAME }} \
+                ./cmd/squawk-client
+
+              ls -la build/$ARCH/${{ steps.version.outputs.BINARY_NAME }}
             '
 
-      # Create release packages (only for releases)
-      - name: Create Release Packages
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
-        working-directory: dns-client-go
-        run: |
-          mkdir -p build/packages
-          BINARY_NAME="${{ steps.naming.outputs.BINARY_NAME }}"
-          VERSION="${{ steps.naming.outputs.VERSION }}"
-          
-          # Create release archives
-          cd build/linux-amd64 && tar -czf ../packages/squawk-$VERSION-linux-amd64.tar.gz $BINARY_NAME
-          cd ../linux-arm64 && tar -czf ../packages/squawk-$VERSION-linux-arm64.tar.gz $BINARY_NAME
-          cd ../darwin-amd64 && tar -czf ../packages/squawk-$VERSION-darwin-amd64.tar.gz $BINARY_NAME
-          cd ../darwin-arm64 && tar -czf ../packages/squawk-$VERSION-darwin-arm64.tar.gz $BINARY_NAME
-          cd ../windows-amd64 && zip -q ../packages/squawk-$VERSION-windows-amd64.zip $BINARY_NAME.exe
-          
-          # Generate checksums
-          cd ../packages
-          sha256sum * > SHA256SUMS
-
-      # Docker build and push for all pushes
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          name: binaries-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: squawk-client-go/build/
+
+  build-docker-platform:
+    name: Build Docker Image (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      packages: write
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build and push Docker image
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push Docker image (per platform)
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          BINARY_NAME: ${{ steps.version.outputs.BINARY_NAME }}
+          APP_NAME: squawk-dns-client
         with:
-          context: dns-client-go
-          platforms: linux/amd64,linux/arm64
+          context: squawk-client-go
+          platforms: ${{ matrix.platform }}
           push: true
           build-args: |
-            VERSION=${{ steps.naming.outputs.VERSION }}
+            VERSION=${{ env.VERSION }}
             BUILD_TIME=$(date -u +%Y-%m-%d_%H:%M:%S)
             GIT_COMMIT=${{ github.sha }}
-            BINARY_NAME=${{ steps.naming.outputs.BINARY_NAME }}
+            BINARY_NAME=${{ env.BINARY_NAME }}
           tags: |
-            penguincloud/${{ env.APP_NAME }}:${{ steps.naming.outputs.DOCKER_TAG }}
-            ghcr.io/${{ github.repository }}-go:${{ steps.naming.outputs.DOCKER_TAG }}
-            ${{ steps.naming.outputs.DOCKER_TAG_LATEST == 'true' && format('penguincloud/{0}:latest', env.APP_NAME) || '' }}
-            ${{ steps.naming.outputs.DOCKER_TAG_LATEST == 'true' && format('ghcr.io/{0}-go:latest', github.repository) || '' }}
+            ghcr.io/penguintechinc/${{ env.APP_NAME }}:${{ env.VERSION }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+            ghcr.io/penguintechinc/${{ env.APP_NAME }}:latest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           labels: |
             org.opencontainers.image.title=Squawk DNS Client (Go)
             org.opencontainers.image.description=High-performance DNS-over-HTTPS client
-            org.opencontainers.image.version=${{ steps.naming.outputs.VERSION }}
+            org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=docker-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.platform }}
 
-      # Create GitHub Release (only for main branch releases)
+  merge-docker-manifests:
+    name: Merge Docker Manifests
+    runs-on: ubuntu-latest
+    needs: build-docker-platform
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Merge Docker manifests
+        id: manifest
+        env:
+          APP_NAME: squawk-dns-client
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/penguintechinc/$APP_NAME:$VERSION \
+            ghcr.io/penguintechinc/$APP_NAME:$VERSION-amd64 \
+            ghcr.io/penguintechinc/$APP_NAME:$VERSION-arm64
+
+          docker buildx imagetools create \
+            -t ghcr.io/penguintechinc/$APP_NAME:latest \
+            ghcr.io/penguintechinc/$APP_NAME:latest-amd64 \
+            ghcr.io/penguintechinc/$APP_NAME:latest-arm64
+
+          DIGEST=$(docker buildx imagetools inspect "ghcr.io/penguintechinc/$APP_NAME:$VERSION" --format '{{.Manifest.Digest}}')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ghcr.io/penguintechinc/${{ env.APP_NAME }}@${{ steps.manifest.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-squawk-dns-client.spdx.json
+          artifact-name: sbom-squawk-dns-client.spdx.json
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ghcr.io/penguintechinc/${{ env.APP_NAME }}@${{ steps.manifest.outputs.digest }}
+          SBOM_FILE: sbom-squawk-dns-client.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
+
+  package-release:
+    name: Package Release Assets
+    runs-on: ubuntu-latest
+    needs: build-platform
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BINARY_NAME=squawk" >> $GITHUB_OUTPUT
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+
+      - name: Create Release Packages
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          BINARY_NAME: ${{ steps.version.outputs.BINARY_NAME }}
+        run: |
+          mkdir -p release/packages
+
+          if [ -f "binaries-amd64/amd64/$BINARY_NAME" ]; then
+            tar -czf release/packages/squawk-$VERSION-linux-amd64.tar.gz -C binaries-amd64/amd64 $BINARY_NAME
+          fi
+
+          if [ -f "binaries-arm64/arm64/$BINARY_NAME" ]; then
+            tar -czf release/packages/squawk-$VERSION-linux-arm64.tar.gz -C binaries-arm64/arm64 $BINARY_NAME
+          fi
+
+          cd release/packages
+          sha256sum * > SHA256SUMS
+
+      - name: Upload Release Assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: release-packages
+          path: release/packages/
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [merge-docker-manifests, package-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref }}
+        run: |
+          VERSION=${TAG#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download release packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: release-packages
+
       - name: Extract Release Notes
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
         run: |
           chmod +x .github/scripts/extract-release-notes.sh
           GITHUB_REPOSITORY="${{ github.repository }}" \
           GITHUB_SHA="${{ github.sha }}" \
-          .github/scripts/extract-release-notes.sh client "${{ steps.naming.outputs.VERSION }}" release_body.md
-      
+          .github/scripts/extract-release-notes.sh client "${{ steps.version.outputs.VERSION }}" release_body.md
+
       - name: Create Release
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '')
-        uses: actions/create-release@v1
+        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e  # v1
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.naming.outputs.RELEASE_TAG }}
-          release_name: Squawk DNS Client (Go) v${{ steps.naming.outputs.VERSION }}
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          release_name: Squawk DNS Client (Go) v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
           body_path: release_body.md
 
-      # Upload release assets
       - name: Upload Release Assets
-        if: steps.naming.outputs.IS_RELEASE == 'true' && (steps.tag_check.outputs.EXISTS == 'false' || steps.tag_check.outputs.EXISTS == '') && steps.create_release.outputs.upload_url
-        working-directory: dns-client-go/build/packages
+        if: steps.create_release.outputs.upload_url
+        env:
+          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for file in *.tar.gz *.zip SHA256SUMS; do
+          for file in squawk-*.tar.gz SHA256SUMS; do
             if [ -f "$file" ]; then
               echo "Uploading $file..."
-              curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              curl -H "Authorization: token $GITHUB_TOKEN" \
                    -H "Content-Type: application/octet-stream" \
                    --data-binary @"$file" \
-                   "${{ steps.create_release.outputs.upload_url }}?name=$file"
+                   "$UPLOAD_URL?name=$file"
             fi
           done
 
@@ -259,13 +383,15 @@ jobs:
   notify:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: build-and-release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, create-release]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Build Summary
+        env:
+          REF: ${{ github.ref }}
         run: |
           echo "✅ Squawk DNS Client (Go) Build Complete!"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Binary: ${{ needs.build-and-release.outputs.binary-name || 'squawk/squawk-beta' }}"
-          echo "Platforms: Linux (amd64, arm64), macOS (amd64, arm64), Windows (amd64)"
-          echo "Docker: penguincloud/squawk-dns-client:${{ github.ref_name }} and ghcr.io"
+          echo "Version: $REF"
+          echo "Platforms: Linux (amd64, arm64)"
+          echo "Docker: ghcr.io/penguintechinc/squawk-dns-client:$REF"
+          echo "Registry: ghcr.io/penguintechinc"

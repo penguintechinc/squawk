@@ -1,0 +1,133 @@
+[tool.black]
+line-length = 120
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | htmlcov
+  | migrations
+  | alembic
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = [
+    "*/venv/*",
+    "*/.venv/*",
+    "*/node_modules/*",
+    "*/.pytest_cache/*",
+    "*/htmlcov/*",
+    "*/.mypy_cache/*",
+    "*/alembic/*",
+    "*/migrations/*"
+]
+known_first_party = ["dns_server", "dns_client", "manager"]
+include_trailing_comma = true
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_no_return = true
+# NOTE: run per-service (`cd <service> && mypy <dir>/`), never all at once —
+# dns-server/app, manager/backend/app, and dhcp-server/app are each their own
+# top-level "app" package, so a single combined invocation trips mypy's
+# "Duplicate module named app" check. See Makefile `type-check` target.
+files = ["dns-server/app", "manager/backend/app", "squawk-client/bins", "dhcp-server/app", "ntp-server/bins"]
+exclude = [
+    "venv",
+    ".venv",
+    "migrations",
+    "alembic",
+    "tests"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "dns-server/tests", "squawk-client/tests", "manager/backend/tests", "dhcp-server/tests", "ntp-server/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "unit: Unit tests - isolated tests with mocked dependencies",
+    "integration: Integration tests - tests with real services",
+    "security: Security tests",
+    "performance: Performance benchmark tests",
+    "stress: Stress tests",
+    "load: Load / performance tests",
+    "smoke: Smoke tests - quick service verification",
+    "slow: Slow running tests",
+    "requires_db: Tests that require a database",
+    "requires_network: Tests that require network access",
+    "health: Health check tests",
+    "page: Page load tests",
+    "api: API endpoint tests",
+    "auth: Authentication tests",
+    "alpha: Alpha environment tests (local development)",
+    "beta: Beta environment tests (Kubernetes deployment)",
+    "full: Full smoke test suite",
+    "mock: Mock tests without network/database",
+    "edge_cases: Edge case and boundary condition tests",
+    "ux: User experience and UI/UX tests",
+    "deployed: Post-deployment verification tests",
+    "k8s: Kubernetes-specific tests",
+    "model: Model/data-class tests",
+    "network: Tests requiring network access",
+    "validation: Input validation tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["dns-server/app", "manager/backend/app", "squawk-client/bins", "dhcp-server/app", "ntp-server/bins"]
+omit = [
+    "*/venv/*",
+    "*/.venv/*",
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__main__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "^\\s*pass\\s*$",
+    "^\\s*\\.\\.\\.$"
+]
+# House standard is 90% (see backend.md Code Coverage). Real aggregate
+# coverage across all 5 services is currently ~31% -- this threshold is
+# intentionally left at the target, not lowered to match current reality,
+# so `make test-coverage` / `coverage report` honestly fail until it's closed.
+fail_under = 90

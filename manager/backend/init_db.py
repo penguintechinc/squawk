@@ -6,7 +6,9 @@ Creates initial admin user and sets up tables.
 
 import os
 import sys
+import secrets
 from datetime import datetime
+from typing import Optional
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -31,23 +33,42 @@ def init_database():
         admin_exists = db(db.auth_user.username == 'admin').count() > 0
 
         if not admin_exists:
-            # Create default admin user
-            password_hash = AuthService.hash_password('admin123')
+            # Read admin password from env or generate random strong password
+            admin_password: Optional[str] = os.getenv('SQUAWK_ADMIN_PASSWORD')
+            if not admin_password:
+                admin_password = secrets.token_urlsafe(16)
+                print("\n⚠️  ADMIN PASSWORD GENERATED (not from env)")
 
-            admin_id = db.auth_user.insert(
-                username='admin',
-                email='admin@squawkdns.local',
-                password_hash=password_hash,
-                global_role='SystemAdmin',
-                active=True,
-                created_at=datetime.utcnow()
-            )
+            password_hash = AuthService.hash_password(admin_password)
 
+            insert_data = {
+                'username': 'admin',
+                'email': 'admin@squawkdns.local',
+                'password_hash': password_hash,
+                'global_role': 'SystemAdmin',
+                'active': True,
+                'created_at': datetime.utcnow()
+            }
+
+            # Check if must_change_password column exists in auth_user table
+            try:
+                if hasattr(db.auth_user, 'must_change_password'):
+                    insert_data['must_change_password'] = True
+            except (AttributeError, TypeError):
+                # Column does not exist; skip it (should be added to schema separately)
+                pass
+
+            admin_id = db.auth_user.insert(**insert_data)
             db.commit()
 
             print("✓ Created default admin user")
             print("  Username: admin")
-            print("  Password: admin123")
+            # SECURITY: never print the password literal -- it persists in
+            # container/CI logs. Only a masked note is safe to emit here.
+            if os.getenv('SQUAWK_ADMIN_PASSWORD'):
+                print("  Password: set from SQUAWK_ADMIN_PASSWORD env var")
+            else:
+                print("  Password: generated -- retrieve via a secure channel (not logged)")
             print("  Role: SystemAdmin")
             print("\n⚠️  IMPORTANT: Change the admin password immediately after first login!")
         else:

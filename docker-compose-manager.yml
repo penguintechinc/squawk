@@ -1,12 +1,25 @@
+# ==========================================================================
+# DEPRECATED: Docker Compose support has been deprecated.
+# Kubernetes (microk8s) with Helm v3 is now the standard deployment method.
+#
+# Use instead:
+#   Alpha:  make k8s-alpha-deploy
+#   Beta:   make k8s-beta-deploy
+#   Prod:   make k8s-prod-deploy
+#
+# See k8s/helm/squawk/ for Helm charts and values files.
+# This file is retained for reference only and will be removed in a future release.
+# ==========================================================================
+
 version: '3.8'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-bookworm@sha256:7858a1a43bb2e3decc07650c8989ba526e0a8164f212c9bb88b622cdbd71c4be@sha256:7858a1a43bb2e3decc07650c8989ba526e0a8164f212c9bb88b622cdbd71c4be
     environment:
       POSTGRES_DB: squawk_manager
       POSTGRES_USER: squawk
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -20,7 +33,7 @@ services:
       - squawk-network
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:7-bookworm@sha256:a5995dfdf108997f8a7c9587f54fad5e94ed5848de5236a6b28119e99efd67e0
     ports:
       - "6379:6379"
     volumes:
@@ -38,10 +51,10 @@ services:
       context: ./manager/backend
       dockerfile: Dockerfile
     environment:
-      DB_URL: postgresql://squawk:${DB_PASSWORD:-changeme}@postgres:5432/squawk_manager
+      DB_URL: postgresql://squawk:${DB_PASSWORD:?DB_PASSWORD must be set}@postgres:5432/squawk_manager
       REDIS_URL: redis://valkey:6379
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-jwt-secret-change-in-production}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
     ports:
       - "5000:5000"
       - "50051:50051"

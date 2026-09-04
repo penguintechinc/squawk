@@ -1,0 +1,5 @@
+# MkDocs and theme requirements for Cloudflare Pages deployment
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+pymdown-extensions>=10.0.0
+mkdocs-git-revision-date-localized-plugin>=1.2.0

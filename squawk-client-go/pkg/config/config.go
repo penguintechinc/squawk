@@ -8,6 +8,7 @@ import (
 
 	"github.com/penguintechinc/squawk/squawk-client-go/pkg/client"
 	"github.com/penguintechinc/squawk/squawk-client-go/pkg/forwarder"
+	timeservice "github.com/penguintechinc/squawk/squawk-client-go/pkg/time"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,13 @@ type LicenseConfig struct {
 	UserToken      string `yaml:"user_token" json:"user_token"`
 	ValidateOnline bool   `yaml:"validate_online" json:"validate_online"`
 	CacheTime      int    `yaml:"cache_time" json:"cache_time"` // minutes
+}
+
+// TimeConfig holds NTP client and forwarder configuration
+type TimeConfig struct {
+	Enabled       bool                         `yaml:"enabled" json:"enabled"`
+	Client        *timeservice.ClientConfig    `yaml:"client" json:"client"`
+	Forwarder     *timeservice.ForwarderConfig `yaml:"forwarder" json:"forwarder"`
 }
 
 // FeaturesConfig holds the enabled features configuration
@@ -53,16 +61,17 @@ type NTPConfig struct {
 
 // AppConfig holds the complete application configuration
 type AppConfig struct {
-	Domain       string                `yaml:"domain" json:"domain"`
-	RecordType   string                `yaml:"record_type" json:"record_type"`
-	Client       *client.Config        `yaml:"client" json:"client"`
-	Forwarder    *forwarder.Config     `yaml:"forwarder" json:"forwarder"`
-	License      *LicenseConfig        `yaml:"license" json:"license"`
-	LogLevel     string                `yaml:"log_level" json:"log_level"`
-	Features     *FeaturesConfig       `yaml:"features" json:"features"`
-	Transport    *TransportConfig      `yaml:"transport" json:"transport"`
-	DHCP         *DHCPConfig           `yaml:"dhcp" json:"dhcp"`
-	NTP          *NTPConfig            `yaml:"ntp" json:"ntp"`
+	Domain       string           `yaml:"domain" json:"domain"`
+	RecordType   string           `yaml:"record_type" json:"record_type"`
+	Client       *client.Config   `yaml:"client" json:"client"`
+	Forwarder    *forwarder.Config `yaml:"forwarder" json:"forwarder"`
+	License      *LicenseConfig   `yaml:"license" json:"license"`
+	Time         *TimeConfig      `yaml:"time" json:"time"`
+	LogLevel     string           `yaml:"log_level" json:"log_level"`
+	Features     *FeaturesConfig  `yaml:"features" json:"features"`
+	Transport    *TransportConfig `yaml:"transport" json:"transport"`
+	DHCP         *DHCPConfig      `yaml:"dhcp" json:"dhcp"`
+	NTP          *NTPConfig       `yaml:"ntp" json:"ntp"`
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -95,13 +104,30 @@ func DefaultConfig() *AppConfig {
 			ValidateOnline: true,
 			CacheTime:      1440, // 24 hours (daily validation)
 		},
+		Time: &TimeConfig{
+			Enabled: false,
+			Client: &timeservice.ClientConfig{
+				ServerURLs: []string{
+					"pool.ntp.org:123",
+					"time.google.com:123",
+					"time.cloudflare.com:123",
+				},
+				Timeout:    5,
+				MaxRetries: 6,
+				RetryDelay: 1,
+			},
+			Forwarder: &timeservice.ForwarderConfig{
+				ListenAddress: "127.0.0.1:123",
+				CacheTTL:      60,
+			},
+		},
 		Features: &FeaturesConfig{
 			DNS:  true,  // DNS enabled by default
 			DHCP: false, // DHCP disabled by default
 			NTP:  false, // NTP disabled by default
 		},
 		Transport: &TransportConfig{
-			Mode: "http2", // Default to gRPC
+			Mode: "http2", // Default to http2
 		},
 		DHCP: &DHCPConfig{
 			ServerURL:       "",
@@ -277,6 +303,33 @@ func loadFromEnv(config *AppConfig) {
 		}
 	}
 
+	// Time/NTP configuration
+	if timeEnabled := os.Getenv("SQUAWK_TIME_ENABLED"); timeEnabled != "" {
+		if val, err := strconv.ParseBool(timeEnabled); err == nil {
+			config.Time.Enabled = val
+		}
+	}
+	if ntpServers := os.Getenv("SQUAWK_NTP_SERVERS"); ntpServers != "" {
+		servers := strings.Split(ntpServers, ",")
+		for i, server := range servers {
+			servers[i] = strings.TrimSpace(server)
+		}
+		config.Time.Client.ServerURLs = servers
+	}
+	if ntpTimeout := os.Getenv("SQUAWK_NTP_TIMEOUT"); ntpTimeout != "" {
+		if val, err := strconv.Atoi(ntpTimeout); err == nil && val > 0 {
+			config.Time.Client.Timeout = val
+		}
+	}
+	if ntpListenAddr := os.Getenv("SQUAWK_NTP_LISTEN_ADDRESS"); ntpListenAddr != "" {
+		config.Time.Forwarder.ListenAddress = ntpListenAddr
+	}
+	if ntpCacheTTL := os.Getenv("SQUAWK_NTP_CACHE_TTL"); ntpCacheTTL != "" {
+		if val, err := strconv.Atoi(ntpCacheTTL); err == nil && val > 0 {
+			config.Time.Forwarder.CacheTTL = val
+		}
+	}
+
 	// Features configuration
 	if features := os.Getenv("SQUAWK_FEATURES"); features != "" {
 		// Reset features to false first
@@ -436,6 +489,11 @@ func GetEnvVarList() []string {
 		"SQUAWK_USER_TOKEN",
 		"SQUAWK_VALIDATE_ONLINE",
 		"SQUAWK_LICENSE_CACHE_TIME",
+		"SQUAWK_TIME_ENABLED",
+		"SQUAWK_NTP_SERVERS",
+		"SQUAWK_NTP_TIMEOUT",
+		"SQUAWK_NTP_LISTEN_ADDRESS",
+		"SQUAWK_NTP_CACHE_TTL",
 		"LOG_LEVEL",
 		// Features and Transport
 		"SQUAWK_FEATURES",
@@ -465,46 +523,52 @@ func (c *AppConfig) String() string {
 
 	sb.WriteString("Squawk DNS Client Configuration:\n")
 	sb.WriteString("================================\n")
-	sb.WriteString(fmt.Sprintf("Domain: %s\n", c.Domain))
-	sb.WriteString(fmt.Sprintf("Record Type: %s\n", c.RecordType))
-	sb.WriteString(fmt.Sprintf("Log Level: %s\n", c.LogLevel))
+	fmt.Fprintf(&sb, "Domain: %s\n", c.Domain)
+	fmt.Fprintf(&sb, "Record Type: %s\n", c.RecordType)
+	fmt.Fprintf(&sb, "Log Level: %s\n", c.LogLevel)
 	sb.WriteString("\nClient Configuration:\n")
-	sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.Client.ServerURL))
-	sb.WriteString(fmt.Sprintf("  Auth Token: %s\n", maskToken(c.Client.AuthToken)))
-	sb.WriteString(fmt.Sprintf("  Client Cert: %s\n", c.Client.ClientCert))
-	sb.WriteString(fmt.Sprintf("  Client Key: %s\n", c.Client.ClientKey))
-	sb.WriteString(fmt.Sprintf("  CA Cert: %s\n", c.Client.CaCert))
-	sb.WriteString(fmt.Sprintf("  Verify SSL: %t\n", c.Client.VerifySSL))
+	fmt.Fprintf(&sb, "  Server URL: %s\n", c.Client.ServerURL)
+	fmt.Fprintf(&sb, "  Auth Token: %s\n", maskToken(c.Client.AuthToken))
+	fmt.Fprintf(&sb, "  Client Cert: %s\n", c.Client.ClientCert)
+	fmt.Fprintf(&sb, "  Client Key: %s\n", c.Client.ClientKey)
+	fmt.Fprintf(&sb, "  CA Cert: %s\n", c.Client.CaCert)
+	fmt.Fprintf(&sb, "  Verify SSL: %t\n", c.Client.VerifySSL)
 	sb.WriteString("\nForwarder Configuration:\n")
-	sb.WriteString(fmt.Sprintf("  UDP Address: %s (Listen: %t)\n", c.Forwarder.UDPAddress, c.Forwarder.ListenUDP))
-	sb.WriteString(fmt.Sprintf("  TCP Address: %s (Listen: %t)\n", c.Forwarder.TCPAddress, c.Forwarder.ListenTCP))
+	fmt.Fprintf(&sb, "  UDP Address: %s (Listen: %t)\n", c.Forwarder.UDPAddress, c.Forwarder.ListenUDP)
+	fmt.Fprintf(&sb, "  TCP Address: %s (Listen: %t)\n", c.Forwarder.TCPAddress, c.Forwarder.ListenTCP)
 	sb.WriteString("\nLicense Configuration:\n")
-	sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.License.ServerURL))
-	sb.WriteString(fmt.Sprintf("  License Key: %s\n", maskToken(c.License.LicenseKey)))
-	sb.WriteString(fmt.Sprintf("  User Token: %s\n", maskToken(c.License.UserToken)))
-	sb.WriteString(fmt.Sprintf("  Validate Online: %t\n", c.License.ValidateOnline))
-	sb.WriteString(fmt.Sprintf("  Cache Time: %d minutes\n", c.License.CacheTime))
+	fmt.Fprintf(&sb, "  Server URL: %s\n", c.License.ServerURL)
+	fmt.Fprintf(&sb, "  License Key: %s\n", maskToken(c.License.LicenseKey))
+	fmt.Fprintf(&sb, "  User Token: %s\n", maskToken(c.License.UserToken))
+	fmt.Fprintf(&sb, "  Validate Online: %t\n", c.License.ValidateOnline)
+	fmt.Fprintf(&sb, "  Cache Time: %d minutes\n", c.License.CacheTime)
+	sb.WriteString("\nTime/NTP Configuration:\n")
+	fmt.Fprintf(&sb, "  Enabled: %t\n", c.Time.Enabled)
+	fmt.Fprintf(&sb, "  NTP Servers: %v\n", c.Time.Client.ServerURLs)
+	fmt.Fprintf(&sb, "  Timeout: %d seconds\n", c.Time.Client.Timeout)
+	fmt.Fprintf(&sb, "  Listen Address: %s\n", c.Time.Forwarder.ListenAddress)
+	fmt.Fprintf(&sb, "  Cache TTL: %d seconds\n", c.Time.Forwarder.CacheTTL)
 	sb.WriteString("\nFeatures Configuration:\n")
-	sb.WriteString(fmt.Sprintf("  DNS: %t\n", c.Features.DNS))
-	sb.WriteString(fmt.Sprintf("  DHCP: %t\n", c.Features.DHCP))
-	sb.WriteString(fmt.Sprintf("  NTP: %t\n", c.Features.NTP))
+	fmt.Fprintf(&sb, "  DNS: %t\n", c.Features.DNS)
+	fmt.Fprintf(&sb, "  DHCP: %t\n", c.Features.DHCP)
+	fmt.Fprintf(&sb, "  NTP: %t\n", c.Features.NTP)
 	sb.WriteString("\nTransport Configuration:\n")
-	sb.WriteString(fmt.Sprintf("  Mode: %s\n", c.Transport.Mode))
+	fmt.Fprintf(&sb, "  Mode: %s\n", c.Transport.Mode)
 	if c.Features.DHCP {
 		sb.WriteString("\nDHCP Configuration:\n")
-		sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.DHCP.ServerURL))
-		sb.WriteString(fmt.Sprintf("  Interface: %s\n", c.DHCP.Interface))
-		sb.WriteString(fmt.Sprintf("  Enable Intercept: %t\n", c.DHCP.EnableIntercept))
-		sb.WriteString(fmt.Sprintf("  Lease File: %s\n", c.DHCP.LeaseFile))
-		sb.WriteString(fmt.Sprintf("  Listen Port: %d\n", c.DHCP.ListenPort))
+		fmt.Fprintf(&sb, "  Server URL: %s\n", c.DHCP.ServerURL)
+		fmt.Fprintf(&sb, "  Interface: %s\n", c.DHCP.Interface)
+		fmt.Fprintf(&sb, "  Enable Intercept: %t\n", c.DHCP.EnableIntercept)
+		fmt.Fprintf(&sb, "  Lease File: %s\n", c.DHCP.LeaseFile)
+		fmt.Fprintf(&sb, "  Listen Port: %d\n", c.DHCP.ListenPort)
 	}
 	if c.Features.NTP {
 		sb.WriteString("\nNTP Configuration:\n")
-		sb.WriteString(fmt.Sprintf("  Server URL: %s\n", c.NTP.ServerURL))
-		sb.WriteString(fmt.Sprintf("  Listen Port: %d\n", c.NTP.ListenPort))
-		sb.WriteString(fmt.Sprintf("  Sync Interval: %d seconds\n", c.NTP.SyncInterval))
-		sb.WriteString(fmt.Sprintf("  Enable Intercept: %t\n", c.NTP.EnableIntercept))
-		sb.WriteString(fmt.Sprintf("  NTS-KE Port: %d\n", c.NTP.NTSKEPort))
+		fmt.Fprintf(&sb, "  Server URL: %s\n", c.NTP.ServerURL)
+		fmt.Fprintf(&sb, "  Listen Port: %d\n", c.NTP.ListenPort)
+		fmt.Fprintf(&sb, "  Sync Interval: %d seconds\n", c.NTP.SyncInterval)
+		fmt.Fprintf(&sb, "  Enable Intercept: %t\n", c.NTP.EnableIntercept)
+		fmt.Fprintf(&sb, "  NTS-KE Port: %d\n", c.NTP.NTSKEPort)
 	}
 
 	return sb.String()

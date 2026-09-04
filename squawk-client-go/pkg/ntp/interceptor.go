@@ -188,7 +188,7 @@ func (i *Interceptor) buildResponse(request *NTPPacket, result *TimeResult) *NTP
 
 	response := &NTPPacket{
 		Settings:       0x24, // LI=0, VN=4, Mode=4 (Server)
-		Stratum:        byte(result.Stratum),
+		Stratum:        byte(result.Stratum), // #nosec G115 -- NTP Stratum is 0-16, safe conversion
 		Poll:           4, // 16 seconds minimum
 		Precision:      -20, // ~1 microsecond
 		RootDelay:      uint32(result.Delay.Seconds() * 65536),

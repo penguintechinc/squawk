@@ -1,0 +1,25 @@
+[flake8]
+# Critical errors (E9xx, F6xx, F7xx, F8xx) + unused imports (F401) + bugbear
+# (B, requires flake8-bugbear). E501 stays off: several existing files run
+# well past 120 cols and reformatting them is a separate, larger cleanup
+# (see pyproject.toml [tool.black] / [tool.isort] for the advisory formatters
+# that do enforce 120 cols, run via `make lint` but non-blocking).
+# Warnings reported but not blocking (set in Makefile)
+max-line-length = 120
+extend-ignore = E203, E266, E501, W503
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    */venv,
+    node_modules,
+    .pytest_cache,
+    htmlcov,
+    .mypy_cache,
+    alembic,
+    migrations,
+    */alembic,
+    */migrations
+# Select critical error codes + unused imports + bugbear-class checks
+select = E9,F63,F7,F821,F401,B

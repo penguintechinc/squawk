@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  replicas: {{ .Values.valkey.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: cache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: squawk
+        app.kubernetes.io/component: cache
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: valkey
+        image: {{ .Values.valkey.image }}:{{ .Values.valkey.tag }}@{{ .Values.valkey.digest }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: valkey
+          containerPort: 6379
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.valkey.resources | nindent 10 }}
+        volumeMounts:
+        # readOnlyRootFilesystem forbids writes to the image's default
+        # WORKDIR (/data); valkey-server's default save points (RDB
+        # snapshotting) need a writable /data or it fails on write.
+        - name: data
+          mountPath: /data
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: data
+        emptyDir: {}

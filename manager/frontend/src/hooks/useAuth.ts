@@ -35,6 +35,14 @@ export const useAuth = create<AuthStore>((set) => ({
   },
 
   logout: () => {
+    // Best-effort server-side revocation of the refresh token; local state is
+    // cleared regardless so logout never blocks on the network.
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      api.post('/api/v1/auth/logout', { refreshToken }).catch(() => {
+        console.log('[useAuth] Logout revocation failed { ignored: true }');
+      });
+    }
     localStorage.clear();
     set({ user: null, isAuthenticated: false, isLoading: false });
     window.location.href = '/login';

@@ -55,70 +55,8 @@ CREATE INDEX IF NOT EXISTS idx_query_logs_timestamp ON query_logs(timestamp DESC
 CREATE INDEX IF NOT EXISTS idx_query_logs_token ON query_logs(token_id);
 CREATE INDEX IF NOT EXISTS idx_query_logs_status ON query_logs(status);
 
--- Insert test data for development/testing
-INSERT INTO tokens (token, name, description, active) VALUES 
-    ('test-token-for-development', 'Development Token', 'Token for development and testing', true),
-    ('admin-token-12345', 'Admin Token', 'Administrative access token', true),
-    ('client-token-67890', 'Client Token', 'Limited client access token', true),
-    ('inactive-token', 'Inactive Token', 'Disabled token for testing', false)
-ON CONFLICT (token) DO NOTHING;
-
-INSERT INTO domains (name, description) VALUES 
-    ('*', 'Wildcard - access to all domains'),
-    ('example.com', 'Example domain for testing'),
-    ('test.com', 'Test domain'),
-    ('api.example.com', 'API subdomain'),
-    ('internal.company.com', 'Internal company domain'),
-    ('dev.example.com', 'Development domain')
-ON CONFLICT (name) DO NOTHING;
-
--- Grant permissions (token_domains relationships)
--- Development token gets wildcard access
-INSERT INTO token_domains (token_id, domain_id) 
-SELECT t.id, d.id 
-FROM tokens t, domains d 
-WHERE t.token = 'test-token-for-development' 
-  AND d.name = '*'
-ON CONFLICT DO NOTHING;
-
--- Admin token gets access to specific domains
-INSERT INTO token_domains (token_id, domain_id) 
-SELECT t.id, d.id 
-FROM tokens t, domains d 
-WHERE t.token = 'admin-token-12345' 
-  AND d.name IN ('example.com', 'api.example.com', 'internal.company.com')
-ON CONFLICT DO NOTHING;
-
--- Client token gets limited access
-INSERT INTO token_domains (token_id, domain_id) 
-SELECT t.id, d.id 
-FROM tokens t, domains d 
-WHERE t.token = 'client-token-67890' 
-  AND d.name IN ('example.com', 'dev.example.com')
-ON CONFLICT DO NOTHING;
-
--- Insert some sample query logs for testing
-INSERT INTO query_logs (token_id, domain_queried, query_type, status, client_ip, timestamp) 
-SELECT 
-    t.id,
-    'example.com',
-    'A',
-    'allowed',
-    '127.0.0.1',
-    CURRENT_TIMESTAMP - INTERVAL '1 hour'
-FROM tokens t 
-WHERE t.token = 'test-token-for-development';
-
-INSERT INTO query_logs (token_id, domain_queried, query_type, status, client_ip, timestamp) 
-SELECT 
-    t.id,
-    'blocked.example.com',
-    'A',
-    'denied',
-    '192.168.1.100',
-    CURRENT_TIMESTAMP - INTERVAL '30 minutes'
-FROM tokens t 
-WHERE t.token = 'client-token-67890';
+-- Test data seeding removed for security
+-- Use scripts/dev-seed.sql for development and testing data
 
 -- Create a view for easier token permission queries
 CREATE OR REPLACE VIEW token_permissions AS
@@ -152,12 +90,4 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO squawk_user;
 
 -- Print success message
 \echo 'PostgreSQL database initialization completed successfully!'
-\echo 'Test tokens created:'
-\echo '- test-token-for-development (wildcard access)'
-\echo '- admin-token-12345 (admin access)'  
-\echo '- client-token-67890 (limited access)'
-\echo ''
-\echo 'Test domains created:'
-\echo '- * (wildcard)'
-\echo '- example.com, test.com, api.example.com'
-\echo '- internal.company.com, dev.example.com'
+\echo 'Schema created. Use scripts/dev-seed.sql for test data.'

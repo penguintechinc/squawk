@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.manager.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "squawk.manager.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "squawk.manager.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        # jwt-keys Secret volume mounts with defaultMode 0440 (owner+group
+        # read only). Without fsGroup, K8s owns the mounted files root:root
+        # and the non-root runAsUser 1000 process can't read them at all.
+        # runAsGroup must match fsGroup or group-read still doesn't apply.
+        # runAsUser must also be set here (not just at container level) —
+        # containerd's sandbox spec generation rejects a pod-level
+        # runAsGroup with no accompanying pod-level runAsUser.
+        runAsUser: 1000
+        fsGroup: 1000
+        runAsGroup: 1000
+      containers:
+      - name: manager
+        image: {{ include "squawk.manager.image" . }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: gunicorn
+          containerPort: 5000
+          protocol: TCP
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        env:
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: manager-db
+              key: url
+        # The valkey Service is named plain "valkey" (see
+        # templates/valkey-service.yml / dns-server's matching
+        # dnsServer.env.valkeyHost) — not "{fullname}-valkey". VALKEY_HOST/
+        # PORT below are unused by app/config.py (it only reads REDIS_URL or
+        # VALKEY_URL as a full connection string); VALKEY_URL is the one
+        # that actually wires up RATELIMIT_STORAGE_URL for penguin-limiter.
+        - name: VALKEY_HOST
+          value: "valkey"
+        - name: VALKEY_PORT
+          value: "6379"
+        - name: VALKEY_URL
+          value: "redis://valkey:6379"
+        - name: LOG_LEVEL
+          value: {{ .Values.manager.logLevel | quote }}
+        # Asymmetric JWT signing keys (ES256/RS256) — manager is the sole
+        # signer. Mounted read-only from the squawk-jwt-keys Secret (see
+        # k8s/squawk-jwt-keys.example.yml); never committed to git.
+        - name: JWT_PRIVATE_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-private-key"
+        - name: JWT_PUBLIC_KEY_FILE
+          value: "{{ .Values.jwt.mountPath }}/jwt-public-key"
+        - name: JWT_ALGORITHM
+          value: {{ .Values.jwt.algorithm | quote }}
+        - name: JWT_ISSUER
+          value: {{ .Values.jwt.issuer | quote }}
+        - name: JWT_AUDIENCE
+          value: {{ .Values.jwt.audience | quote }}
+        - name: TENANT_ID
+          value: {{ .Values.manager.tenantId | quote }}
+        # Flask session/CSRF signing key + legacy symmetric JWT secret (server
+        # tokens only — user/machine tokens use the asymmetric ES256 keys
+        # above). Manager is the only service that needs SECRET_KEY; the
+        # shared JWT_SECRET_KEY value MUST match what dhcp-server/ntp-server
+        # already read from this same secret so tokens verify consistently
+        # (see their deployment templates — this wiring was missing here).
+        # Provision out-of-band: kubectl create secret generic squawk-jwt-secret
+        #   -n squawk --from-literal=jwt-secret-key=<value> --from-literal=secret-key=<value>
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-jwt-secret
+              key: secret-key
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: squawk-jwt-secret
+              key: jwt-secret-key
+        {{- if .Values.spiffe.enabled }}
+        # SPIFFE/mTLS service identity (opt-in, preferred over the legacy
+        # per-server static JWT). Only meaningful behind a mesh/gateway that
+        # terminates mTLS and injects+strips the XFCC header — see
+        # k8s/helm/spire/README.md before enabling. Omitted entirely when
+        # spiffe.enabled is false: manager/backend/app/config.py already
+        # defaults SPIFFE_ENABLED to "false" when the env var is unset, so
+        # omission and an explicit "false" are behaviorally identical.
+        - name: SPIFFE_ENABLED
+          value: "true"
+        - name: SPIFFE_TRUST_DOMAIN
+          value: {{ .Values.spiffe.trustDomain | quote }}
+        - name: SPIFFE_XFCC_HEADER
+          value: {{ .Values.spiffe.xfccHeader | quote }}
+        {{- end }}
+        volumeMounts:
+        - name: jwt-keys
+          mountPath: {{ .Values.jwt.mountPath }}
+          readOnly: true
+        # readOnlyRootFilesystem forbids writes to /tmp; gunicorn's gthread
+        # worker needs a writable tmpdir for its per-worker heartbeat file.
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: {{ .Values.manager.resources.requests.cpu }}
+            memory: {{ .Values.manager.resources.requests.memory }}
+          limits:
+            cpu: {{ .Values.manager.resources.limits.cpu }}
+            memory: {{ .Values.manager.resources.limits.memory }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      # Manager reads both jwt-private-key (signs) and jwt-public-key.
+      # Provision out-of-band — see k8s/squawk-jwt-keys.example.yml.
+      - name: jwt-keys
+        secret:
+          secretName: {{ include "squawk.jwt.secretName" . }}
+          defaultMode: 0440
+      - name: tmp
+        emptyDir: {}

@@ -44,6 +44,11 @@ Open your browser and navigate to: `http://localhost:8000/dns_console`
 4. The system will generate a secure token automatically
 5. Click **Create Token**
 
+> **Copy the token now — it is shown only once.** As of v2.1.x tokens are stored
+> as SHA-256 hashes at rest and looked up by hash. The plaintext value is
+> displayed a single time at creation (and on regeneration); it cannot be
+> retrieved later. Lost a token? Regenerate it.
+
 ### 4. Assigning Domain Permissions
 
 1. After creating a token, click **Edit** next to it
@@ -93,7 +98,7 @@ python dns-client/bins/client.py \
 - List all tokens
 - Create new tokens
 - Edit/delete existing tokens
-- View token values
+- View token metadata (the plaintext token value is shown only once, at creation — it is stored hashed and cannot be displayed again)
 
 ### Domains (`/dns_console/domains`)
 - Manage allowed domains
@@ -138,13 +143,15 @@ Response:
     {
       "id": 1,
       "name": "Production API",
-      "token": "secure-token-value",
       "created_at": "2024-01-01T00:00:00",
       "domains": ["example.com", "api.example.com"]
     }
   ]
 }
 ```
+
+> The list/detail responses **never** return the plaintext token — it is stored
+> hashed and returned only once, in the create/regenerate response.
 
 ### Validate Token
 ```
@@ -160,7 +167,7 @@ Response:
 
 ## Security Considerations
 
-1. **Token Storage**: Store tokens securely and never commit them to version control
+1. **Token Storage**: The server stores only a SHA-256 hash of each token (looked up by hash); the plaintext is shown once at creation. Store your copy securely and never commit it to version control
 2. **HTTPS**: Always use HTTPS in production environments
 3. **Token Rotation**: Regularly rotate tokens for enhanced security
 4. **Audit Logs**: Monitor the query logs for suspicious activity
@@ -201,7 +208,7 @@ If you have an existing single-token setup:
 Token: dev-token
 Domains: *.dev.example.com, localhost
 
-Token: prod-token  
+Token: prod-token
 Domains: *.example.com, *.api.example.com
 
 Token: monitoring-token

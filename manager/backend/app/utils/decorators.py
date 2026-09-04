@@ -3,10 +3,10 @@ Utility decorators for Squawk DNS Manager.
 """
 
 from functools import wraps
-from flask import jsonify, current_app, request
-from datetime import datetime
+from flask import jsonify, current_app, request, g
 import time
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -181,41 +181,194 @@ def handle_db_errors(f):
         try:
             return f(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Database error in {f.__name__}: {str(e)}")
+            # Log detail server-side; never echo exception text to clients.
+            logger.exception(f"Database error in {f.__name__}: {str(e)}")
             db = current_app.db
             db.rollback()
             return jsonify({
-                'error': 'Database operation failed',
-                'message': str(e)
+                'error': 'Database operation failed'
             }), 500
-        return decorated_function
-    return decorator
+    return decorated_function
 
 
-def audit_log(action: str):
+def audit_log(action: str, resource_type: str | None = None):
     """
-    Decorator to log actions for audit trail.
+    Decorator to log actions for durable audit trail.
+
+    Writes audit events to the database and emits structured JSON logs.
+    Never emits PII (no username, email, etc.) — only user_id.
+    Audit write failures are logged but never fail the request (fail-open).
 
     Args:
-        action: Description of the action
+        action: Action name (e.g., 'user_created', 'token_deleted')
+        resource_type: Optional resource type (auto-extracted from route kwargs if not provided)
 
     Example:
-        @audit_log('user_created')
-        def create_user():
+        @audit_log('user_created', resource_type='user')
+        def create_user(user_id):
             ...
+
+        @audit_log('token_deleted')  # resource_type inferred from context
+        def delete_token(token_id):
+            ...
+
+    Pre-auth attribution override:
+        Some security-relevant events (login, MFA verify, SSO/SAML callbacks,
+        token refresh, machine client token grants) happen before
+        get_current_user() has anything to return -- there is no JWT yet, or
+        the caller is a pre-auth/machine identity. For these, the wrapped
+        view may set any of the following on flask.g *before returning* to
+        supply the target/actor identity the decorator can't infer on its
+        own; each falls back to the JWT-derived/kwarg-inferred value above
+        if unset:
+
+            g.audit_actor_id, g.audit_tenant, g.audit_resource_type, g.audit_resource_id
+
+        Example:
+            @audit_log('user_login')
+            def login():
+                ...
+                g.audit_actor_id = target_user_id  # even on failed auth
+                ...
     """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            import json
+            from datetime import datetime
             from app.middleware.auth import get_current_user
 
+            # Clear any pre-auth attribution left on g by an earlier
+            # request. flask.g is scoped to the *application* context, not
+            # strictly one request -- callers that keep a single app
+            # context open across multiple requests (e.g. `with
+            # app.app_context():` in tests) would otherwise leak one
+            # request's g.audit_* values into the next request that
+            # doesn't set them itself. A normal WSGI request always gets a
+            # fresh app context, so this is a no-op in production.
+            for _attr in ('audit_actor_id', 'audit_tenant', 'audit_resource_type', 'audit_resource_id'):
+                if hasattr(g, _attr):
+                    delattr(g, _attr)
+
             user = get_current_user()
-            user_id = user.get('user_id') if user else None
-            username = user.get('username') if user else 'anonymous'
+            actor_id = user.get('user_id') if user else None
+            tenant = user.get('tenant') if user else None
+            source_ip = request.remote_addr
 
-            logger.info(f"AUDIT: {action} by {username} (user_id={user_id})")
+            # Attempt to infer resource_id from route kwargs
+            resource_id = None
+            inferred_resource_type = resource_type
+            for key_pattern in ['_id', 'id']:
+                for key in kwargs:
+                    if key.endswith(key_pattern):
+                        resource_id = kwargs[key]
+                        if not inferred_resource_type:
+                            # Extract type from key: 'token_id' -> 'token', 'server_id' -> 'server'
+                            inferred_resource_type = key.rsplit('_id' if key.endswith('_id') else 'id', 1)[0]
+                        break
 
-            result = f(*args, **kwargs)
+            def _apply_g_overrides():
+                """Let the wrapped view supply pre-auth attribution via flask.g."""
+                nonlocal actor_id, tenant, resource_id, inferred_resource_type
+                actor_id = getattr(g, 'audit_actor_id', actor_id)
+                tenant = getattr(g, 'audit_tenant', tenant)
+                resource_id = getattr(g, 'audit_resource_id', resource_id)
+                inferred_resource_type = getattr(g, 'audit_resource_type', inferred_resource_type)
+
+            try:
+                # Execute the wrapped function
+                result = f(*args, **kwargs)
+                _apply_g_overrides()
+
+                # Extract outcome from result
+                outcome = 'success'
+                status_code = 200
+                if isinstance(result, tuple) and len(result) >= 2:
+                    # Flask route returned (response, status_code)
+                    _, status_code = result[0:2]
+                    outcome = 'success' if status_code < 400 else 'failure'
+                elif isinstance(result, dict):
+                    status_code = 200
+
+                # Extract request_id if present in headers or response
+                request_id = request.headers.get('X-Request-ID')
+
+            except Exception as e:
+                # Audit the failure, log the error, re-raise
+                _apply_g_overrides()
+                outcome = 'failure'
+                status_code = 500
+                request_id = request.headers.get('X-Request-ID')
+
+                # Attempt to write failure audit record
+                try:
+                    db = current_app.db
+                    db.audit_event.insert(
+                        action=action,
+                        actor_id=actor_id,
+                        tenant=tenant,
+                        resource_type=inferred_resource_type,
+                        resource_id=resource_id,
+                        outcome=outcome,
+                        status_code=status_code,
+                        request_id=request_id,
+                        source_ip=source_ip,
+                    )
+                    db.commit()
+                except Exception as audit_err:
+                    # Log audit write failure but don't fail the request
+                    logger.error(f"Audit write failed for {action}: {audit_err}")
+
+                # Emit structured JSON log (no PII)
+                log_entry = {
+                    'event_type': 'audit',
+                    'action': action,
+                    'actor_id': actor_id,
+                    'resource_type': inferred_resource_type,
+                    'resource_id': resource_id,
+                    'outcome': outcome,
+                    'status_code': status_code,
+                    'request_id': request_id,
+                    'source_ip': source_ip,
+                    'timestamp': datetime.utcnow().isoformat(),
+                }
+                logger.error(f"AUDIT_EVENT {json.dumps(log_entry)}")
+
+                raise
+
+            # Write audit event to database
+            try:
+                db = current_app.db
+                db.audit_event.insert(
+                    action=action,
+                    actor_id=actor_id,
+                    tenant=tenant,
+                    resource_type=inferred_resource_type,
+                    resource_id=resource_id,
+                    outcome=outcome,
+                    status_code=status_code,
+                    request_id=request_id,
+                    source_ip=source_ip,
+                )
+                db.commit()
+            except Exception as e:
+                # Log audit write failure but don't fail the request
+                logger.error(f"Audit write failed for {action}: {e}")
+
+            # Emit structured JSON log (no PII — only user_id, no username/email)
+            log_entry = {
+                'event_type': 'audit',
+                'action': action,
+                'actor_id': actor_id,
+                'resource_type': inferred_resource_type,
+                'resource_id': resource_id,
+                'outcome': outcome,
+                'status_code': status_code,
+                'request_id': request_id,
+                'source_ip': source_ip,
+                'timestamp': datetime.utcnow().isoformat(),
+            }
+            logger.info(f"AUDIT_EVENT {json.dumps(log_entry)}")
 
             return result
         return decorated_function
@@ -225,6 +378,7 @@ def audit_log(action: str):
 def cors_preflight(f):
     """
     Decorator to handle CORS preflight requests.
+    Only reflects Origin if it is in the ALLOWED_ORIGINS allowlist.
 
     Example:
         @cors_preflight
@@ -235,7 +389,17 @@ def cors_preflight(f):
     def decorated_function(*args, **kwargs):
         if request.method == 'OPTIONS':
             response = jsonify({'status': 'ok'})
-            response.headers['Access-Control-Allow-Origin'] = '*'
+
+            # Check if Origin is in allowlist
+            allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
+            allowed_origins: list[str] = [
+                origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()
+            ] if allowed_origins_str else []
+
+            origin: str | None = request.headers.get('Origin')
+            if origin and allowed_origins and origin in allowed_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
             return response

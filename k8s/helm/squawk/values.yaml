@@ -1,0 +1,220 @@
+global:
+  imageRegistry: ghcr.io
+
+namespace:
+  create: true
+  name: squawk
+
+dnsServer:
+  image:
+    repository: penguintechinc/squawk
+    tag: latest
+  replicas: 2
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    squawkServerUrl: "http://localhost:8080"
+    valkeyHost: "valkey"
+    valkeyPort: "6379"
+    logLevel: "info"
+    dnsPort: "8080"
+    dohPort: "8080"
+  # Only takes effect when top-level autoscaling.enabled is true (prod only).
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+dnsClient:
+  image:
+    repository: penguintechinc/squawk-dns-client
+    tag: latest
+  replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  listenPort: 5300
+  service:
+    type: ClusterIP
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+valkey:
+  image: valkey/valkey
+  tag: "8-bookworm"
+  digest: "sha256:4a7d243f2890e13198440dcfc8d24c9adf9d4fc4092389c89c12a6fda43d3704"
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+k8sDns:
+  image:
+    repository: penguintechinc/squawk-k8s-dns
+    tag: latest
+  replicas: 2
+  listenPort: 5300
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  env:
+    # SQUAWK_SERVER_URL is no longer values-driven — the binary requires a
+    # literal IP (see templates/k8s-dns-deployment.yml), so it's built from
+    # Kubernetes' auto-injected dns-server Service env vars instead.
+    clusterDomain: "cluster.local"
+    logLevel: "info"
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+manager:
+  image:
+    repository: penguintechinc/squawk/manager
+    tag: latest
+  replicas: 1
+  logLevel: "info"
+  tenantId: "default"
+  # 256Mi was OOMKilling 4 gunicorn gthread workers loading this service's
+  # dependency stack (pysaml2, boto3, grpcio, aiohttp, SQLAlchemy,
+  # OpenTelemetry) within seconds of every startup. Worth a follow-up to
+  # right-size properly (or reduce worker count) rather than carry this
+  # bump indefinitely, but 256Mi never worked in practice.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+dhcpServer:
+  enabled: true
+  image:
+    repository: penguintechinc/squawk/dhcp-server
+    tag: latest
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    logLevel: "info"
+    poolSubnet: "192.168.1.0/24"
+    poolStart: "192.168.1.100"
+    poolEnd: "192.168.1.200"
+    gateway: "192.168.1.1"
+    dnsServers: "8.8.8.8,8.8.4.4"
+    leaseTime: "86400"
+    posthogHost: "https://license.penguintech.io"
+  service:
+    type: ClusterIP
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+ntpServer:
+  enabled: true
+  image:
+    repository: penguintechinc/squawk/ntp-server
+    tag: latest
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    udpPort: "11123"
+    posthogHost: "https://license.penguintech.io"
+  # nodePorts is an explicit (empty-by-default) map, not just an absent key —
+  # ntp-server has 3 ports, so alpha.yml sets nodePorts.http/.ntsKe/.ntp
+  # individually. An absent `nodePorts` key (vs. an empty map) would error
+  # when the service template dereferences .nodePorts.http on a nil parent.
+  service:
+    type: ClusterIP
+    nodePorts: {}
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+serviceAccount:
+  create: false
+  name: ""
+
+networkPolicy:
+  enabled: true
+
+# PodDisruptionBudget — applies only to Deployments with configured replicas
+# >= 2 (see templates/poddisruptionbudget.yml); minAvailable overridable per
+# service via <service>.pdb.minAvailable.
+pdb:
+  enabled: true
+  minAvailable: 1
+
+# HorizontalPodAutoscaler — off by default everywhere; enabled ONLY in
+# production values (alpha/beta/gamma stay fixed-replica, no autoscale) per
+# the house resource-tier standard. Per-service min/max/target live under
+# each service's `autoscaling` block above.
+autoscaling:
+  enabled: false
+
+# Asymmetric JWT keys (ES256/RS256) for user-token auth.
+# manager (signer) reads jwt-private-key + jwt-public-key.
+# dns-server, dhcp-server, ntp-server (verifiers) read ONLY jwt-public-key.
+#
+# The Secret is NOT created by this chart — provision it before install:
+#   ./scripts/gen-jwt-keys.sh --output /tmp/squawk-jwt-keys
+#   kubectl create secret generic squawk-jwt-keys -n squawk \
+#     --from-file=jwt-private-key=/tmp/squawk-jwt-keys/jwt_private_key_es256.pem \
+#     --from-file=jwt-public-key=/tmp/squawk-jwt-keys/jwt_public_key_es256.pem
+# See k8s/squawk-jwt-keys.example.yml for the Secret shape (placeholder only,
+# REPLACE — never commit real key material).
+jwt:
+  secretName: squawk-jwt-keys
+  algorithm: ES256
+  issuer: squawk-manager
+  audience: squawk
+  mountPath: /etc/squawk/jwt
+
+# SPIFFE/mTLS service identity for the manager's inbound XFCC auth path
+# (manager/backend/app/services/spiffe.py, manager/backend/app/config.py).
+# Preferred over the legacy per-server static JWT, but OPT-IN and OFF by
+# default: XFCC is a client-supplied header, safe to trust only when a mesh
+# sidecar/gateway terminates mTLS, injects the verified SPIFFE ID, and
+# strips any inbound copy before it reaches the manager. Do not flip
+# `enabled: true` until that mesh/proxy is in place — see
+# k8s/helm/spire/README.md for the full setup + verification steps.
+spiffe:
+  enabled: false
+  trustDomain: penguintech.io
+  xfccHeader: X-Forwarded-Client-Cert

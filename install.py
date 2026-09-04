@@ -80,7 +80,7 @@ class SquawkInstaller:
         print("Copying application files...")
         
         # Copy client files
-        client_src = Path(__file__).parent / "dns-client"
+        client_src = Path(__file__).parent / "squawk-client"
         if client_src.exists():
             shutil.copytree(client_src / "bins", self.install_path / "bins", dirs_exist_ok=True)
             shutil.copytree(client_src / "libs", self.install_path / "libs", dirs_exist_ok=True)
@@ -102,7 +102,7 @@ class SquawkInstaller:
             "udp_port": 53,
             "tcp_port": 53,
             "auto_start": True,
-            "console_url": os.getenv("SQUAWK_CONSOLE_URL", "http://localhost:8080/dns_console"),
+            "console_url": os.getenv("SQUAWK_CONSOLE_URL", "http://localhost:8080/health"),
             "cache_enabled": os.getenv("CACHE_ENABLED", "true").lower() == "true",
             "cache_ttl": int(os.getenv("CACHE_TTL", "300")),
             "valkey_url": os.getenv("VALKEY_URL", ""),

@@ -4,8 +4,8 @@ Handles team CRUD and member management.
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from app.middleware.auth import token_required, get_current_user
-from app.middleware.rbac import requires_role, requires_team_role, can_access_team, filter_teams_by_access
+from app.middleware.auth import token_required
+from app.middleware.rbac import requires_scope, requires_team_role, can_access_team, filter_teams_by_access
 from app.utils.decorators import validate_json, audit_log
 from app.utils.validators import validate_team_role
 
@@ -58,7 +58,7 @@ def list_teams():
 
 @teams_bp.route('/api/v1/teams', methods=['POST'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('teams:write')
 @validate_json('name')
 @audit_log('team_created')
 def create_team():
@@ -148,18 +148,23 @@ def update_team(team_id):
         return jsonify({'error': 'Team not found'}), 404
 
     data = request.get_json()
+    update_fields = {}
 
     if 'name' in data:
         # Check if new name conflicts
         existing = db((db.team.name == data['name']) & (db.team.id != team_id)).count()
         if existing > 0:
             return jsonify({'error': 'Team name already exists'}), 409
-        team.update_record(name=data['name'])
+        update_fields['name'] = data['name']
 
     if 'description' in data:
-        team.update_record(description=data['description'])
+        update_fields['description'] = data['description']
 
-    db.commit()
+    if update_fields:
+        # penguin-dal has no Row.update_record(); use the QuerySet idiom.
+        db(db.team.id == team_id).update(**update_fields)
+        db.commit()
+        team = db.team[team_id]
 
     return jsonify({
         'id': team.id,
@@ -170,7 +175,7 @@ def update_team(team_id):
 
 @teams_bp.route('/api/v1/teams/<int:team_id>', methods=['DELETE'])
 @token_required
-@requires_role('SystemAdmin', 'OrgAdmin')
+@requires_scope('teams:write')
 @audit_log('team_deleted')
 def delete_team(team_id):
     """Delete team and all memberships."""
@@ -180,8 +185,9 @@ def delete_team(team_id):
     if not team:
         return jsonify({'error': 'Team not found'}), 404
 
-    # Delete team (cascade will delete memberships)
-    del db.team[team_id]
+    # Delete team (cascade will delete memberships).
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet idiom.
+    db(db.team.id == team_id).delete()
     db.commit()
 
     return jsonify({
@@ -300,8 +306,9 @@ def update_team_member_role(team_id, user_id):
     if not membership:
         return jsonify({'error': 'Team member not found'}), 404
 
-    # Update role
-    membership.update_record(role=data['role'])
+    # Update role. penguin-dal has no Row.update_record(); use the
+    # QuerySet idiom.
+    db(db.team_member.id == membership.id).update(role=data['role'])
     db.commit()
 
     return jsonify({

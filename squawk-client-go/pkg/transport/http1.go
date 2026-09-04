@@ -125,7 +125,7 @@ func (t *HTTP1Transport) doRequest(ctx context.Context, method, url string, body
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -168,7 +168,7 @@ func (t *HTTP1Transport) DNSQuery(ctx context.Context, req *DNSRequest) (*DNSRes
 	if err != nil {
 		return nil, fmt.Errorf("DNS request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

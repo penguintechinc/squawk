@@ -2,32 +2,76 @@
 Flask application factory for Squawk DNS Manager.
 """
 
+import logging
+import os
+
 from flask import Flask
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-import logging
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import Config
 from app.db import init_db
 from app.services.license_service import LicenseService
 
 
-def create_app(config_class=Config):
+def create_app(config_class: type = Config) -> Flask:
     """Create and configure Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Initialize extensions
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
-
-    # Rate limiting
-    limiter = Limiter(
-        app=app,
-        key_func=get_remote_address,
-        storage_uri=app.config.get('RATELIMIT_STORAGE_URL'),
-        default_limits=["100/hour"]
+    # Trust exactly N reverse-proxy hops (ingress/gateway) for
+    # X-Forwarded-For/-Proto/-Host/-Port/-Prefix. Without this, Werkzeug's
+    # request.remote_addr is either the raw TCP peer (the proxy itself, if
+    # one sits in front) or -- if a header is trusted blindly elsewhere --
+    # whatever a client chooses to send. ProxyFix rewrites remote_addr using
+    # only the trusted hop, so header spoofing beyond that hop is ignored.
+    hop_count = app.config.get('TRUSTED_PROXY_HOP_COUNT', 1)
+    app.wsgi_app = ProxyFix(  # type: ignore[method-assign]
+        app.wsgi_app, x_for=hop_count, x_proto=hop_count,
+        x_host=hop_count, x_port=hop_count, x_prefix=hop_count
     )
+
+    # Initialize OpenTelemetry tracing (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+    from app.observability import init_tracing
+    init_tracing(app)
+
+    # CORS with allowlist (default deny cross-origin if ALLOWED_ORIGINS unset)
+    allowed_origins_str: str = os.getenv('ALLOWED_ORIGINS', '')
+    allowed_origins: list[str] = [
+        origin.strip() for origin in allowed_origins_str.split(',') if origin.strip()
+    ] if allowed_origins_str else []
+
+    if allowed_origins:
+        CORS(app, resources={r"/api/*": {"origins": allowed_origins}})
+    else:
+        # Empty allowlist = deny cross-origin
+        CORS(app, resources={r"/api/*": {"origins": []}})
+
+    # Security headers on every response. This is a JSON API: a restrictive
+    # CSP + nosniff blocks it from being abused as a script/style source, and
+    # frame-ancestors/X-Frame-Options prevent clickjacking via framed JSON.
+    @app.after_request
+    def set_security_headers(response):
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        response.headers.setdefault(
+            'Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'"
+        )
+        response.headers.setdefault('Referrer-Policy', 'no-referrer')
+        # HSTS is only meaningful over TLS; browsers ignore it on plain HTTP,
+        # so setting it unconditionally is safe (TLS terminates at ingress).
+        response.headers.setdefault(
+            'Strict-Transport-Security', 'max-age=31536000; includeSubDomains'
+        )
+        return response
+
+    # Rate limiting via penguin-limiter. The limiter instance itself is a
+    # module-level singleton (app/extensions.py) so blueprint modules can
+    # decorate individual routes with @limiter.limit(...) at import time;
+    # here we just bind the global before/after-request hook to this app.
+    from app.extensions import limiter
+    limiter.init_app(app)
+    app.limiter = limiter
 
     # Initialize database
     db = init_db(app)
@@ -36,24 +80,75 @@ def create_app(config_class=Config):
     # Initialize license service
     app.license_service = LicenseService()
 
+    # Initialize PostHog client for feature flags
+    from app.services.posthog_client import PostHogClient
+    app.posthog = PostHogClient()
+
+    # Initialize IOC manager
+    from app.services.ioc_ingestion_service import IOCManager
+    app.ioc_manager = IOCManager(db_url=app.config['DB_URL'])
+
+    # Initialize WHOIS manager
+    from app.services.whois_service import WHOISManager
+    app.whois_manager = WHOISManager(db_url=app.config['DB_URL'])
+
+    # Initialize Client Config manager. Deployment-domain tokens are signed
+    # asymmetrically with the manager's configured JWT keypair (ES256 default,
+    # RS256 fallback) so they verify across replicas and restarts.
+    from app.services.client_config_service import ClientConfigManager
+    app.client_config_manager = ClientConfigManager(
+        db_url=app.config['DB_URL'],
+        private_key=app.config.get('JWT_PRIVATE_KEY'),
+        public_key=app.config.get('JWT_PUBLIC_KEY'),
+        algorithm=app.config.get('JWT_ALGORITHM', 'ES256'),
+        issuer=app.config.get('JWT_ISSUER', 'squawk-manager'),
+        audience=app.config.get('JWT_AUDIENCE', 'squawk'),
+    )
+
     # Register blueprints
     from app.blueprints.auth import auth_bp
+    from app.blueprints.mfa import mfa_bp
+    from app.blueprints.sso import sso_bp
+    from app.blueprints.sso_admin import sso_admin_bp
+    from app.blueprints.saml import saml_bp
+    from app.blueprints.saml_admin import saml_admin_bp
     from app.blueprints.users import users_bp
     from app.blueprints.teams import teams_bp
     from app.blueprints.tokens import tokens_bp
     from app.blueprints.dns_servers import dns_servers_bp
     from app.blueprints.zones import zones_bp
     from app.blueprints.ioc_feeds import ioc_feeds_bp
+    from app.blueprints.whois import whois_bp
+    from app.blueprints.client_config import client_config_bp
     from app.blueprints.analytics import analytics_bp
+    from app.blueprints.dhcp import dhcp_bp
+    from app.blueprints.time import time_bp
+    from app.blueprints.scim import scim_bp
+    from app.blueprints.machine_clients import machine_clients_bp
+    from app.blueprints.oidc_trust_anchors import oidc_trust_anchors_bp
+    from app.blueprints.audit import audit_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(mfa_bp)
+    app.register_blueprint(sso_bp)
+    app.register_blueprint(sso_admin_bp)
+    app.register_blueprint(saml_bp)
+    app.register_blueprint(saml_admin_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(tokens_bp)
     app.register_blueprint(dns_servers_bp)
     app.register_blueprint(zones_bp)
     app.register_blueprint(ioc_feeds_bp)
+    app.register_blueprint(whois_bp)
+    app.register_blueprint(client_config_bp)
     app.register_blueprint(analytics_bp)
+    app.register_blueprint(dhcp_bp)
+    app.register_blueprint(time_bp)
+    app.register_blueprint(scim_bp)
+    app.register_blueprint(machine_clients_bp)
+    app.register_blueprint(oidc_trust_anchors_bp)
+    app.register_blueprint(audit_bp)
 
     # Health check endpoint
     @app.route('/health')

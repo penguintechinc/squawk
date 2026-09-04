@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dnsServer.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.dnsServer.service.type | default "ClusterIP" }}
+  ports:
+  - name: doh
+    port: {{ .Values.dnsServer.service.port | default 8080 }}
+    targetPort: 8080
+    protocol: TCP
+    {{- if and (eq (.Values.dnsServer.service.type | default "ClusterIP") "NodePort") .Values.dnsServer.service.nodePort }}
+    nodePort: {{ .Values.dnsServer.service.nodePort }}
+    {{- end }}
+  selector:
+    {{- include "squawk.dnsServer.selectorLabels" . | nindent 4 }}

@@ -1,3 +1,16 @@
+# ==========================================================================
+# DEPRECATED: Docker Compose support has been deprecated.
+# Kubernetes (microk8s) with Helm v3 is now the standard deployment method.
+#
+# Use instead:
+#   Alpha:  make k8s-alpha-deploy
+#   Beta:   make k8s-beta-deploy
+#   Prod:   make k8s-prod-deploy
+#
+# See k8s/helm/squawk/ for Helm charts and values files.
+# This file is retained for reference only and will be removed in a future release.
+# ==========================================================================
+
 version: '3.8'
 
 services:
@@ -28,7 +41,7 @@ services:
       - SQUAWK_VERIFY_SSL=true
       
       # Console URL (optional)
-      - SQUAWK_CONSOLE_URL=http://localhost:8000/dns_console
+      - SQUAWK_CONSOLE_URL=http://localhost:8080/health
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

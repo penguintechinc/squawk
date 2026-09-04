@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-server
+  namespace: squawk
+spec:
+  template:
+    spec:
+      containers:
+      - name: dns-server
+        image: ghcr.io/penguintechinc/squawk:beta-1776886332

@@ -1,0 +1,92 @@
+# Manager backend (Flask) — namespace-internal only, never world-exposed.
+#
+# Labels/ports sourced from k8s/kustomize/base/manager-deployment.yml and
+# manager-scheduler-deployment.yml:
+#   app.kubernetes.io/name: squawk
+#   app.kubernetes.io/component: manager | manager-scheduler
+#   ports: 5000/tcp (gunicorn, name "gunicorn"), 50051/tcp (grpc)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-manager
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: squawk
+      app.kubernetes.io/component: manager
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5000
+        - protocol: TCP
+          port: 50051
+---
+# manager + manager-scheduler read DB_URL from the "manager-db" secret and
+# connect to an EXTERNAL PostgreSQL instance — no in-cluster postgres
+# workload exists in this repo. Egress must stay open on 5432/tcp or DB
+# connectivity breaks under default-deny.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-manager-external-db
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: manager
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - manager
+          - manager-scheduler
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 5432
+---
+# manager + manager-scheduler run IOC threat-feed ingestion
+# (manager/backend/app/services/ioc_ingestion_service.py), which fetches
+# operator-configured external feed URLs over HTTPS — this does NOT degrade
+# gracefully (feeds simply never populate). Manager also calls
+# license.penguintech.io + PostHog over 443. Destination is unrestricted
+# (0.0.0.0/0) since feed URLs are operator-configured and SSRF is guarded at
+# the app layer. DNS (53 udp/tcp) included for name resolution of feed/
+# license hosts, in addition to the shared allow-egress-kube-dns rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-manager-external-https
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: manager
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - manager
+          - manager-scheduler
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

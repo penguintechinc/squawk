@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: squawk
+resources:
+  - ../../base
+patches:
+  - path: patch-dns-server-image.yml
+    target:
+      kind: Deployment
+      name: dns-server
+  - path: patch-squawk-client-image.yml
+    target:
+      kind: Deployment
+      name: squawk-client
+  - path: patch-dhcp-server-image.yml
+    target:
+      kind: Deployment
+      name: dhcp-server
+  - path: patch-ntp-server-image.yml
+    target:
+      kind: Deployment
+      name: ntp-server
+  - path: patch-replicas.yml

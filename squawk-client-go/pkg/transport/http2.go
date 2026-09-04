@@ -2,13 +2,12 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // HTTP2Transport implements Transport using HTTP/2 gRPC.
@@ -16,16 +15,13 @@ type HTTP2Transport struct {
 	config *Config
 
 	// DNS gRPC connection
-	dnsConn   *grpc.ClientConn
-	dnsClient DNSServiceClient
+	dnsConn *grpc.ClientConn
 
 	// DHCP gRPC connection
-	dhcpConn   *grpc.ClientConn
-	dhcpClient DHCPServiceClient
+	dhcpConn *grpc.ClientConn
 
 	// NTP gRPC connection
-	ntpConn   *grpc.ClientConn
-	ntpClient NTPServiceClient
+	ntpConn *grpc.ClientConn
 }
 
 // DNSServiceClient defines the gRPC DNS service client interface.
@@ -204,7 +200,10 @@ func (t *HTTP2Transport) getGRPCCredentials() grpc.DialOption {
 		return grpc.WithTransportCredentials(credentials.NewTLS(t.config.TLSConfig))
 	}
 	if !t.config.VerifySSL {
-		return grpc.WithTransportCredentials(insecure.NewCredentials())
+		// Keep the channel encrypted and only skip certificate verification
+		// (parity with the HTTP transports' verify=false). Never fall through to
+		// plaintext gRPC — that would leak the bearer token on the wire.
+		return grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})) // #nosec G402 -- intentional opt-in when VerifySSL=false
 	}
 	// Default to system certificates
 	return grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
@@ -315,13 +314,6 @@ func (t *HTTP2Transport) DNSQuery(ctx context.Context, req *DNSRequest) (*DNSRes
 		return nil, err
 	}
 
-	// Ensure context has timeout
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
-	}
-
 	// TODO: Use actual gRPC client when protobuf is generated
 	// For now, return a placeholder error indicating gRPC needs protobuf setup
 	return nil, fmt.Errorf("gRPC DNS client not yet implemented - awaiting protobuf generation for DHCP/NTP services")
@@ -331,12 +323,6 @@ func (t *HTTP2Transport) DNSQuery(ctx context.Context, req *DNSRequest) (*DNSRes
 func (t *HTTP2Transport) DHCPDiscover(ctx context.Context, req *DHCPDiscoverRequest) (*DHCPOfferResponse, error) {
 	if err := t.connectDHCP(); err != nil {
 		return nil, err
-	}
-
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
 	}
 
 	// TODO: Use actual gRPC client when protobuf is generated
@@ -349,12 +335,6 @@ func (t *HTTP2Transport) DHCPRequest(ctx context.Context, req *DHCPRequestMessag
 		return nil, err
 	}
 
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
-	}
-
 	// TODO: Use actual gRPC client when protobuf is generated
 	return nil, fmt.Errorf("gRPC DHCP client not yet implemented - awaiting protobuf generation")
 }
@@ -363,12 +343,6 @@ func (t *HTTP2Transport) DHCPRequest(ctx context.Context, req *DHCPRequestMessag
 func (t *HTTP2Transport) DHCPRelease(ctx context.Context, req *DHCPReleaseRequest) (*DHCPReleaseResponse, error) {
 	if err := t.connectDHCP(); err != nil {
 		return nil, err
-	}
-
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
 	}
 
 	// TODO: Use actual gRPC client when protobuf is generated
@@ -381,12 +355,6 @@ func (t *HTTP2Transport) DHCPGetConfig(ctx context.Context, macAddress string) (
 		return nil, err
 	}
 
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
-	}
-
 	// TODO: Use actual gRPC client when protobuf is generated
 	return nil, fmt.Errorf("gRPC DHCP client not yet implemented - awaiting protobuf generation")
 }
@@ -395,12 +363,6 @@ func (t *HTTP2Transport) DHCPGetConfig(ctx context.Context, macAddress string) (
 func (t *HTTP2Transport) NTSKeyEstablishment(ctx context.Context, req *NTSKERequest) (*NTSKEResponse, error) {
 	if err := t.connectNTP(); err != nil {
 		return nil, err
-	}
-
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
 	}
 
 	// TODO: Use actual gRPC client when protobuf is generated
@@ -413,12 +375,6 @@ func (t *HTTP2Transport) NTPQuery(ctx context.Context, req *NTPRequest) (*NTPRes
 		return nil, err
 	}
 
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
-	}
-
 	// TODO: Use actual gRPC client when protobuf is generated
 	return nil, fmt.Errorf("gRPC NTP client not yet implemented - awaiting protobuf generation")
 }
@@ -429,21 +385,12 @@ func (t *HTTP2Transport) NTPGetTime(ctx context.Context) (*TimeResponse, error) 
 		return nil, err
 	}
 
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, t.config.RequestTimeout)
-		defer cancel()
-	}
-
 	// TODO: Use actual gRPC client when protobuf is generated
 	return nil, fmt.Errorf("gRPC NTP client not yet implemented - awaiting protobuf generation")
 }
 
 // HealthCheck performs a health check for the specified service using gRPC.
 func (t *HTTP2Transport) HealthCheck(ctx context.Context, service Service) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	switch service {
 	case ServiceDNS:
 		if err := t.connectDNS(); err != nil {

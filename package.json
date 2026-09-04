@@ -1,5 +1,21 @@
 {
+  "name": "squawk",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:cleanup": "rm -rf /tmp/playwright-squawk"
+  },
   "dependencies": {
-    "puppeteer": "^24.32.1"
+    "puppeteer": "25.10.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
+  },
+  "overrides": {
+    "basic-ftp": "5.3.1",
+    "ip-address": "10.7.0",
+    "js-yaml": "4.3.2",
+    "lodash": "4.18.1",
+    "ws": "8.21.0"
   }
 }

@@ -6,7 +6,6 @@ Distributes zones, IOC feeds, and settings to DNS servers.
 from typing import Dict, List, Optional
 from flask import current_app
 from datetime import datetime
-import json
 
 
 class ConfigService:
@@ -93,24 +92,49 @@ class ConfigService:
 
     @staticmethod
     def get_active_ioc_feeds() -> List[Dict]:
-        """Get all active IOC feeds."""
+        """
+        Get all active IOC feeds with their entries (indicators).
+
+        Returns list of dicts with structure:
+        {
+            'id': <int>,
+            'name': <str>,
+            'feed_type': <'domain'|'ip'|'mixed'>,
+            'entries': [<normalized indicator str>, ...]
+        }
+        """
         db = current_app.db
 
         feeds = db(db.ioc_feed.active == True).select(
-            db.ioc_feed.ALL,
             orderby=db.ioc_feed.name
         )
 
-        return [
-            {
+        result = []
+        for feed in feeds:
+            # Fetch all entries for this feed
+            entries = db(db.ioc_entry.feed_id == feed.id).select(
+                orderby=db.ioc_entry.indicator
+            )
+
+            # Normalize entries: lowercase domains, keep IPs and CIDR as-is
+            normalized_entries = []
+            for entry in entries:
+                if entry.indicator_type == 'domain':
+                    # Normalize domain: lowercase and strip trailing dot
+                    normalized = entry.indicator.strip().lower().rstrip('.')
+                else:
+                    # IP or CIDR: use as-is (already normalized at insert)
+                    normalized = entry.indicator.strip()
+                normalized_entries.append(normalized)
+
+            result.append({
                 'id': feed.id,
                 'name': feed.name,
-                'url': feed.url,
                 'feed_type': feed.feed_type,
-                'update_interval': feed.update_interval
-            }
-            for feed in feeds
-        ]
+                'entries': normalized_entries
+            })
+
+        return result
 
     @staticmethod
     def get_cache_settings() -> Dict:
@@ -136,17 +160,39 @@ class ConfigService:
     def get_config_version() -> int:
         """
         Get current configuration version.
-        Increments when zones or IOC feeds change.
+        Increments when zones, IOC feeds, or IOC entries change.
+
+        Version incorporates:
+        - Zone and record counts
+        - Active feed count
+        - IOC entry count (actual indicators)
+        - Latest IOC entry modification time
         """
         db = current_app.db
 
-        # Simple version based on latest update timestamp
-        zone_count = db(db.dns_zone).count()
-        record_count = db(db.dns_record).count()
-        feed_count = db(db.ioc_feed.active == True).count()
+        # Get zone/record counts
+        zone_count = db(db.dns_zone.id > 0).count()
+        record_count = db(db.dns_record.id > 0).count()
 
-        # Generate version from counts
-        return hash(f"{zone_count}:{record_count}:{feed_count}") % 1000000
+        # Get active feed count and entry count
+        feed_count = db(db.ioc_feed.active == True).count()
+        entry_count = db(db.ioc_entry.id > 0).count()
+
+        # Get latest IOC entry modification time for change detection
+        latest_entry = db(db.ioc_entry.id > 0).select(
+            orderby=~db.ioc_entry.updated_at
+        ).first()
+
+        # Build version string incorporating all factors
+        if latest_entry:
+            latest_ts = latest_entry.updated_at.timestamp() if latest_entry.updated_at else 0
+        else:
+            latest_ts = 0
+
+        version_str = f"{zone_count}:{record_count}:{feed_count}:{entry_count}:{int(latest_ts)}"
+
+        # Generate deterministic version from combined state
+        return hash(version_str) % 1000000
 
     @staticmethod
     def record_heartbeat(server_id: int, metrics: Dict) -> Dict:
@@ -162,10 +208,11 @@ class ConfigService:
         """
         db = current_app.db
 
-        # Update server status
+        # Update server status. penguin-dal has no Row.update_record();
+        # use the QuerySet idiom.
         server = db.dns_server[server_id]
         if server:
-            server.update_record(
+            db(db.dns_server.id == server_id).update(
                 status='online',
                 last_heartbeat=datetime.utcnow(),
                 updated_at=datetime.utcnow()

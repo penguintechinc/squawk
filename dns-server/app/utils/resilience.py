@@ -5,9 +5,10 @@ Implements graceful degradation strategy: normal → cached → degraded.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-import jwt as pyjwt
 
 from app.services.manager_client import ManagerClient
+from app.config import JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
+from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
 
@@ -112,23 +113,22 @@ class ResilienceManager:
         if not token:
             return False
 
-        try:
-            # Parse JWT token
-            payload = pyjwt.decode(token, options={"verify_signature": False})
-            user_teams = payload.get('teams', [])
-            allowed_teams = zone.get('allowed_teams', [])
-
-            # Check team membership
-            if not allowed_teams:
-                # No team restrictions
-                return True
-
-            # User must be in at least one allowed team
-            return any(team in allowed_teams for team in user_teams)
-
-        except Exception as e:
-            logger.error(f"Token validation error: {e}")
+        # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
+        # exp/iat/tenant, fail closed; supports kid-based key selection) — team authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS)
+        if payload is None:
             return False
+
+        user_teams = list(payload.get('team_roles', {}).keys()) if payload.get('team_roles') else []
+        allowed_teams = zone.get('allowed_teams', [])
+
+        # Check team membership
+        if not allowed_teams:
+            # No team restrictions
+            return True
+
+        # User must be in at least one allowed team
+        return any(team in allowed_teams for team in user_teams)
 
     def get_mode(self) -> str:
         """Get current operational mode."""

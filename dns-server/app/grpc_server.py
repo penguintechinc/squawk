@@ -55,17 +55,31 @@ class DNSQueryServicer:
 
         # Check IOC
         if self.ioc_checker.is_blocked(domain):
-            self.metrics.record_ioc_block()
+            self.metrics.record_query(
+                domain=domain,
+                record_type=record_type,
+                status='blocked',
+                response_time=0.0,
+                cache_hit=False,
+                blocked=True,
+                block_reason='threat_intelligence',
+                source=token or 'grpc'
+            )
             return self._build_blocked_response(domain, record_type)
 
         # Check cache
         cached = await self.cache.get(domain, record_type)
         if cached:
-            self.metrics.record_cache_hit()
-            response_time = (time.time() - start_time) * 1000
-            return self._build_grpc_response(cached, response_time, from_cache=True)
-
-        self.metrics.record_cache_miss()
+            response_time_sec = (time.time() - start_time)
+            self.metrics.record_query(
+                domain=domain,
+                record_type=record_type,
+                status='success',
+                response_time=response_time_sec,
+                cache_hit=True,
+                source=token or 'grpc'
+            )
+            return self._build_grpc_response(cached, response_time_sec * 1000, from_cache=True)
 
         # Check custom zones
         zone_records = self.selective_router.get_zone_records(domain)
@@ -75,17 +89,24 @@ class DNSQueryServicer:
             # Use public DNS
             result = await self.resolver.resolve(domain, record_type)
 
-        response_time = (time.time() - start_time) * 1000
+        response_time_sec = (time.time() - start_time)
 
         # Cache result
         if result.get('Status') == 0:
             await self.cache.set(domain, record_type, result)
 
         # Record metrics
-        self.metrics.record_query(domain, record_type, 'normal')
-        self.metrics.record_response_time(response_time)
+        result_status = 'success' if result.get('Status') == 0 else 'error'
+        self.metrics.record_query(
+            domain=domain,
+            record_type=record_type,
+            status=result_status,
+            response_time=response_time_sec,
+            cache_hit=False,
+            source=token or 'grpc'
+        )
 
-        return self._build_grpc_response(result, response_time, from_cache=False)
+        return self._build_grpc_response(result, response_time_sec, from_cache=False)
 
     async def BatchQuery(self, request, context):
         """

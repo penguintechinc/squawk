@@ -3,12 +3,76 @@ IOC Feed management API blueprint.
 Handles threat intelligence feed configuration.
 """
 
+import os
+from functools import wraps
+from typing import Optional
 from flask import Blueprint, request, jsonify, current_app
 from app.middleware.auth import token_required
-from app.middleware.rbac import requires_system_admin, requires_role
+from app.middleware.rbac import requires_scope
 from app.utils.decorators import validate_json, audit_log
+from app.utils.responses import internal_error
 
 ioc_feeds_bp = Blueprint('ioc_feeds', __name__)
+
+# Enterprise-only feed formats
+ENTERPRISE_FORMATS = {'taxii', 'misp', 'stix', 'openioc'}
+COMMUNITY_FORMATS = {'txt', 'csv', 'json', 'xml'}
+
+
+def _get_deployment_id() -> str:
+    """Get stable deployment identifier for PostHog flag checks."""
+    return os.getenv('HOSTNAME', 'squawk-manager')
+
+
+def _check_ioc_flag_and_license(format_type: Optional[str] = None):
+    """
+    Decorator to enforce PostHog flag + license gating for IOC operations.
+
+    - PostHog flag 'squawkdns.ioc-ingestion' must be enabled
+    - If format_type is enterprise, license feature 'ioc_advanced_feeds' must be enabled
+
+    Returns 403 if flag disabled, 402 if license required but not available.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Check PostHog flag
+            posthog = current_app.posthog
+            distinct_id = _get_deployment_id()
+            flag_enabled = posthog.feature_enabled(
+                'squawkdns.ioc-ingestion',
+                distinct_id,
+                default=False,
+            )
+
+            if not flag_enabled:
+                return jsonify({
+                    'error': 'IOC ingestion feature is disabled',
+                    'feature_flag': 'squawkdns.ioc-ingestion',
+                }), 403
+
+            # Check license for enterprise formats
+            # Get format from request data or kwargs
+            fmt = format_type
+            if not fmt and request.is_json:
+                data = request.get_json()
+                fmt = data.get('format') if data else None
+
+            if fmt and fmt.lower() in ENTERPRISE_FORMATS:
+                license_service = current_app.license_service
+                if not license_service.is_feature_enabled('ioc_advanced_feeds'):
+                    tier = license_service.get_tier()
+                    return jsonify({
+                        'error': 'Advanced IOC formats require Enterprise license',
+                        'feature': 'ioc_advanced_feeds',
+                        'format': fmt,
+                        'tier_required': 'enterprise',
+                        'current_tier': tier,
+                    }), 402
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds', methods=['GET'])
@@ -68,8 +132,9 @@ def list_ioc_feeds():
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds', methods=['POST'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
 @validate_json('name', 'url', 'feed_type')
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_created')
 def create_ioc_feed():
     """
@@ -157,7 +222,8 @@ def get_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['PUT'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_updated')
 def update_ioc_feed(feed_id):
     """
@@ -191,8 +257,12 @@ def update_ioc_feed(feed_id):
     if 'description' in data:
         update_fields['description'] = data['description']
 
-    feed.update_record(**update_fields)
+    # penguin-dal has no Row.update_record(); use the QuerySet update idiom
+    # (see gh audit: PUT routes 500'd because that method never existed).
+    db(db.ioc_feed.id == feed.id).update(**update_fields)
     db.commit()
+
+    feed = db.ioc_feed[feed_id]
 
     return jsonify({
         'id': feed.id,
@@ -206,7 +276,8 @@ def update_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>', methods=['DELETE'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_deleted')
 def delete_ioc_feed(feed_id):
     """Delete IOC feed."""
@@ -216,7 +287,8 @@ def delete_ioc_feed(feed_id):
     if not feed:
         return jsonify({'error': 'IOC feed not found'}), 404
 
-    del db.ioc_feed[feed_id]
+    # penguin-dal TableProxy has no __delitem__; use the QuerySet delete idiom.
+    db(db.ioc_feed.id == feed_id).delete()
     db.commit()
 
     return jsonify({
@@ -226,19 +298,30 @@ def delete_ioc_feed(feed_id):
 
 @ioc_feeds_bp.route('/api/v1/ioc-feeds/<int:feed_id>/sync', methods=['POST'])
 @token_required
-@requires_system_admin
+@requires_scope('ioc:admin')
+@_check_ioc_flag_and_license()
 @audit_log('ioc_feed_sync_triggered')
 def trigger_ioc_feed_sync(feed_id):
     """
-    Trigger immediate IOC feed sync.
+    Trigger immediate IOC feed sync (fetch from URL and ingest).
 
     Response:
         {
-            "message": "Feed sync triggered",
-            "feed_id": 1
+            "message": "Feed sync successful",
+            "feed_id": 1,
+            "feed_name": "URLhaus",
+            "indicators_added": 150
         }
+
+    Error responses:
+        400: Feed URL is empty/invalid
+        404: Feed not found
+        500: Sync failed (network error, parse error, etc.)
     """
+    import asyncio
+    import aiohttp
     from datetime import datetime
+    from app.services.ioc_ingestion_service import IOCManager, _assert_feed_url_safe
 
     db = current_app.db
     feed = db.ioc_feed[feed_id]
@@ -246,15 +329,58 @@ def trigger_ioc_feed_sync(feed_id):
     if not feed:
         return jsonify({'error': 'IOC feed not found'}), 404
 
-    # Update last_updated timestamp
-    feed.update_record(last_updated=datetime.utcnow())
-    db.commit()
+    # Validate feed has a URL
+    if not feed.url or not feed.url.strip():
+        return jsonify({'error': 'Feed URL is empty. Manual upload not yet implemented.'}), 400
 
-    # In production, this would trigger an async task to fetch and process the feed
-    # For now, just update the timestamp
+    try:
+        # Fetch feed content
+        async def fetch_and_ingest():
+            # SSRF guard: reject internal/metadata targets before fetching,
+            # and do not follow redirects (an allowed host could 302 to 169.254.169.254).
+            await _assert_feed_url_safe(feed.url)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(feed.url, timeout=60, allow_redirects=False) as response:
+                    if response.status != 200:
+                        raise Exception(f"HTTP {response.status} from {feed.url}")
+                    content = await response.text()
 
-    return jsonify({
-        'message': 'Feed sync triggered successfully',
-        'feed_id': feed_id,
-        'feed_name': feed.name
-    }), 200
+                    # Use IOCManager to ingest content
+                    ioc_mgr = IOCManager(current_app.config['DB_URL'])
+                    result = await ioc_mgr.update_feed_from_content(
+                        name=feed.name,
+                        content=content,
+                        feed_type=feed.feed_type,
+                        format_type=feed.format or 'txt'
+                    )
+                    return result
+
+        # Run async ingestion in sync context
+        result = asyncio.run(fetch_and_ingest())
+
+        if not result.get('success'):
+            error_msg = result.get('error', 'Unknown ingestion error')
+            return jsonify({
+                'error': f'Feed ingestion failed: {error_msg}',
+                'feed_id': feed_id,
+                'feed_name': feed.name
+            }), 500
+
+        # Update feed metadata on success. penguin-dal has no
+        # Row.update_record(); use the QuerySet idiom.
+        db(db.ioc_feed.id == feed.id).update(
+            last_updated=datetime.utcnow(),
+            last_success=datetime.utcnow()
+        )
+        db.commit()
+
+        indicators_added = result.get('indicators_added', 0)
+        return jsonify({
+            'message': 'Feed sync successful',
+            'feed_id': feed_id,
+            'feed_name': feed.name,
+            'indicators_added': indicators_added
+        }), 200
+
+    except Exception as e:
+        return internal_error(e, message='IOC feed sync failed')

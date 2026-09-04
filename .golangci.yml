@@ -1,0 +1,41 @@
+# golangci-lint v1 config (CI runs v1.64.8 under go1.24; v2 needs go1.25).
+run:
+  timeout: 5m
+  go: "1.24"
+
+linters:
+  enable:
+    - staticcheck      # Static analysis
+    - gosec            # Security
+    - errcheck         # Error handling
+    - ineffassign      # Unused assignments
+    - unused           # Unused code
+
+linters-settings:
+  staticcheck:
+    checks: ["all"]
+
+  gosec:
+    # G401/G402/G403: Weak cryptography - real errors
+    # G101: Hardcoded secrets - real errors
+    severity: high
+    confidence: high
+
+  errcheck:
+    # Check all error returns
+    check-type-assertions: true
+    check-blank: true
+
+issues:
+  exclude-dirs:
+    - vendor
+    - .git
+    - build
+    - bin
+  exclude-rules:
+    - path: _test\.go$
+      linters:
+        - gosec
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

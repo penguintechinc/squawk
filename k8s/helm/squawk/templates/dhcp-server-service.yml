@@ -1,0 +1,21 @@
+{{- if .Values.dhcpServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: dhcp-server
+  namespace: {{ include "squawk.namespace" . }}
+  labels:
+    {{- include "squawk.dhcpServer.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.dhcpServer.service.type | default "ClusterIP" }}
+  ports:
+  - name: dhcp-http
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+    {{- if and (eq (.Values.dhcpServer.service.type | default "ClusterIP") "NodePort") .Values.dhcpServer.service.nodePort }}
+    nodePort: {{ .Values.dhcpServer.service.nodePort }}
+    {{- end }}
+  selector:
+    {{- include "squawk.dhcpServer.selectorLabels" . | nindent 4 }}
+{{- end }}

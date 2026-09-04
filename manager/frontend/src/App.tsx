@@ -1,6 +1,8 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { AppConsoleVersion as ConsoleVersionComponent } from '@penguintechinc/react-libs';
 import { squawkTheme } from './styles/theme';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -8,12 +10,9 @@ import Management from './pages/Management';
 import Analytics from './pages/Analytics';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
 
-function App() {
+function AppRoutes() {
   return (
-    <ThemeProvider theme={squawkTheme}>
-      <CssBaseline />
-      <BrowserRouter>
-        <Routes>
+    <Routes>
           <Route path="/login" element={<Login />} />
           <Route
             path="/"
@@ -65,6 +64,18 @@ function App() {
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider theme={squawkTheme}>
+      <CssBaseline />
+      <BrowserRouter>
+        {React.createElement(ConsoleVersionComponent as React.FC<any>,
+          { appName: 'Squawk DNS Manager', webuiVersion: '2.1.1.1770072428' },
+          React.createElement(AppRoutes)
+        )}
       </BrowserRouter>
     </ThemeProvider>
   );

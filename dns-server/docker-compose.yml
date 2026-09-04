@@ -1,3 +1,16 @@
+# ==========================================================================
+# DEPRECATED: Docker Compose support has been deprecated.
+# Kubernetes (microk8s) with Helm v3 is now the standard deployment method.
+#
+# Use instead:
+#   Alpha:  make k8s-alpha-deploy
+#   Beta:   make k8s-beta-deploy
+#   Prod:   make k8s-prod-deploy
+#
+# See k8s/helm/squawk/ for Helm charts and values files.
+# This file is retained for reference only and will be removed in a future release.
+# ==========================================================================
+
 version: '3.8'
 
 services:
@@ -38,30 +51,8 @@ services:
       timeout: 10s
       retries: 3
 
-  web-console:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: squawk-dns-server:latest
-    container_name: squawk-web-console
-    restart: unless-stopped
-    command: ["sh", "-c", "cd /app/web && python3 -m py4web run apps --host 0.0.0.0 --port 8000"]
-    ports:
-      - "8000:8000"  # Web console
-    environment:
-      - PY4WEB_HOST=0.0.0.0
-      - PY4WEB_PORT=8000
-      - LOG_LEVEL=INFO
-    volumes:
-      - ./data:/app/data
-      - ./web:/app/web
-    networks:
-      - squawk-network
-    depends_on:
-      - dns-server
-
   valkey:
-    image: valkey/valkey:latest
+    image: valkey/valkey:latest@sha256:3eeb09785cd61ec8e3be35f8804c8892080f3ca21934d628abc24ee4ed1698f6
     container_name: squawk-valkey
     restart: unless-stopped
     ports:

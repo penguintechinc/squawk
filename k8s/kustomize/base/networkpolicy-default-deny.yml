@@ -1,0 +1,66 @@
+# Default-deny baseline for the squawk namespace.
+# - default-deny-all: blocks all ingress/egress not explicitly allowed below
+#   or by the targeted policies in the other networkpolicy-*.yml files.
+# - allow-same-namespace: pods within squawk can always reach each other
+#   (any port). Component-specific policies (manager, valkey, postgres)
+#   further document/restrict which components are reachable from outside
+#   the namespace (none, by omission) vs. the public internet (dns-server,
+#   squawk-client).
+# - allow-egress-kube-dns: every pod needs to resolve in-cluster service
+#   names (valkey, manager, dns-server, ...) via CoreDNS/kube-dns.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-kube-dns
+  namespace: squawk
+  labels:
+    app.kubernetes.io/name: squawk
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

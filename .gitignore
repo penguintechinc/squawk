@@ -1,3 +1,4 @@
+*.txt
 .PLAN*
 .REQUIREMENTS
 .TODO
@@ -39,6 +40,9 @@ id_rsa*
 */*.pcapng
 */*.pcapng.gz
 */*.pem
+*.pem
+jwt_private_key_*.pem
+jwt_public_key_*.pem
 */*.pfx
 */*.pgp
 */*.rar
@@ -51,7 +55,7 @@ id_rsa*
 */*.tgz
 */*.whl
 */*.zip
-*/password.txt 
+*/password.txt
 *secret*
 .idea/
 id_rsa*
@@ -100,3 +104,38 @@ out/
 ehthumbs.db
 Thumbs.db
 
+# Git worktrees
+.claude/worktrees/
+
+# Python virtual environments
+venv/
+*/venv/
+**/venv/
+__pycache__/
+.coverage
+.pytest_cache/
+
+# Coverage reports (Python coverage.py + JS/TS jest/vitest lcov-html) --
+# generated output, regenerate with `make test-coverage` / `npm test -- --coverage`
+htmlcov/
+coverage/
+**/coverage/
+coverage.xml
+*.lcov
+
+# SQLite artifacts (test/dev)
+**/*.db
+**/*.db3
+storage.db
+
+# Track the pre-commit hook config despite the broad *.yaml ignore
+!.pre-commit-config.yaml
+
+# Track OpenAPI specs and Spectral config despite the broad *.yaml ignore
+!openapi/*.yaml
+!.spectral.yaml
+
+# Requirements files must always be tracked despite the broad *.txt ignore
+!requirements*.txt
+!**/requirements*.txt
+.worktrees/

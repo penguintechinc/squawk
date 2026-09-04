@@ -36,8 +36,13 @@ api.interceptors.response.use(
           const response = await axios.post(`${api.defaults.baseURL}/api/v1/auth/refresh`, {
             refreshToken,
           });
-          const { accessToken } = response.data;
+          // Rotation: the server revokes the presented refresh token and
+          // issues a new pair — store both or the next refresh will 401.
+          const { accessToken, refreshToken: rotatedRefreshToken } = response.data;
           localStorage.setItem('accessToken', accessToken);
+          if (rotatedRefreshToken) {
+            localStorage.setItem('refreshToken', rotatedRefreshToken);
+          }
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api.request(originalRequest);
         } catch (refreshError) {

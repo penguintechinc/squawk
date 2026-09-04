@@ -9,7 +9,6 @@ import threading
 import logging
 import yaml
 import os
-import ssl
 import ipaddress
 import re
 from urllib.parse import urlparse
@@ -18,7 +17,6 @@ import time
 # gRPC imports (optional)
 try:
     import grpc
-    from concurrent import futures
 
     GRPC_AVAILABLE = True
 except ImportError:
@@ -37,6 +35,12 @@ try:
     PROTOBUF_AVAILABLE = True
 except ImportError:
     PROTOBUF_AVAILABLE = False
+    # Provide fallbacks so tests can mock
+    DNSQueryServiceStub = None
+    QueryRequest = None
+    BatchQueryRequest = None
+    QueryResponse = None
+    HealthCheckRequest = None
 
 
 class DNSOverHTTPSClient:
@@ -91,9 +95,7 @@ class DNSOverHTTPSClient:
             if not label:
                 raise ValueError(f"DNS name contains empty label at position {i}")
             if len(label) > 63:
-                raise ValueError(
-                    f"DNS label '{label}' too long: {len(label)} characters (max 63)"
-                )
+                raise ValueError(f"DNS label '{label}' too long: {len(label)} characters (max 63)")
 
             # Special case: .arpa domains for reverse DNS
             if i == len(labels) - 1 and label == "arpa":
@@ -111,9 +113,7 @@ class DNSOverHTTPSClient:
 
             # Check for consecutive hyphens (except in punycode)
             if "--" in label and not label.startswith("xn--"):
-                raise ValueError(
-                    f"Invalid DNS label '{label}': contains consecutive hyphens"
-                )
+                raise ValueError(f"Invalid DNS label '{label}': contains consecutive hyphens")
 
         return True
 
@@ -140,9 +140,7 @@ class DNSOverHTTPSClient:
             raise ValueError(f"Invalid DNS server URL format: {e}")
 
         if parsed_url.scheme not in ["http", "https"]:
-            raise ValueError(
-                f"DNS server URL must use http or https scheme, got: {parsed_url.scheme}"
-            )
+            raise ValueError(f"DNS server URL must use http or https scheme, got: {parsed_url.scheme}")
 
         if not parsed_url.hostname:
             raise ValueError("DNS server URL must include a hostname")
@@ -178,11 +176,7 @@ class DNSOverHTTPSClient:
         for allowed in allowed_hosts:
             if host == allowed or host.startswith(allowed + "."):
                 # Don't show warning for major public DNS providers
-                if (
-                    "google" not in host
-                    and "cloudflare" not in host
-                    and host not in ["1.1.1.1", "1.0.0.1"]
-                ):
+                if "google" not in host and "cloudflare" not in host and host not in ["1.1.1.1", "1.0.0.1"]:
                     print(f"INFO: Using public DNS provider '{host}'")
                 return
 
@@ -253,9 +247,7 @@ class DNSOverHTTPSClient:
         self.verify_ssl = verify_ssl
 
         # Failover configuration
-        self.max_retries = (
-            max_retries if max_retries is not None else len(self.dns_server_urls) * 2
-        )
+        self.max_retries = max_retries if max_retries is not None else len(self.dns_server_urls) * 2
         self.retry_delay = retry_delay
         self.current_server_index = 0
 
@@ -267,37 +259,35 @@ class DNSOverHTTPSClient:
         """Configure SSL settings for the session"""
         # Configure certificate verification
         if self.ca_cert and os.path.exists(self.ca_cert):
+            # Use custom CA bundle
             self.session.verify = self.ca_cert
-        elif not self.verify_ssl:
+        elif self.verify_ssl:
+            # TLS verification enabled (default and recommended)
+            self.session.verify = True
+        else:
+            # TLS verification explicitly disabled - log prominent warning
             self.session.verify = False
-            # Suppress SSL warnings if verification is disabled
-            import urllib3
-
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logging.warning(
+                "TLS VERIFICATION DISABLED: SSL/TLS certificate verification is disabled. "
+                "This is insecure and should only be used for development/testing. "
+                "To enable verification, set SQUAWK_VERIFY_SSL=true or use --verify flag."
+            )
 
         # Configure client certificate for mTLS
         if self.client_cert and self.client_key:
             if os.path.exists(self.client_cert) and os.path.exists(self.client_key):
                 self.session.cert = (self.client_cert, self.client_key)
-                logging.info(
-                    f"mTLS enabled with client certificate: {self.client_cert}"
-                )
+                logging.info(f"mTLS enabled with client certificate: {self.client_cert}")
             else:
-                logging.warning(
-                    "Client certificate or key file not found, mTLS disabled"
-                )
+                logging.warning("Client certificate or key file not found, mTLS disabled")
         elif self.client_cert and os.path.exists(self.client_cert):
             # Single file containing both cert and key
             self.session.cert = self.client_cert
-            logging.info(
-                f"mTLS enabled with combined certificate file: {self.client_cert}"
-            )
+            logging.info(f"mTLS enabled with combined certificate file: {self.client_cert}")
 
     def _next_server(self):
         """Advance to the next server in the list (round-robin)"""
-        self.current_server_index = (self.current_server_index + 1) % len(
-            self.dns_server_urls
-        )
+        self.current_server_index = (self.current_server_index + 1) % len(self.dns_server_urls)
 
     def query(self, domain, record_type="A"):
         """Query DNS using failover logic across multiple servers"""
@@ -328,9 +318,7 @@ class DNSOverHTTPSClient:
             current_server = self.dns_server_urls[self.current_server_index]
 
             try:
-                response = self.session.get(
-                    current_server, headers=headers, params=params, timeout=30
-                )
+                response = self.session.get(current_server, headers=headers, params=params, timeout=30)
                 if response.status_code == 200:
                     return response.json()
                 else:
@@ -374,7 +362,7 @@ class DNSOverHTTPSClient:
 class SquawkDNSGrpcClient:
     """gRPC DNS Query Client for Squawk DNS Server"""
 
-    def __init__(self, server_url, token=None, use_grpc=True, timeout=30):
+    def __init__(self, server_url, token=None, use_grpc=True, timeout=30, verify_ssl=True, ca_cert=None):
         """
         Initialize gRPC DNS client
 
@@ -383,11 +371,15 @@ class SquawkDNSGrpcClient:
             token: Optional authentication token
             use_grpc: Whether to use gRPC (if False, falls back to REST)
             timeout: Request timeout in seconds
+            verify_ssl: Verify the server TLS certificate (default True)
+            ca_cert: Optional path to a CA bundle for TLS verification
         """
         self.server_url = server_url
         self.token = token
         self.use_grpc = use_grpc and GRPC_AVAILABLE and PROTOBUF_AVAILABLE
         self.timeout = timeout
+        self.verify_ssl = verify_ssl
+        self.ca_cert = ca_cert
         self.channel = None
         self.stub = None
         self.rest_client = None
@@ -414,10 +406,27 @@ class SquawkDNSGrpcClient:
             target = f"{host}:{port}"
             logging.debug(f"Connecting to gRPC server at {target}")
 
-            # Create gRPC channel
-            self.channel = grpc.insecure_channel(target)
+            # Create gRPC channel. Loopback targets may use a plaintext channel
+            # for local development; every other target MUST use TLS so the bearer
+            # token is never transmitted in the clear. The token is attached as
+            # per-call credentials, which gRPC only permits over a secure channel.
+            is_loopback = host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+            if is_loopback:
+                self.channel = grpc.insecure_channel(target)
+            else:
+                if self.ca_cert:
+                    with open(self.ca_cert, "rb") as ca:
+                        ssl_creds = grpc.ssl_channel_credentials(root_certificates=ca.read())
+                else:
+                    ssl_creds = grpc.ssl_channel_credentials()
+                if self.token:
+                    call_creds = grpc.access_token_call_credentials(self.token)
+                    channel_creds = grpc.composite_channel_credentials(ssl_creds, call_creds)
+                else:
+                    channel_creds = ssl_creds
+                self.channel = grpc.secure_channel(target, channel_creds)
             self.stub = DNSQueryServiceStub(self.channel)
-            logging.info(f"gRPC client initialized for {target}")
+            logging.info(f"gRPC client initialized for {target} (tls={not is_loopback})")
         except Exception as e:
             logging.warning(f"Failed to initialize gRPC: {e}, falling back to REST")
             self.use_grpc = False
@@ -432,9 +441,7 @@ class SquawkDNSGrpcClient:
         elif rest_url.startswith("grpc:"):
             rest_url = rest_url.replace("grpc:", "https:", 1)
 
-        self.rest_client = DNSOverHTTPSClient(
-            dns_server_url=rest_url, auth_token=self.token
-        )
+        self.rest_client = DNSOverHTTPSClient(dns_server_url=rest_url, auth_token=self.token)
 
     def query(self, domain, record_type="A"):
         """
@@ -455,12 +462,10 @@ class SquawkDNSGrpcClient:
     def _query_grpc(self, domain, record_type="A"):
         """Execute gRPC query"""
         try:
-            request = QueryRequest(
-                name=domain, type=record_type, token=self.token or ""
-            )
+            request = QueryRequest(name=domain, type=record_type, token=self.token or "")
 
-            # Set timeout for the call
-            call_credentials = grpc.access_token_call_credentials(self.token or "")
+            # Token travels as channel call-credentials over TLS (see _init_grpc)
+            # and in the request body for the loopback plaintext case.
             response = self.stub.Query(request, timeout=self.timeout)
 
             return self._convert_grpc_response(response)
@@ -492,22 +497,15 @@ class SquawkDNSGrpcClient:
         """
         if not self.use_grpc:
             # Fallback: sequential REST queries
-            logging.warning(
-                "Batch queries require gRPC, falling back to sequential REST queries"
-            )
+            logging.warning("Batch queries require gRPC, falling back to sequential REST queries")
             return [self._query_rest(domain, record_type) for domain in domains]
 
         try:
-            queries = [
-                QueryRequest(name=d, type=record_type, token=self.token or "")
-                for d in domains
-            ]
+            queries = [QueryRequest(name=d, type=record_type, token=self.token or "") for d in domains]
 
             request = BatchQueryRequest(queries=queries, max_concurrent=max_concurrent)
 
-            response = self.stub.BatchQuery(
-                request, timeout=self.timeout * len(domains) // 10 + 30
-            )
+            response = self.stub.BatchQuery(request, timeout=self.timeout * len(domains) // 10 + 30)
 
             return [self._convert_grpc_response(r) for r in response.responses]
         except grpc.RpcError as e:
@@ -566,9 +564,7 @@ class SquawkDNSGrpcClient:
 
         additional = []
         for add in grpc_response.additional:
-            additional.append(
-                {"name": add.name, "type": add.type, "TTL": add.ttl, "data": add.data}
-            )
+            additional.append({"name": add.name, "type": add.type, "TTL": add.ttl, "data": add.data})
 
         metadata = {}
         if grpc_response.metadata:
@@ -597,9 +593,7 @@ class SquawkDNSGrpcClient:
 
 
 class DNSForwarder:
-    def __init__(
-        self, dns_client, udp_port=53, tcp_port=53, listen_udp=False, listen_tcp=False
-    ):
+    def __init__(self, dns_client, udp_port=53, tcp_port=53, listen_udp=False, listen_tcp=False):
         self.dns_client = dns_client
         self.udp_port = udp_port
         self.tcp_port = tcp_port
@@ -769,19 +763,13 @@ def main(argv):
         verify_ssl = False
 
     if not domain and not batch_domains and not (listen_udp or listen_tcp):
-        logging.debug(
-            "Domain is required. Use -d <domain> or -b <file> to specify domains."
-        )
+        logging.debug("Domain is required. Use -d <domain> or -b <file> to specify domains.")
         sys.exit(2)
 
     # Try gRPC client first if enabled
-    if use_grpc and (
-        dns_server_url.startswith("grpc://") or dns_server_url.startswith("grpc:")
-    ):
+    if use_grpc and (dns_server_url.startswith("grpc://") or dns_server_url.startswith("grpc:")):
         try:
-            client = SquawkDNSGrpcClient(
-                server_url=dns_server_url, token=auth_token, use_grpc=True
-            )
+            client = SquawkDNSGrpcClient(server_url=dns_server_url, token=auth_token, use_grpc=True)
             logging.info(f"Using gRPC client for {dns_server_url}")
         except Exception as e:
             logging.warning(f"Failed to create gRPC client: {e}, falling back to REST")
@@ -842,13 +830,9 @@ def main(argv):
                 ca_cert=ca_cert,
                 verify_ssl=verify_ssl,
             )
-            forwarder = DNSForwarder(
-                rest_client, listen_udp=listen_udp, listen_tcp=listen_tcp
-            )
+            forwarder = DNSForwarder(rest_client, listen_udp=listen_udp, listen_tcp=listen_tcp)
         else:
-            forwarder = DNSForwarder(
-                client, listen_udp=listen_udp, listen_tcp=listen_tcp
-            )
+            forwarder = DNSForwarder(client, listen_udp=listen_udp, listen_tcp=listen_tcp)
         forwarder.start()
 
 

@@ -3,8 +3,9 @@ Selective DNS Routing Service
 Implements per-user/group zone access control.
 """
 import logging
-import jwt as pyjwt
 from typing import Dict, List, Optional
+from app.config import JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS
+from app.utils.jwt_verify import verify_squawk_jwt
 
 logger = logging.getLogger(__name__)
 
@@ -64,46 +65,47 @@ class SelectiveRouter:
             logger.debug(f"Access denied to {visibility} zone {zone['name']}: no token provided")
             return False
 
-        # Parse token to get user teams
-        try:
-            payload = pyjwt.decode(token, options={"verify_signature": False})
-            user_teams = payload.get('teams', [])
-            user_id = payload.get('user_id')
+        # Verify JWT via the shared verifier (ES256/RS256, iss/aud, required
+        # exp/iat/tenant, fail closed; supports kid-based key selection) — authorization stays here.
+        payload = verify_squawk_jwt(token, JWT_PUBLIC_KEY, JWT_PUBLIC_KEYS)
+        if payload is None:
+            logger.debug(
+                f"Access denied to {visibility} zone {zone['name']}: token verification failed"
+            )
+            return False
 
-            # Check if user's teams are in allowed teams
-            allowed_teams = zone.get('allowed_teams', [])
+        user_teams = payload.get('team_roles', {}).keys() if payload.get('team_roles') else []
 
-            if visibility == 'internal':
-                # Internal: must be member of allowed teams
-                if not allowed_teams or any(team in allowed_teams for team in user_teams):
-                    return True
-                else:
-                    logger.debug(f"Access denied to internal zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
-                    return False
+        # Check if user's teams are in allowed teams
+        allowed_teams = zone.get('allowed_teams', [])
 
-            elif visibility == 'restricted':
-                # Restricted: must be in specific allowed teams
-                if any(team in allowed_teams for team in user_teams):
-                    return True
-                else:
-                    logger.debug(f"Access denied to restricted zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
-                    return False
-
-            elif visibility == 'private':
-                # Private: admin only (check for admin role in token)
-                is_admin = payload.get('role') == 'admin'
-                if is_admin:
-                    return True
-                else:
-                    logger.debug(f"Access denied to private zone {zone['name']}: user is not admin")
-                    return False
-
+        if visibility == 'internal':
+            # Internal: must be member of allowed teams
+            if not allowed_teams or any(team in allowed_teams for team in user_teams):
+                return True
             else:
-                # Unknown visibility, deny
+                logger.debug(f"Access denied to internal zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
                 return False
 
-        except Exception as e:
-            logger.error(f"Token parsing error: {e}")
+        elif visibility == 'restricted':
+            # Restricted: must be in specific allowed teams
+            if any(team in allowed_teams for team in user_teams):
+                return True
+            else:
+                logger.debug(f"Access denied to restricted zone {zone['name']}: user teams {user_teams} not in {allowed_teams}")
+                return False
+
+        elif visibility == 'private':
+            # Private: admin only (check for admin role in token)
+            is_admin = payload.get('role') == 'admin'
+            if is_admin:
+                return True
+            else:
+                logger.debug(f"Access denied to private zone {zone['name']}: user is not admin")
+                return False
+
+        else:
+            # Unknown visibility, deny
             return False
 
     def get_zone_records(self, domain: str) -> Optional[List[Dict]]:

@@ -323,7 +323,7 @@ func ParseNTPPacket(data []byte) (*NTPPacket, error) {
 		Settings:       data[0],
 		Stratum:        data[1],
 		Poll:           data[2],
-		Precision:      int8(data[3]),
+		Precision:      int8(data[3]), // #nosec G115 -- NTP precision field is signed byte
 		RootDelay:      binary.BigEndian.Uint32(data[4:8]),
 		RootDispersion: binary.BigEndian.Uint32(data[8:12]),
 		ReferenceID:    binary.BigEndian.Uint32(data[12:16]),
@@ -347,7 +347,7 @@ func EncodeNTPPacket(packet *NTPPacket) []byte {
 	data[0] = packet.Settings
 	data[1] = packet.Stratum
 	data[2] = packet.Poll
-	data[3] = byte(packet.Precision)
+	data[3] = byte(packet.Precision) // #nosec G115 -- NTP precision field is converted back to byte
 
 	binary.BigEndian.PutUint32(data[4:8], packet.RootDelay)
 	binary.BigEndian.PutUint32(data[8:12], packet.RootDispersion)

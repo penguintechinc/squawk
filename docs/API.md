@@ -8,14 +8,16 @@
 4. [Token Management API](#token-management-api)
 5. [Domain Management API](#domain-management-api)
 6. [Permission Management API](#permission-management-api)
-7. [Monitoring & Logs API](#monitoring--logs-api)
-8. [Error Handling](#error-handling)
-9. [Rate Limiting](#rate-limiting)
-10. [SDK Examples](#sdk-examples)
+7. [DHCP Management API](#dhcp-management-api)
+8. [Time Synchronization API](#time-synchronization-api)
+9. [Monitoring & Logs API](#monitoring--logs-api)
+10. [Error Handling](#error-handling)
+11. [Rate Limiting](#rate-limiting)
+12. [SDK Examples](#sdk-examples)
 
 ## Overview
 
-The Squawk API provides comprehensive access to DNS-over-HTTPS services with fine-grained authentication and permission management. The API follows RESTful principles and returns JSON responses.
+The Squawk API provides comprehensive access to network infrastructure services including DNS-over-HTTPS, DHCP management, and Time Synchronization (PTP/NTP) with fine-grained authentication and permission management. The API follows RESTful principles and returns JSON responses.
 
 ### Base URLs
 
@@ -1125,6 +1127,604 @@ Returns server health status and metrics.
   "mtls_enabled": true
 }
 ```
+
+## DHCP Management API
+
+The DHCP API provides comprehensive IP address pool management, lease tracking, and static reservations with team-based access control.
+
+### List DHCP Pools
+
+Get all DHCP pools visible to the authenticated user.
+
+#### Endpoint
+
+```
+GET /api/v1/dhcp/pools
+```
+
+#### Query Parameters
+
+| Parameter | Type    | Description | Example |
+|-----------|---------|-------------|---------|
+| team_id   | integer | Filter by team | 1 |
+| active    | boolean | Filter by active status | true |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Office Network",
+      "network": "192.168.1.0/24",
+      "range_start": "192.168.1.100",
+      "range_end": "192.168.1.200",
+      "gateway": "192.168.1.1",
+      "dns_servers": ["192.168.1.1", "8.8.8.8"],
+      "ntp_servers": ["time.internal.local"],
+      "domain_name": "office.local",
+      "lease_duration": 86400,
+      "team_id": 1,
+      "active": true,
+      "available_ips": 85,
+      "leased_ips": 15,
+      "reserved_ips": 5
+    }
+  ]
+}
+```
+
+### Create DHCP Pool
+
+Create a new IP address pool.
+
+#### Endpoint
+
+```
+POST /api/v1/dhcp/pools
+```
+
+#### Request Body
+
+```json
+{
+  "name": "Guest Network",
+  "network": "10.10.0.0/24",
+  "range_start": "10.10.0.50",
+  "range_end": "10.10.0.200",
+  "gateway": "10.10.0.1",
+  "dns_servers": ["10.10.0.1"],
+  "ntp_servers": ["time.squawk.local"],
+  "domain_name": "guest.local",
+  "lease_duration": 3600,
+  "team_id": 2
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "name": "Guest Network",
+    "network": "10.10.0.0/24",
+    "range_start": "10.10.0.50",
+    "range_end": "10.10.0.200",
+    "gateway": "10.10.0.1",
+    "dns_servers": ["10.10.0.1"],
+    "ntp_servers": ["time.squawk.local"],
+    "domain_name": "guest.local",
+    "lease_duration": 3600,
+    "team_id": 2,
+    "active": true,
+    "created_at": "2026-01-05T10:00:00Z"
+  },
+  "message": "DHCP pool created successfully"
+}
+```
+
+### Get Pool Details
+
+Get detailed information about a specific pool.
+
+#### Endpoint
+
+```
+GET /api/v1/dhcp/pools/{pool_id}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "Office Network",
+    "network": "192.168.1.0/24",
+    "range_start": "192.168.1.100",
+    "range_end": "192.168.1.200",
+    "gateway": "192.168.1.1",
+    "dns_servers": ["192.168.1.1", "8.8.8.8"],
+    "ntp_servers": ["time.internal.local"],
+    "domain_name": "office.local",
+    "lease_duration": 86400,
+    "team_id": 1,
+    "active": true,
+    "statistics": {
+      "total_ips": 101,
+      "available_ips": 85,
+      "leased_ips": 15,
+      "reserved_ips": 5,
+      "utilization_percent": 19.8
+    }
+  }
+}
+```
+
+### Update DHCP Pool
+
+Update pool configuration.
+
+#### Endpoint
+
+```
+PUT /api/v1/dhcp/pools/{pool_id}
+```
+
+#### Request Body
+
+```json
+{
+  "name": "Office Network - Updated",
+  "lease_duration": 43200,
+  "dns_servers": ["192.168.1.1", "1.1.1.1"],
+  "active": true
+}
+```
+
+### Delete DHCP Pool
+
+Delete a pool (releases all active leases).
+
+#### Endpoint
+
+```
+DELETE /api/v1/dhcp/pools/{pool_id}
+```
+
+### List Pool Leases
+
+Get all active leases for a pool.
+
+#### Endpoint
+
+```
+GET /api/v1/dhcp/pools/{pool_id}/leases
+```
+
+#### Query Parameters
+
+| Parameter | Type   | Description | Example |
+|-----------|--------|-------------|---------|
+| status    | string | Filter by status (active, expired, released) | active |
+| mac       | string | Filter by MAC address | AA:BB:CC:DD:EE:FF |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "pool_id": 1,
+      "mac_address": "AA:BB:CC:DD:EE:FF",
+      "ip_address": "192.168.1.105",
+      "hostname": "workstation-01",
+      "lease_start": "2026-01-05T08:00:00Z",
+      "lease_end": "2026-01-06T08:00:00Z",
+      "status": "active",
+      "remaining_seconds": 72000
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 50,
+    "total": 15
+  }
+}
+```
+
+### Release Lease
+
+Manually release a lease before expiration.
+
+#### Endpoint
+
+```
+DELETE /api/v1/dhcp/pools/{pool_id}/leases/{lease_id}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "message": "Lease released successfully",
+  "data": {
+    "ip_address": "192.168.1.105",
+    "mac_address": "AA:BB:CC:DD:EE:FF"
+  }
+}
+```
+
+### List Reservations
+
+Get all static IP reservations.
+
+#### Endpoint
+
+```
+GET /api/v1/dhcp/reservations
+```
+
+#### Query Parameters
+
+| Parameter | Type    | Description | Example |
+|-----------|---------|-------------|---------|
+| pool_id   | integer | Filter by pool | 1 |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "pool_id": 1,
+      "mac_address": "00:11:22:33:44:55",
+      "ip_address": "192.168.1.10",
+      "hostname": "printer-main",
+      "description": "Main office printer",
+      "created_at": "2026-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Create Reservation
+
+Create a static IP reservation.
+
+#### Endpoint
+
+```
+POST /api/v1/dhcp/reservations
+```
+
+#### Request Body
+
+```json
+{
+  "pool_id": 1,
+  "mac_address": "00:11:22:33:44:66",
+  "ip_address": "192.168.1.11",
+  "hostname": "server-backup",
+  "description": "Backup server static IP"
+}
+```
+
+### Delete Reservation
+
+Remove a static reservation.
+
+#### Endpoint
+
+```
+DELETE /api/v1/dhcp/reservations/{reservation_id}
+```
+
+---
+
+## Time Synchronization API
+
+The Time API provides management of time servers using PTP (IEEE 1588) as primary and NTPv4 as fallback, with team-based access control.
+
+### List Time Servers
+
+Get all time servers visible to the authenticated user.
+
+#### Endpoint
+
+```
+GET /api/v1/time/servers
+```
+
+#### Query Parameters
+
+| Parameter | Type    | Description | Example |
+|-----------|---------|-------------|---------|
+| protocol  | string  | Filter by protocol (ptp, ntp) | ptp |
+| team_id   | integer | Filter by team | 1 |
+| active    | boolean | Filter by active status | true |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Primary PTP Server",
+      "server_url": "ptp://time.internal.local",
+      "protocol": "ptp",
+      "stratum": 1,
+      "priority": 100,
+      "team_id": 1,
+      "active": true,
+      "status": "synchronized",
+      "last_sync": "2026-01-05T10:00:00Z",
+      "offset_ms": 0.0012,
+      "delay_ms": 0.0045
+    },
+    {
+      "id": 2,
+      "name": "NTP Fallback",
+      "server_url": "ntp://time.google.com",
+      "protocol": "ntp",
+      "stratum": 2,
+      "priority": 200,
+      "team_id": 1,
+      "active": true,
+      "status": "synchronized",
+      "last_sync": "2026-01-05T09:59:58Z",
+      "offset_ms": 1.234,
+      "delay_ms": 15.678
+    }
+  ]
+}
+```
+
+### Create Time Server
+
+Add a new time server.
+
+#### Endpoint
+
+```
+POST /api/v1/time/servers
+```
+
+#### Request Body
+
+```json
+{
+  "name": "Datacenter PTP Master",
+  "server_url": "ptp://192.168.100.1",
+  "protocol": "ptp",
+  "stratum": 1,
+  "priority": 50,
+  "team_id": 1,
+  "ptp_config": {
+    "domain": 0,
+    "transport": "udp",
+    "delay_mechanism": "e2e"
+  }
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 3,
+    "name": "Datacenter PTP Master",
+    "server_url": "ptp://192.168.100.1",
+    "protocol": "ptp",
+    "stratum": 1,
+    "priority": 50,
+    "team_id": 1,
+    "active": true,
+    "created_at": "2026-01-05T10:00:00Z"
+  },
+  "message": "Time server created successfully"
+}
+```
+
+### Get Time Server Details
+
+Get detailed information about a time server.
+
+#### Endpoint
+
+```
+GET /api/v1/time/servers/{server_id}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "Primary PTP Server",
+    "server_url": "ptp://time.internal.local",
+    "protocol": "ptp",
+    "stratum": 1,
+    "priority": 100,
+    "team_id": 1,
+    "active": true,
+    "status": "synchronized",
+    "statistics": {
+      "uptime_seconds": 86400,
+      "sync_count": 86400,
+      "sync_failures": 0,
+      "avg_offset_ms": 0.0015,
+      "max_offset_ms": 0.0089,
+      "avg_delay_ms": 0.0048
+    },
+    "ptp_config": {
+      "domain": 0,
+      "transport": "udp",
+      "delay_mechanism": "e2e",
+      "announce_interval": 1,
+      "sync_interval": 0
+    }
+  }
+}
+```
+
+### Update Time Server
+
+Update time server configuration.
+
+#### Endpoint
+
+```
+PUT /api/v1/time/servers/{server_id}
+```
+
+#### Request Body
+
+```json
+{
+  "name": "Primary PTP Server - Updated",
+  "priority": 75,
+  "active": true
+}
+```
+
+### Delete Time Server
+
+Remove a time server.
+
+#### Endpoint
+
+```
+DELETE /api/v1/time/servers/{server_id}
+```
+
+### Get Current Time Status
+
+Get the current time synchronization status.
+
+#### Endpoint
+
+```
+GET /api/v1/time/status
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "current_time": "2026-01-05T10:00:00.000000Z",
+    "synchronized": true,
+    "active_source": {
+      "id": 1,
+      "name": "Primary PTP Server",
+      "protocol": "ptp",
+      "stratum": 1
+    },
+    "offset_ms": 0.0012,
+    "delay_ms": 0.0045,
+    "last_sync": "2026-01-05T10:00:00Z",
+    "fallback_available": true
+  }
+}
+```
+
+### Force Time Sync
+
+Trigger immediate time synchronization.
+
+#### Endpoint
+
+```
+POST /api/v1/time/sync
+```
+
+#### Request Body (optional)
+
+```json
+{
+  "server_id": 1
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "synced_from": "Primary PTP Server",
+    "protocol": "ptp",
+    "offset_before_ms": 1.234,
+    "offset_after_ms": 0.001,
+    "adjustment_ms": -1.233
+  },
+  "message": "Time synchronized successfully"
+}
+```
+
+### Get Time Sync Logs
+
+Get historical time synchronization logs.
+
+#### Endpoint
+
+```
+GET /api/v1/time/logs
+```
+
+#### Query Parameters
+
+| Parameter  | Type    | Description | Example |
+|------------|---------|-------------|---------|
+| server_id  | integer | Filter by server | 1 |
+| start_date | string  | Start date (ISO 8601) | 2026-01-01T00:00:00Z |
+| end_date   | string  | End date (ISO 8601) | 2026-01-05T23:59:59Z |
+| status     | string  | Filter by status (success, failed) | success |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "server_id": 1,
+      "server_name": "Primary PTP Server",
+      "protocol": "ptp",
+      "offset_ms": 0.0012,
+      "delay_ms": 0.0045,
+      "status": "success",
+      "timestamp": "2026-01-05T10:00:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 100,
+    "total": 86400
+  }
+}
+```
+
+---
 
 ## Monitoring & Logs API
 

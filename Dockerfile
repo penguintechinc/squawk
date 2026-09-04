@@ -1,6 +1,5 @@
 # Unified Multi-stage Dockerfile for Squawk DNS System
-# Ubuntu 24.04 LTS with Python 3.13 - Standardized Build Environment
-FROM ubuntu:24.04 AS base
+FROM python:3.13-slim-bookworm@sha256:061b6e52a07ab675f0e4a9428c5a8ee6bed996983427f4691f6bebf29c56d9dc AS base
 
 LABEL company="Penguin Tech Group LLC"
 LABEL org.opencontainers.image.authors="info@penguintech.group"
@@ -15,30 +14,17 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     TZ=UTC
 
-# Install Python 3.13 from deadsnakes PPA and basic build dependencies
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
-    ca-certificates \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update && apt-get install -y \
-    python3.13 \
-    python3.13-dev \
-    python3.13-venv \
+# Install build and LDAP/XML dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
     g++ \
     libc6-dev \
     libffi-dev \
     libssl-dev \
     pkg-config \
-    build-essential \
-    && ln -sf /usr/bin/python3.13 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.13 /usr/bin/python \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install LDAP and XML dependencies
-RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
     libxml2-dev \
     libxslt1-dev \
     libldap-dev \
@@ -93,14 +79,14 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-# Health check for DNS server
+# Health check for DNS server (native Python, no curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f "http://localhost:8080/health" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health',timeout=5).status==200 else 1)"
 
 EXPOSE 8080 8000
 
-# Default command
-CMD ["python", "/app/dns-server/bins/server.py", "-p", "8080", "-n"]
+# Default command - launch Quart app via hypercorn
+CMD ["sh", "-c", "PYTHONPATH=/app/dns-server /app/venv/bin/python -m app.main"]
 
 # DNS Client Stage
 FROM base AS dns-client
@@ -125,7 +111,7 @@ RUN python3.13 -m venv /app/client-venv && \
 ENV PATH="/app/client-venv/bin:$PATH"
 
 # Copy DNS client code
-COPY dns-client/ /app/dns-client/
+COPY squawk-client/ /app/dns-client/
 COPY docs/ /app/docs/
 
 # Set permissions
@@ -136,7 +122,7 @@ USER appuser
 EXPOSE 53/udp 53/tcp
 
 # Default command
-CMD ["python", "/app/dns-client/bins/client.py", "-u", "-T"]
+CMD ["python3", "/app/dns-client/bins/client.py", "-u", "-T"]
 
 # Testing Stage
 FROM dns-server AS testing
@@ -154,7 +140,7 @@ RUN /app/venv/bin/pip install \
 
 # Copy test files
 COPY dns-server/tests/ /app/dns-server/tests/
-COPY dns-client/tests/ /app/dns-client/tests/
+COPY squawk-client/tests/ /app/dns-client/tests/
 
 # Create test data directory
 RUN mkdir -p /app/test-data && chown -R appuser:appuser /app
@@ -181,11 +167,9 @@ ENV PYTHONPATH=/app \
 
 USER appuser
 
-# Production health check
+# Production health check (native Python, no curl)
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
-    CMD curl -f "http://localhost:${SQUAWK_PORT:-8080}/health" || exit 1
+    CMD /app/venv/bin/python -c "import urllib.request,sys; port=8080; sys.exit(0 if urllib.request.urlopen(f'http://localhost:{port}/health',timeout=5).status==200 else 1)"
 
-# Production command
-CMD ["python", "/app/dns-server/bins/server.py", \
-     "-p", "${SQUAWK_PORT:-8080}", \
-     "-n"]
+# Production command - launch Quart app via hypercorn
+CMD ["sh", "-c", "PYTHONPATH=/app/dns-server /app/venv/bin/python -m app.main"]

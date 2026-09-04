@@ -1,56 +1,400 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# GitHub recommends pinning actions to a commit SHA.
-# To get a newer version, you will need to update the SHA.
-# You can also reference a tag or branch, but the action may change without warning.
-
-name: Publish Docker image on push
+name: Build and push Docker image on push
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'v*.*.x']
+
 env:
-  REPO: squawk
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/penguintechinc/squawk
+  DNS_CLIENT_IMAGE: ghcr.io/penguintechinc/squawk-dns-client
+  K8S_DNS_IMAGE: ghcr.io/penguintechinc/squawk-k8s-dns
+
 jobs:
-  push_to_registries:
-    name: Push Docker image to multiple registries
+  generate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Generate tag
+        id: tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          EPOCH=$(date +%s)
+          if [[ "${REF}" == "refs/heads/main" ]]; then
+            TAG="gamma-${EPOCH}"
+          elif [[ "${REF}" =~ refs/heads/v[0-9]+\.[0-9]+\.x ]]; then
+            TAG="beta-${EPOCH}"
+          else
+            TAG="alpha-${EPOCH}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: generate-tag
     runs-on: ubuntu-latest
     permissions:
       packages: write
       contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v3
-        
-             
-      - name: Log in to Docker Hub
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Log in to the Container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Extract metadata (tags, labels) for Docker
+
+      - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6
         with:
-          images: |
-            penguincloud/${{ env.REPO }}
-            ghcr.io/${{ github.repository }}
-      
-      - name: Build and push Docker images
-        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+          images: ${{ env.IMAGE }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "PLATFORM_PAIR=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> $GITHUB_ENV
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: digest-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-dns-client:
+    needs: generate-tag
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6
+        with:
+          images: ${{ env.DNS_CLIENT_IMAGE }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
+        with:
+          context: squawk-client-go
+          file: squawk-client-go/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.DNS_CLIENT_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/dns-client-digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/dns-client-digests/${digest#sha256:}"
+          echo "PLATFORM_PAIR=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> $GITHUB_ENV
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: dns-client-digest-${{ env.PLATFORM_PAIR }}
+          path: /tmp/dns-client-digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [generate-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest and push
+        id: manifest
+        working-directory: /tmp/digests
+        env:
+          TAG: ${{ needs.generate-tag.outputs.tag }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${TAG}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.manifest.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-server.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-server
+          path: sbom-server.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.IMAGE }}@${{ steps.manifest.outputs.digest }}
+          SBOM_FILE: sbom-server.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
+
+  build-k8s-dns:
+    needs: generate-tag
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6
+        with:
+          images: ${{ env.K8S_DNS_IMAGE }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7
+        with:
+          context: squawk-client-go
+          file: squawk-client-go/Dockerfile.k8s-dns
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.K8S_DNS_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/k8s-dns-digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/k8s-dns-digests/${digest#sha256:}"
+          echo "PLATFORM_PAIR=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> $GITHUB_ENV
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: k8s-dns-digest-${{ env.PLATFORM_PAIR }}
+          path: /tmp/k8s-dns-digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-k8s-dns:
+    needs: [generate-tag, build-k8s-dns]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          path: /tmp/k8s-dns-digests
+          pattern: k8s-dns-digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest and push
+        id: manifest
+        working-directory: /tmp/k8s-dns-digests
+        env:
+          TAG: ${{ needs.generate-tag.outputs.tag }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${K8S_DNS_IMAGE}:${TAG}" \
+            $(printf "${K8S_DNS_IMAGE}@sha256:%s " *)
+          DIGEST=$(docker buildx imagetools inspect "${K8S_DNS_IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.K8S_DNS_IMAGE }}@${{ steps.manifest.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-k8s-dns.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-k8s-dns
+          path: sbom-k8s-dns.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.K8S_DNS_IMAGE }}@${{ steps.manifest.outputs.digest }}
+          SBOM_FILE: sbom-k8s-dns.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"
+
+  merge-dns-client:
+    needs: [generate-tag, build-dns-client]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          path: /tmp/dns-client-digests
+          pattern: dns-client-digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4
+
+      - name: Log in to Container registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest and push
+        id: manifest
+        working-directory: /tmp/dns-client-digests
+        env:
+          TAG: ${{ needs.generate-tag.outputs.tag }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${DNS_CLIENT_IMAGE}:${TAG}" \
+            $(printf "${DNS_CLIENT_IMAGE}@sha256:%s " *)
+          DIGEST=$(docker buildx imagetools inspect "${DNS_CLIENT_IMAGE}:${TAG}" --format '{{.Manifest.Digest}}')
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0.24.0
+        with:
+          image: ${{ env.DNS_CLIENT_IMAGE }}@${{ steps.manifest.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-dns-client.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: sbom-dns-client
+          path: sbom-dns-client.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Sign image and attest SBOM (keyless)
+        env:
+          COSIGN_YES: "true"
+          IMAGE_REF: ${{ env.DNS_CLIENT_IMAGE }}@${{ steps.manifest.outputs.digest }}
+          SBOM_FILE: sbom-dns-client.spdx.json
+        run: |
+          cosign sign --yes "${IMAGE_REF}"
+          cosign attest --yes --predicate "${SBOM_FILE}" --type spdxjson "${IMAGE_REF}"

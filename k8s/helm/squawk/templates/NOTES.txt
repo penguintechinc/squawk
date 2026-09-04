@@ -1,0 +1,38 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+Namespace: {{ include "squawk.namespace" . }}
+
+=============================================================================
+SQUAWK DNS-over-HTTPS Management System
+=============================================================================
+
+DNS Server (DoH):
+  Internal URL: http://{{ include "squawk.fullname" . }}-dns-server:8080
+  Health check: http://{{ include "squawk.fullname" . }}-dns-server:8080/health
+
+  To access the DNS server from within the cluster:
+    kubectl port-forward -n {{ include "squawk.namespace" . }} svc/{{ include "squawk.fullname" . }}-dns-server 8080:8080
+
+DNS Client (UDP/TCP bridge):
+  The DNS client bridges standard DNS (UDP/TCP port 53) to the squawk DoH server.
+  Internal address: {{ include "squawk.fullname" . }}-squawk-client.{{ include "squawk.namespace" . }}.svc.cluster.local:53
+
+  To use squawk DNS for external resolution in your pods, configure CoreDNS to forward to:
+    {{ include "squawk.fullname" . }}-squawk-client.{{ include "squawk.namespace" . }}.svc.cluster.local
+
+Valkey Cache:
+  Internal URL: redis://{{ include "squawk.fullname" . }}-valkey:6379
+
+=============================================================================
+CONFIGURATION
+=============================================================================
+
+DNS server environment:
+  Log level: {{ .Values.dnsServer.env.logLevel }}
+  DoH port:  {{ .Values.dnsServer.env.dohPort }}
+  Valkey:    {{ .Values.dnsServer.env.valkeyHost }}:{{ .Values.dnsServer.env.valkeyPort }}
+
+DNS client listen port: {{ .Values.dnsClient.listenPort }} (mapped to 53 via Service)
+
+=============================================================================

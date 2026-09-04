@@ -93,6 +93,7 @@ graph TB
 | [Contributing](CONTRIBUTING.md) | Development and contribution guidelines |
 | [Development Setup](DEVELOPMENT.md) | Local development environment setup |
 | [Release Notes](RELEASE_NOTES.md) | Latest features and changes |
+| [Enterprise Operations](enterprise/README.md) | DR, HA, supply chain verification, CoreDNS integration |
 
 ## Support & Community
 

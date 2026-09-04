@@ -21,7 +21,7 @@ import (
 type HTTP3Transport struct {
 	config        *Config
 	httpClient    *http.Client
-	roundTripper  *http3.RoundTripper
+	roundTripper  *http3.Transport
 }
 
 // NewHTTP3Transport creates a new HTTP/3 QUIC transport.
@@ -106,8 +106,8 @@ func (t *HTTP3Transport) setupHTTP3Client() error {
 		EnableDatagrams:       true, // Enable QUIC datagrams for better performance
 	}
 
-	// Create HTTP/3 round tripper
-	t.roundTripper = &http3.RoundTripper{
+	// Create HTTP/3 transport
+	t.roundTripper = &http3.Transport{
 		TLSClientConfig: tlsConfig,
 		QUICConfig:      quicConfig,
 	}
@@ -151,9 +151,9 @@ func (t *HTTP3Transport) doRequest(ctx context.Context, method, url string, body
 	if err != nil {
 		return nil, fmt.Errorf("HTTP/3 request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -194,9 +194,9 @@ func (t *HTTP3Transport) DNSQuery(ctx context.Context, req *DNSRequest) (*DNSRes
 	if err != nil {
 		return nil, fmt.Errorf("DNS request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read DNS response: %w", err)
 	}

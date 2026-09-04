@@ -18,7 +18,7 @@ penguin-licensing==0.1.0
 penguin-limiter==0.1.0
 alembic>=1.13.0
 redis==5.2.1
-cryptography==48.0.1
+cryptography==50.0.1
 requests==2.33.0
 urllib3==2.7.0
 idna==3.18

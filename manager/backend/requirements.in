@@ -3,7 +3,7 @@ flask-cors==6.0.5
 werkzeug==3.1.8
 click==8.4.2
 python-dotenv==1.0.1
-PyJWT==2.10.1
+PyJWT==2.13.0
 bcrypt==4.2.1
 pyotp==2.9.0
 gunicorn==23.0.0
@@ -14,7 +14,7 @@ penguin-licensing>=0.1.0
 penguin-limiter>=0.1.0
 alembic>=1.13.0
 redis==5.2.1
-cryptography==44.0.0
+cryptography==50.0.1
 requests==2.33.0
 urllib3==2.7.0
 idna==3.18

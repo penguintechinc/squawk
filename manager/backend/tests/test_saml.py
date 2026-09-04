@@ -17,6 +17,7 @@ import base64
 import hashlib
 import secrets
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 
 def build_saml_assertion(
@@ -670,3 +671,55 @@ def test_saml_xml_signature_wrapping_xsw_blocked(client, db):
     # Should reject (unsigned assertions rejected when want_assertions_signed=True)
     # pysaml2's digest validation would also catch this if the assertion were signed
     assert response.status_code == 400
+
+
+def test_saml_acs_success_issues_tokens(client, db):
+    """Regression: the acs() success path must issue tokens.
+
+    acs() previously called AuthService.create_tokens(), which does not exist,
+    so every successful SAML login raised AttributeError -> 500. Real signature
+    verification needs xmlsec1, so the assertion validation and JIT provisioning
+    are patched here to exercise the token-issuance path that was broken.
+    """
+    db.saml_providers.insert(
+        name='test-saml',
+        display_name='Test SAML',
+        idp_entity_id='urn:example:idp',
+        idp_sso_url='https://idp.example.com/sso',
+        idp_x509_cert='-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+        sp_entity_id='https://app.example.com/saml/metadata',
+        sp_acs_url='https://app.example.com/api/v1/auth/saml/test-saml/acs',
+        want_assertions_signed=True,
+        enabled=True,
+    )
+    user_id = db.auth_user.insert(
+        username='saml-user',
+        email='saml-user@example.com',
+        global_role='Viewer',
+        sso_provider='test-saml',
+    )
+    db.commit()
+
+    binding_cookie = secrets.token_urlsafe(32)
+    relay_state = secrets.token_urlsafe(32)
+
+    client.set_cookie('__Host-saml_binding', binding_cookie)
+
+    with patch(
+        'app.blueprints.saml.SAMLService.parse_and_validate_response',
+        return_value={'name_id': 'saml-user@example.com'},
+    ), patch(
+        'app.blueprints.saml.SAMLService.jit_provision_or_match_user',
+        return_value=user_id,
+    ):
+        response = client.post(
+            '/api/v1/auth/saml/test-saml/acs',
+            data={'SAMLResponse': 'x', 'RelayState': relay_state},
+        )
+
+    assert response.status_code == 200, response.get_json()
+    body = response.get_json()
+    assert body['accessToken']
+    assert body['refreshToken']
+    assert body['user']['email'] == 'saml-user@example.com'
+    assert body['user']['sso'] is True

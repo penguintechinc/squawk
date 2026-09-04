@@ -240,6 +240,33 @@ already-expired tokens are purged opportunistically.
 > **Upgrade note:** refresh tokens minted before `v2.1.x` rotation carry no
 > `jti` and are no longer accepted — users re-login once after upgrade.
 
+### Secrets at rest (hashing & encryption)
+
+- **DNS resolver tokens** and **DNS-server join keys** are stored as **SHA-256
+  hashes** — the columns (`token.token_hash`, `dns_server.join_key_hash` in
+  `manager/backend/app/schema.py`) are unique and indexed, and all lookups are
+  by hash. The plaintext value is returned **once**, at creation/regeneration,
+  and cannot be retrieved afterward.
+- **Recoverable secrets** that must be replayed — per-server `jwt_secret` and
+  machine-client secrets — are **Fernet-encrypted at rest** (key derived via
+  HKDF-SHA256 from `SECRET_KEY`) and decrypted only in-process at use.
+
+### Login & endpoint rate limiting
+
+- The auth rate limiter is **proxy-aware**: keys are derived from the
+  `ProxyFix`-resolved client address (hop count via `TRUSTED_PROXY_HOP_COUNT`),
+  so a spoofed `X-Forwarded-For`/`X-Real-IP` cannot bypass limits.
+- Per-endpoint limits apply to login, refresh, OAuth-token, change-password, and
+  MFA-verify. Repeated failed **logins** additionally trigger **account lockout**
+  with exponential backoff; the MFA pre-auth token is single-use.
+
+### Authenticated gRPC (manager)
+
+Manager gRPC uses a default-deny interceptor requiring a valid server JWT on
+every RPC (except registration/refresh) and serves over TLS. It refuses to start
+on an insecure port unless `SQUAWK_GRPC_INSECURE=true` is set explicitly
+(dev/local only); optional client-cert (mTLS) verification is supported.
+
 ### API response hygiene
 
 - **Security headers on every response** (including errors): `X-Content-Type-

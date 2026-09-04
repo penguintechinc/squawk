@@ -744,6 +744,49 @@ LOG_FILE=/var/log/squawk/webui.log
 
 ## Enterprise Features (Cross-Component)
 
+### v2.1.x Security Hardening
+
+**Release Date**: September 2026
+**Release Type**: Security hardening (cross-component)
+**Breaking Changes**: Refresh tokens and deployment-domain tokens minted before v2.1.x are no longer accepted — users re-login once and domain tokens are rolled over after upgrade.
+
+Squawk v2.1.x hardens the authentication and operational surface across the
+manager, DNS, NTP, and DHCP services, and the web console.
+
+#### Secrets at rest
+- DNS resolver tokens and DNS-server join keys are stored as **SHA-256 hashes** (unique, indexed) and looked up by hash — the plaintext value is shown **only once**, at creation/regeneration.
+- Per-server `jwt_secret` values and machine-client secrets are **Fernet-encrypted at rest**.
+
+#### Authentication & session hardening
+- Login rate limiter is **proxy-aware (ProxyFix)** — spoofing `X-Forwarded-For` no longer bypasses limits.
+- Per-endpoint rate limits on login, token, refresh, and MFA endpoints, plus **account lockout** (with exponential backoff) on repeated failed logins.
+- **Refresh tokens are single-use and rotate** on every refresh; reuse of a rotated token is rejected (surfaces token theft).
+- The **MFA pre-auth token is single-use**.
+- OIDC/OAuth2 SSO logins **bypass TOTP** (the identity provider owns MFA). **SAML 2.0 assertion signatures are now cryptographically verified** (pysaml2 + xmlsec1, shipped in the image); the SAML path is likewise designed to delegate MFA to the IdP.
+
+#### Web console
+- The React web console stores JWTs in **HttpOnly + Secure + SameSite cookies** with **CSRF double-submit** protection — tokens are never placed in browser `localStorage`.
+
+#### DNS server
+- `/metrics` and `/status` now **require a valid JWT bearer token** (previously unauthenticated); `/health` stays open for probes.
+- Metrics no longer expose raw token values — query "source" labels are hashed.
+- Per-source **rate limiting is on by default** and the distributed (Valkey) backend **fails closed**.
+
+#### gRPC (manager)
+- gRPC requires a server JWT **and TLS**; the server refuses to start insecurely unless `SQUAWK_GRPC_INSECURE=true` is set explicitly (dev/local only).
+
+#### NTP / DHCP
+- NTP: NTS-KE requires an `ntp:client` JWT scope, NTS authenticators are cryptographically verified, and **TLS 1.3** is enforced.
+- DHCP: requested IP, MAC address, and hostname are validated (format + in-pool-range + conflict/binding checks) before a lease is issued.
+
+#### Audit logging
+- The full auth lifecycle is audit-logged: login, token refresh, logout, machine token grant, MFA verify, SSO login, SAML, and SCIM user provisioning.
+
+#### CI / supply chain
+- **CodeQL** scanning runs across `python`, `go`, and `javascript-typescript`.
+- **bandit** and **gosec** run as enforced, build-gating security scans.
+- dns-server test coverage is gated at **90%** (`--cov-fail-under=90`); the build fails below the threshold.
+
 ### v2.1.0 Licensing & Features
 
 #### Enterprise Tiers

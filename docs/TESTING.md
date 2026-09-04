@@ -619,6 +619,12 @@ All tests run automatically in GitHub Actions:
 - **Nightly**: Performance + Cross-architecture tests
 - **Release**: Full suite + Manual sign-off
 
+### Security & Coverage Gates (Enforced)
+
+- **CodeQL** static analysis runs across `python`, `go`, and `javascript-typescript` on push/PR (plus a weekly schedule)
+- **bandit** (Python) and **gosec** (Go) run as build-gating security scans — findings fail the build
+- **Coverage gate**: dns-server tests are gated at **90%** (`--cov-fail-under=90` against `dns-server/app`); the build fails below the threshold
+
 See [Workflows](WORKFLOWS.md) for detailed CI/CD configuration.
 
 ---

@@ -90,13 +90,17 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 ```
 
 ### Check Metrics
+
+As of v2.1.x the `/metrics` and `/status` endpoints require a valid JWT bearer
+token (previously unauthenticated). `/health` remains open for probes.
+
 ```bash
-curl http://localhost:8080/metrics
+curl -H "Authorization: Bearer YOUR_JWT" http://localhost:8080/metrics
 ```
 
 ### Check Status
 ```bash
-curl http://localhost:8080/status | jq
+curl -H "Authorization: Bearer YOUR_JWT" http://localhost:8080/status | jq
 ```
 
 ## Running Tests

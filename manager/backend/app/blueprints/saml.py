@@ -192,13 +192,14 @@ def acs(name: str):
     user = db.auth_user[user_id]
     g.audit_actor_id = user['id']
 
-    # Generate tokens (SSO users bypass TOTP)
-    access_token, refresh_token = AuthService.create_tokens(
-        user_id=user['id'],
-        email=user['email'],
-        global_role=user['global_role'],
-        sso=True  # SSO user, bypass TOTP
+    # Generate tokens (SSO users bypass TOTP; the IdP owns MFA)
+    access_token = AuthService.create_access_token(
+        user['id'],
+        user['username'],
+        user['global_role'],
+        {}  # No team roles yet
     )
+    refresh_token = AuthService.create_refresh_token(user['id'])
 
     return jsonify({
         'accessToken': access_token,

@@ -62,6 +62,16 @@ class Config:
     SPIFFE_XFCC_HEADER = os.getenv('SPIFFE_XFCC_HEADER', 'X-Forwarded-Client-Cert')
 
     # Database
+    #
+    # Runtime queries (app/db.py, *_service.py) go through penguin-dal,
+    # which accepts this PyDAL-style shorthand (postgres://, sqlite://
+    # 2-slash) and normalizes it internally. Alembic migrations
+    # (alembic/env.py) read the same DB_URL through raw SQLAlchemy, which
+    # requires postgresql:// / sqlite:/// (3-slash) instead -- see
+    # app/utils/db_url.to_sqlalchemy_url(), applied there. Do NOT change
+    # this default to SQLAlchemy form: penguin-dal's own normalization
+    # double-adds a slash to an already-3-slash sqlite URL, turning a
+    # relative "storage.db" into an unwritable absolute "/storage.db".
     DB_URL = os.getenv('DB_URL', 'sqlite://storage.db')
 
     # Redis/Valkey for caching and rate limiting

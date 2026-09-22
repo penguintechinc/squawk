@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, pool
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.schema import metadata  # noqa: E402
+from app.utils.db_url import to_sqlalchemy_url  # noqa: E402
 
 config = context.config
 
@@ -20,10 +21,10 @@ target_metadata = metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in offline mode (generates SQL without DB connection)."""
-    url = os.environ.get(
+    url = to_sqlalchemy_url(os.environ.get(
         "DB_URL",
         config.get_main_option("sqlalchemy.url", "sqlite:///storage.db")
-    )
+    ))
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -36,10 +37,10 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations against a live database connection."""
-    url = os.environ.get(
+    url = to_sqlalchemy_url(os.environ.get(
         "DB_URL",
         config.get_main_option("sqlalchemy.url", "sqlite:///storage.db")
-    )
+    ))
     connectable = create_engine(url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

@@ -15,7 +15,7 @@ hypercorn==0.18.0
 # cryptography>=45 required: RFC 8915 authenticator seals empty plaintext
 # (no encrypted extension fields), which <45 rejects ("data must not be zero
 # length"). 48.0.1 permits it and clears CVE-2026-26007 / GHSA-537c-gmf6-5ccf.
-cryptography==48.0.1
+cryptography==50.0.0
 pyOpenSSL==26.2.0
 
 # JWT validation (HS256) - 2.13.0 clears CVE-2026-32597/48526 (HIGH)

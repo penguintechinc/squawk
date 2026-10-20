@@ -19,7 +19,7 @@ cryptography==48.0.1
 pyOpenSSL==26.2.0
 
 # JWT validation (HS256) - 2.13.0 clears CVE-2026-32597/48526 (HIGH)
-PyJWT==2.13.0
+PyJWT==2.15.0
 
 # Feature flags and license
 posthog==3.6.0

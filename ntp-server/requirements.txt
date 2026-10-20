@@ -8,7 +8,7 @@
 # so Flask/Werkzeug are pinned <3.1 to keep route registration working.
 quart==0.20.0
 flask==3.0.0
-werkzeug==3.1.4
+werkzeug==3.1.9
 hypercorn==0.18.0
 
 # Cryptography for NTS AEAD (AES-SIV) and RFC 5705 key exporter

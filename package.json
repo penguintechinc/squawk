@@ -6,7 +6,7 @@
     "test:e2e:cleanup": "rm -rf /tmp/playwright-squawk"
   },
   "dependencies": {
-    "puppeteer": "25.10.0"
+    "puppeteer": "25.16.0"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1"

@@ -1,4 +1,4 @@
-dnspython>=2.7.0
+dnspython>=2.9.0
 requests>=2.32.3
 PyYAML>=6.0.2
 cryptography>=44.0.0
